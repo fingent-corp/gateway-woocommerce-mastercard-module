@@ -5,11 +5,21 @@
  * Plugin URI: https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
- * Version: 1.4.0
+ * Version: 1.4.1
+ * Requires at least: 6.0
+ * Requires PHP: 7.4
+ * php version 8.1
+ *
+ * WC requires at least: 7.6
+ * WC tested up to: 8.3.0
+ *
+ * @package  Mastercard
+ * @version  GIT: @1.4.1@
+ * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
 /**
- * Copyright (c) 2019-2023 Mastercard
+ * Copyright (c) 2019-2026 Mastercard
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,15 +32,24 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit();
 }
 
+/**
+ * Main class of the Mastercard Payment Gateway Services Module
+ *
+ * @package  Mastercard
+ * @version  Release: @1.4.1@
+ * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
+ */
 class WC_Mastercard {
+
 	/**
+	 * The single instance of the class.
+	 *
 	 * @var WC_Mastercard
 	 */
 	private static $instance;
@@ -43,12 +62,16 @@ class WC_Mastercard {
 	}
 
 	/**
+	 * Hook into actions and filters.
+	 *
 	 * @return void
 	 */
 	public function init() {
 
 		define( 'MPGS_PLUGIN_FILE', __FILE__ );
 		define( 'MPGS_PLUGIN_BASENAME', plugin_basename( MPGS_PLUGIN_FILE ) );
+
+		add_action( 'admin_init', array( $this, 'stop' ) );
 
 		if ( ! class_exists( 'WC_Payment_Gateway' ) ) {
 			return;
@@ -60,92 +83,165 @@ class WC_Mastercard {
 
 		load_plugin_textdomain( 'mastercard', false, trailingslashit( dirname( plugin_basename( __FILE__ ) ) ) . 'i18n/' );
 
-		add_filter( 'woocommerce_order_actions', function ( $actions ) {
-			$order = new WC_Order( $_REQUEST['post'] );
-			if ( $order->get_payment_method() == Mastercard_Gateway::ID ) {
-				if ( ! $order->get_meta( '_mpgs_order_captured' ) ) {
-					if ( $order->get_status() == 'processing' ) {
-						$actions['mpgs_capture_order'] = __( 'Capture payment', 'mastercard' );
+		add_filter(
+			'woocommerce_order_actions',
+			function ( $actions ) {
+				$order_id = isset( $_REQUEST['post'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['post'] ) ) : null;
+				if ( $order_id ) {
+					$order = new WC_Order( $order_id );
+					if ( $order->get_payment_method() === Mastercard_Gateway::ID ) {
+						if ( ! $order->get_meta( '_mpgs_order_captured' ) ) {
+							if ( 'processing' === $order->get_status() ) {
+								$actions['mpgs_capture_order'] = __( 'Capture payment', 'mastercard' );
+							}
+						}
 					}
 				}
-			}
 
-			return $actions;
-		} );
+				return $actions;
+			}
+		);
 
 		add_filter( 'woocommerce_payment_gateways', array( $this, 'add_gateways' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( $this, 'plugin_action_links' ) );
 		add_filter( 'plugin_row_meta', array( __CLASS__, 'plugin_row_meta' ), 10, 2 );
 
-		add_action( 'rest_api_init', function () {
-			register_rest_route( 'mastercard/v1', '/checkoutSession/(?P<id>\d+)', array(
-				'methods'             => 'GET',
-				'callback'            => [ $this, 'rest_route_forward' ],
-				'permission_callback' => array( $this, 'get_items_permissions_check' ),
-				'args'                => array(
-					'id' => array(
-						'validate_callback' => function ( $param, $request, $key ) {
-							return is_numeric( $param );
-						}
+		add_action(
+			'rest_api_init',
+			function () {
+				register_rest_route(
+					'mastercard/v1',
+					'/checkoutSession/(?P<id>\d+)',
+					array(
+						'methods'             => 'GET',
+						'callback'            => array( $this, 'rest_route_forward' ),
+						'permission_callback' => array( $this, 'get_items_permissions_check' ),
+						'args'                => array(
+							'id' => array(
+								'validate_callback' => function ( $param, $request, $key ) { // phpcs:ignore
+									return is_numeric( $param );
+								},
+							),
+						)
 					)
-				)
-			) );
-			register_rest_route( 'mastercard/v1', '/session/(?P<id>\d+)', array(
-				'methods'             => 'GET',
-				'callback'            => [ $this, 'rest_route_forward' ],
-				'permission_callback' => array( $this, 'get_items_permissions_check' ),
-				'args'                => array(
-					'id' => array(
-						'validate_callback' => function ( $param, $request, $key ) {
-							return is_numeric( $param );
-						}
+				);
+				register_rest_route(
+					'mastercard/v1',
+					'/session/(?P<id>\d+)',
+					array(
+						'methods'             => 'GET',
+						'callback'            => array( $this, 'rest_route_forward' ),
+						'permission_callback' => array( $this, 'get_items_permissions_check' ),
+						'args'                => array(
+							'id' => array(
+								'validate_callback' => function ( $param, $request, $key ) { // phpcs:ignore
+									return is_numeric( $param );
+								},
+							),
+						)
 					)
-				)
-			) );
-			register_rest_route( 'mastercard/v1', '/savePayment/(?P<id>\d+)', array(
-				'methods'             => 'POST',
-				'callback'            => [ $this, 'rest_route_forward' ],
-				'permission_callback' => array( $this, 'get_items_permissions_check' ),
-				'args'                => array(
-					'id' => array(
-						'validate_callback' => function ( $param, $request, $key ) {
-							return is_numeric( $param );
-						}
+				);
+				register_rest_route(
+					'mastercard/v1',
+					'/savePayment/(?P<id>\d+)',
+					array(
+						'methods'             => 'POST',
+						'callback'            => array( $this, 'rest_route_forward' ),
+						'permission_callback' => array( $this, 'get_items_permissions_check' ),
+						'args'                => array(
+							'id' => array(
+								'validate_callback' => function ( $param, $request, $key ) { // phpcs:ignore
+									return is_numeric( $param );
+								},
+							),
+						)
 					)
-				)
-			) );
-			register_rest_route( 'mastercard/v1', '/webhook', array(
-				'methods'             => 'GET',
-				'callback'            => [ $this, 'rest_route_forward' ],
-				'permission_callback' => array( $this, 'get_items_permissions_check' ),
-			) );
-		} );
+				);
+				register_rest_route(
+					'mastercard/v1',
+					'/webhook',
+					array(
+						'methods'             => 'GET',
+						'callback'            => array( $this, 'rest_route_forward' ),
+						'permission_callback' => array( $this, 'get_items_permissions_check' ),
+					)
+				);
+			}
+		);
 	}
 
 	/**
-	 * @param $request
+	 * Check if WooCommerce is active or not.
+	 *
+	 * @since 1.3.0
 	 *
 	 * @return bool
 	 */
-	public function get_items_permissions_check( $request ) {
+
+	private function woocommerce_is_active() {
+		return is_plugin_active( 'woocommerce/woocommerce.php' );
+	}
+
+	/**
+	 * If WooCommerce is not active return error messgae.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return bool
+	 */
+
+	public function stop() {
+		if ( ! $this->woocommerce_is_active() ) {
+
+			deactivate_plugins( plugin_basename( __FILE__ ) );
+			unset( $_GET['activate'] );
+			add_action( 'admin_notices', array( $this, 'admin_notices' ) );
+		}
+	}
+
+	/**
+	 * Check if WooCommerce is active or not.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return bool
+	 */
+
+	public function admin_notices() {
+		$class = 'notice notice-error';
+		$message = __( 'Kindly ensure the WooCommerce plugin is active before activating the Mastercard Payment Gateway Services plugin.', 'mastercard' );
+		printf( '<div class="%1$s"><p>%2$s</p></div>', esc_attr( $class ), esc_html( $message ) ); 
+	}
+
+	/**
+	 * Permission check.
+	 *
+	 * @param boolean $request Request.
+	 *
+	 * @return bool
+	 */
+	public function get_items_permissions_check( $request ) { // phpcs:ignore
 		return true;
 	}
 
 	/**
-	 * @param WP_REST_Request $request
+	 * Check the rest_route_forward.
 	 *
-	 * @return array
-	 * @throws Mastercard_GatewayResponseException
-	 * @throws \Http\Client\Exception
+	 * @param array $request WP_REST_Request.
+	 *
+	 * @return array Rest route processor.
+	 * @throws Mastercard_GatewayResponseException It triggers a Mastercard_GatewayResponseException in the absence of a REST API route.
+	 * @throws \Http\Client\Exception It triggers a Exception in the absence of a REST API route.
 	 */
 	public function rest_route_forward( $request ) {
 		$gateway = new Mastercard_Gateway();
-
 		return $gateway->rest_route_processor( $request->get_route(), $request );
 	}
 
 	/**
-	 * @param array $methods
+	 * Add Mastercard_Gateway to WooCommerce
+	 *
+	 * @param array $methods Getway method array.
 	 *
 	 * @return array
 	 */
@@ -156,7 +252,9 @@ class WC_Mastercard {
 	}
 
 	/**
-	 * @return WC_Mastercard
+	 * Main Mastercard Instance.
+	 *
+	 * @return WC_Mastercard - Main instance.
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -167,17 +265,21 @@ class WC_Mastercard {
 	}
 
 	/**
+	 * Plugin activation hook
+	 *
 	 * @return void
 	 */
 	public static function activation_hook() {
 		$environment_warning = self::get_env_warning();
 		if ( $environment_warning ) {
 			deactivate_plugins( plugin_basename( __FILE__ ) );
-			wp_die( $environment_warning );
+			wp_die( esc_attr( $environment_warning ) );
 		}
 	}
 
 	/**
+	 * Get get_env_warning.
+	 *
 	 * @return bool
 	 */
 	public static function get_env_warning() {
@@ -186,7 +288,9 @@ class WC_Mastercard {
 	}
 
 	/**
-	 * @param array $links
+	 * Included the plugin's helper links.
+	 *
+	 * @param array $links Plugin action links.
 	 *
 	 * @return array
 	 */
@@ -207,7 +311,6 @@ class WC_Mastercard {
 	 * @return array
 	 */
 	public static function plugin_row_meta( $links, $file ) {
-
 		if ( MPGS_PLUGIN_BASENAME !== $file ) {
 			return $links;
 		}
@@ -228,7 +331,7 @@ class WC_Mastercard {
 
 		$row_meta = array(
 			'docs'    => '<a href="' . esc_url( $docs_url ) . '" aria-label="' . esc_attr__( 'View mastercard documentation', 'mastercard-payment-gateway-services' ) . '">' . esc_html__( 'Docs', 'mastercard-payment-gateway-services' ) . '</a>',
-			'support' => '<a href="' . esc_url( $support_url ) . '" aria-label="' . esc_attr__( 'Visit mastercard support', 'mastercard-payment-gateway-services' ) . '">' . esc_html__( 'Support', 'mastercard-payment-gateway-services' ) . '</a>',
+			'support' => '<a href="' . esc_url( $support_url ) . '" aria-label="' . esc_attr__( 'Visit mastercard support', 'mastercard-payment-gateway-services' ) . '">' . esc_html__( 'Support', 'mastercard-payment-gateway-services' ) . '</a>'
 		);
 
 		return array_merge( $links, $row_meta );
