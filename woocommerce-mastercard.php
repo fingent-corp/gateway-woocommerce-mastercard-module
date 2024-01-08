@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Mastercard Payment Gateway Services
  * Description: Accept payments on your WooCommerce store using Mastercard Payment Gateway Services. Requires PHP 7.4+ & WooCommerce 7.3+
- * Plugin URI: https://github.com/Mastercard-Gateway/gateway-woocommerce-module/
+ * Plugin URI: https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Version: 1.4.0
