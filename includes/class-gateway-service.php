@@ -1,6 +1,6 @@
 <?php
 /**
- * Copyright (c) 2019-2023 Mastercard
+ * Copyright (c) 2019-2026 Mastercard
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
+ * @package  Mastercard
+ * @version  GIT: @1.4.1@
+ * @link     https://github.com/Mastercard-Gateway/gateway-woocommerce-module/
  */
 
 use Http\Client\Common\Exception\ClientErrorException;
@@ -38,217 +41,95 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 use Http\Promise\Promise;
 
-class Mastercard_ApiErrorPlugin implements Plugin {
-	/**
-	 * @var LoggerInterface
-	 */
-	private $logger;
+require_once dirname( __DIR__ ) . '/vendor/autoload.php';
+require_once dirname( __DIR__ ) . '/includes/logger/class-api-error-plugin.php';
+require_once dirname( __DIR__ ) . '/includes/logger/class-api-logger-plugin.php';
+require_once dirname( __DIR__ ) . '/includes/logger/class-gateway-response-exception.php';
 
-	/**
-	 * @var Formatter
-	 */
-	private $formatter;
-
-	/**
-	 * @inheritdoc
-	 */
-	public function __construct( LoggerInterface $logger, Formatter $formatter = null ) {
-		$this->logger    = $logger;
-		$this->formatter = $formatter ?: new SimpleFormatter();
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public function handleRequest( RequestInterface $request, callable $next, callable $first ): Promise {
-		$promise = $next( $request );
-
-		return $promise->then( function ( ResponseInterface $response ) use ( $request ) {
-			return $this->transformResponseToException( $request, $response );
-		} );
-	}
-
-	/**
-	 * @param RequestInterface $request
-	 * @param ResponseInterface $response
-	 *
-	 * @return ResponseInterface
-	 */
-	protected function transformResponseToException( RequestInterface $request, ResponseInterface $response ) {
-		if ( $response->getStatusCode() >= 400 && $response->getStatusCode() < 500 ) {
-			$responseData = @json_decode( $response->getBody(), true );
-			if ( json_last_error() !== JSON_ERROR_NONE ) {
-				throw new ServerErrorException( "Response not valid JSON", $request, $response );
-			}
-
-			$msg = '';
-			if ( isset( $responseData['error']['cause'] ) ) {
-				$msg .= $responseData['error']['cause'] . ': ';
-			}
-			if ( isset( $responseData['error']['explanation'] ) ) {
-				$msg .= $responseData['error']['explanation'];
-			}
-
-			$this->logger->error( $msg );
-			throw new ClientErrorException( $msg, $request, $response );
-		}
-
-		if ( $response->getStatusCode() >= 500 && $response->getStatusCode() < 600 ) {
-			$this->logger->error( $response->getReasonPhrase() );
-			throw new ServerErrorException( $response->getReasonPhrase(), $request, $response );
-		}
-
-		return $response;
-	}
-}
-
-class Mastercard_ApiLoggerPlugin implements Plugin {
-	/**
-	 * @var LoggerInterface
-	 */
-	private $logger;
-
-	/**
-	 * @var Formatter
-	 */
-	private $formatter;
-
-	/**
-	 * @inheritdoc
-	 */
-	public function __construct( LoggerInterface $logger, Formatter $formatter = null ) {
-		$this->logger    = $logger;
-		$this->formatter = $formatter ?: new SimpleFormatter();
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public function handleRequest( RequestInterface $request, callable $next, callable $first ): Promise {
-		$reqBody = @json_decode( $request->getBody(), true );
-		if ( json_last_error() !== JSON_ERROR_NONE ) {
-			$reqBody = $request->getBody();
-		}
-
-		$this->logger->info( sprintf( 'Emit request: "%s"', $this->formatter->formatRequest( $request ) ),
-			[ 'request' => $reqBody ] );
-
-		return $next( $request )->then( function ( ResponseInterface $response ) use ( $request ) {
-			$body = @json_decode( $response->getBody(), true );
-			if ( json_last_error() !== JSON_ERROR_NONE ) {
-				$body = $response->getBody();
-			}
-			$this->logger->info(
-				sprintf( 'Receive response: "%s" for request: "%s"', $this->formatter->formatResponse( $response ),
-					$this->formatter->formatRequest( $request ) ),
-				[
-					'response' => $body,
-				]
-			);
-
-			return $response;
-		}, function ( \Exception $exception ) use ( $request ) {
-			if ( $exception instanceof Exception\HttpException ) {
-				$this->logger->error(
-					sprintf( 'Error: "%s" with response: "%s" when emitting request: "%s"', $exception->getMessage(),
-						$this->formatter->formatResponse( $exception->getResponse() ),
-						$this->formatter->formatRequest( $request ) ),
-					[
-						'request'   => $request,
-						'response'  => $exception->getResponse(),
-						'exception' => $exception,
-					]
-				);
-			} else {
-				$this->logger->error(
-					sprintf( 'Error: "%s" when emitting request: "%s"', $exception->getMessage(),
-						$this->formatter->formatRequest( $request ) ),
-					[
-						'request'   => $request,
-						'exception' => $exception,
-					]
-				);
-			}
-
-			throw $exception;
-		} );
-	}
-}
-
-class Mastercard_GatewayResponseException extends \Exception {}
-
+/**
+ * Class Mastercard_GatewayService
+ *
+ * Represents a gateway service for processing Mastercard transactions.
+ */
 class Mastercard_GatewayService {
 	/**
+	 * Message factory variable
+	 *
 	 * @var GuzzleMessageFactory
 	 */
-	protected $messageFactory;
+	protected $message_factory;
 
 	/**
+	 * API endpoint variable
+	 *
 	 * @var string
 	 */
-	protected $apiUrl;
+	protected $api_url;
 
 	/**
+	 * Http client variable
+	 *
 	 * @var HttpClientRouter
 	 */
 	protected $client;
 
 	/**
+	 * Webhook endpoint variable
+	 *
 	 * @var string|null
 	 */
-	protected $webhookUrl;
+	protected $webhook_url;
 
 	/**
 	 * GatewayService constructor.
 	 *
-	 * @param string $baseUrl
-	 * @param string $apiVersion
-	 * @param string $merchantId
-	 * @param string $password
-	 * @param string $webhookUrl
-	 * @param int $loggingLevel
+	 * @param string $base_url Mastercard API Base URL.
+	 * @param string $api_version Mastercard API version.
+	 * @param string $merchant_id Mastercard merchant ID.
+	 * @param string $password Mastercard API password.
+	 * @param string $webhook_url Webhook URL.
+	 * @param int    $logging_level Logging Level.
 	 *
-	 * @throws \Exception
+	 * @throws \Exception Throws an exception with the response.
 	 */
 	public function __construct(
-		$baseUrl,
-		$apiVersion,
-		$merchantId,
+		$base_url,
+		$api_version,
+		$merchant_id,
 		$password,
-		$webhookUrl,
-		$loggingLevel = \Monolog\Logger::DEBUG
+		$webhook_url,
+		$logging_level = \Monolog\Logger::DEBUG
 	) {
-		$this->webhookUrl = $webhookUrl;
+		$this->webhook_url = $webhook_url;
 
 		$logger = new Logger( 'mastercard' );
-		$logger->pushHandler( new StreamHandler(
-			WP_CONTENT_DIR . '/mastercard.log',
-			$loggingLevel
-		) );
+		$logger->pushHandler(
+			new StreamHandler(
+				WP_CONTENT_DIR . '/mastercard.log',
+				$logging_level
+			)
+		);
 
-		$this->messageFactory = new GuzzleMessageFactory();
-
-		$this->apiUrl = 'https://' . $baseUrl . '/api/rest/' . $apiVersion . '/merchant/' . $merchantId . '/';
-
-		$username = 'merchant.' . $merchantId;
+		$this->message_factory = new GuzzleMessageFactory();
+		$this->api_url         = 'https://' . $base_url . '/api/rest/' . $api_version . '/merchant/' . $merchant_id . '/';
+		$username              = 'merchant.' . $merchant_id;
 
 		$client = new PluginClient(
 			HttpClientDiscovery::find(),
 			array(
 				new ContentLengthPlugin(),
-				new HeaderSetPlugin( [ 'Content-Type' => 'application/json;charset=UTF-8' ] ),
+				new HeaderSetPlugin( array( 'Content-Type' => 'application/json;charset=UTF-8' ) ),
 				new AuthenticationPlugin( new BasicAuth( $username, $password ) ),
 				new Mastercard_ApiErrorPlugin( $logger ),
 				new Mastercard_ApiLoggerPlugin( $logger ),
 			)
 		);
 
-		$requestMatcher = new RequestMatcher( null, $baseUrl );
-
-		$this->client = new HttpClientRouter();
+		$request_matcher = new RequestMatcher( null, $base_url );
+		$this->client    = new HttpClientRouter();
 		$this->client->addClient(
 			$client,
-			$requestMatcher
+			$request_matcher
 		);
 	}
 
@@ -257,18 +138,20 @@ class Mastercard_GatewayService {
 	 *
 	 * @return string
 	 */
-	protected function getSolutionId() {
+	protected function getSolutionId() { // phpcs:ignore
 		return 'WC_' . WC()->version . '_FINGENT_' . MPGS_MODULE_VERSION;
 	}
 
 	/**
-	 * @param $value
-	 * @param int $limited
+	 * Safely handles a value by applying optional limitations.
 	 *
-	 * @return bool|string|null
+	 * @param mixed $value The value to be handled.
+	 * @param int   $limited The optional limitation to be applied.
+	 *
+	 * @return mixed The safely handled value.
 	 */
 	public static function safe( $value, $limited = 0 ) {
-		if ( $value === "" ) {
+		if ( '' === $value ) {
 			return null;
 		}
 
@@ -280,21 +163,26 @@ class Mastercard_GatewayService {
 	}
 
 	/**
-	 * @param mixed $value
+	 * Check if a value is numeric.
 	 *
-	 * @return string
+	 * @param mixed $value The value to be checked.
+	 *
+	 * @return bool True if the value is numeric, false otherwise.
 	 */
 	public static function numeric( $value ) {
 		return number_format( $value, 2, '.', '' );
 	}
 
 	/**
-	 * @param $data
+	 * Validates the checkout session response.
 	 *
-	 * @throws Mastercard_GatewayResponseException
+	 * @param mixed $data The response data to be validated.
+	 *
+	 * @return void
+	 * @throws Mastercard_GatewayResponseException It throws an exception if a missing or invalid session result.
 	 */
-	public function validateCheckoutSessionResponse( $data ) {
-		if ( ! isset( $data['result'] ) || $data['result'] !== 'SUCCESS' ) {
+	public function validateCheckoutSessionResponse( $data ) { // phpcs:ignore
+		if ( ! isset( $data['result'] ) || 'SUCCESS' !== $data['result'] ) {
 			throw new Mastercard_GatewayResponseException( 'Missing or invalid session result.' );
 		}
 
@@ -304,46 +192,63 @@ class Mastercard_GatewayService {
 	}
 
 	/**
-	 * @param $data
+	 * This function validates the session response data.
 	 *
-	 * @throws Mastercard_GatewayResponseException
+	 * @param mixed $data The session response data to be validated.
+	 *
+	 * @return void.
+	 * @throws Mastercard_GatewayResponseException It throws an exception if a missing session or ID.
 	 */
-	public function validateSessionResponse( $data ) {
+	public function validateSessionResponse( $data ) { // phpcs:ignore
 		if ( ! isset( $data['session']['id'] ) ) {
 			throw new Mastercard_GatewayResponseException( 'Missing session or ID.' );
 		}
 	}
 
 	/**
-	 * @param array $data
-	 */
-	public function validateTxnResponse( $data ) {
-		// @todo
-	}
-
-	/**
-	 * @param array $data
-	 */
-	public function validateOrderResponse( $data ) {
-		// @todo
-	}
-
-	/**
-	 * @param array $data
-	 */
-	public function validateVoidResponse( $data ) {
-		// @todo
-	}
-
-	/**
-	 * @param $response
+	 * This function validates the transaction response data.
 	 *
-	 * @return bool
+	 * @param array $data The transaction response data.
+	 *
+	 * @return void
 	 */
-	public function isApproved( $response ) {
-		$gatewayCode = $response['response']['gatewayCode'];
+	public function validateTxnResponse( $data ) { // phpcs:ignore
+		// @todo
+	}
 
-		if ( ! in_array( $gatewayCode, array( 'APPROVED', 'APPROVED_AUTO' ) ) ) {
+	/**
+	 * This function validates the order response data.
+	 *
+	 * @param mixed $data The order response data to be validated.
+	 *
+	 * @return void
+	 */
+	public function validateOrderResponse( $data ) { // phpcs:ignore
+		// @todo
+	}
+
+	/**
+	 * Validate a void response.
+	 *
+	 * @param mixed $data The data to be validated.
+	 *
+	 * @return void
+	 */
+	public function validateVoidResponse( $data ) { // phpcs:ignore
+		// @todo
+	}
+
+	/**
+	 * Check if a response is approved.
+	 *
+	 * @param mixed $response The response to be checked.
+	 *
+	 * @return bool True if the response is approved, false otherwise.
+	 */
+	public function isApproved( $response ) { // phpcs:ignore
+		$gateway_code = $response['response']['gatewayCode'];
+
+		if ( ! in_array( $gateway_code, array( 'APPROVED', 'APPROVED_AUTO' ) ) ) { // phpcs:ignore
 			return false;
 		}
 
@@ -356,56 +261,79 @@ class Mastercard_GatewayService {
 	 * or otherwise of the authentication.
 	 * The 3DS AuthId is required so that merchants can submit payloads multiple times
 	 * without producing duplicates in the database.
-	 * POST https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/3DSecureId/{3DSecureId}
+	 * POST https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/3DSecureId/{3DSecureId}
 	 *
-	 * @param string $tds_id
-	 * @param string $paRes
+	 * @param string $tds_id Transaction ID.
+	 * @param string $pa_res Process Result.
 	 *
 	 * @return mixed|ResponseInterface
-	 * @throws Exception
+	 * @throws Exception It throws an exception if a request is not processed.
 	 */
-	public function process3dsResult( $tds_id, $paRes ) {
-		$uri = $this->apiUrl . '3DSecureId/' . $tds_id;
+	public function process3dsResult( $tds_id, $pa_res ) { // phpcs:ignore
+		$uri = $this->api_url . '3DSecureId/' . $tds_id;
 
-		$request = $this->messageFactory->createRequest( 'POST', $uri, array(), json_encode( array(
-			'apiOperation' => 'PROCESS_ACS_RESULT',
-			'3DSecure'     => array(
-				'paRes' => $paRes
+		$request = $this->message_factory->createRequest(
+			'POST',
+			$uri,
+			array(),
+			wp_json_encode(
+				array(
+					'apiOperation' => 'PROCESS_ACS_RESULT',
+					'3DSecure'     => array(
+						'paRes' => $pa_res,
+					),
+				)
 			)
-		) ) );
+		);
 
 		$response = $this->client->sendRequest( $request );
-		$response = json_decode( $response->getBody(), true );
+		$response = json_decode(
+			$response->getBody(),
+			true
+		);
 
 		return $response;
 	}
 
 	/**
 	 * Request to check a cardholder's enrollment in the 3DSecure scheme.
-	 * PUT https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/3DSecureId/{3DSecureId}
+	 * PUT https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/3DSecureId/{3DSecureId}
 	 *
-	 * @param array $data
-	 * @param array $order
-	 * @param array|null $session
-	 * @param array|null $source_of_funds
+	 * @param array      $data 3DS array of data.
+	 * @param array      $order Order array.
+	 * @param array|null $session Session data.
+	 * @param array|null $source_of_funds Fund source.
 	 *
 	 * @return mixed|ResponseInterface
-	 * @throws Exception
+	 * @throws Exception It throws an exception if a request is not processed.
 	 */
-	public function check3dsEnrollment( $data, $order, $session = null, $source_of_funds = array() ) {
-		$tds_id = uniqid( sprintf( '3DS-' ), true );
-		$uri    = $this->apiUrl . '3DSecureId/' . $tds_id;
+	public function check3dsEnrollment( $data, $order, $session = null, $source_of_funds = array() ) { // phpcs:ignore
+		$tds_id = uniqid(
+			sprintf( '3DS-' ),
+			true
+		);
+		$uri    = $this->api_url . '3DSecureId/' . $tds_id;
 
-		$request = $this->messageFactory->createRequest( 'PUT', $uri, array(), json_encode( array(
-			'apiOperation'  => 'CHECK_3DS_ENROLLMENT',
-			'3DSecure'      => $data,
-			'order'         => $order,
-			'session'       => $session,
-			'sourceOfFunds' => $source_of_funds ?: null,
-		) ) );
+		$request = $this->message_factory->createRequest(
+			'PUT',
+			$uri,
+			array(),
+			wp_json_encode(
+				array(
+					'apiOperation'  => 'CHECK_3DS_ENROLLMENT',
+					'3DSecure'      => $data,
+					'order'         => $order,
+					'session'       => $session,
+					'sourceOfFunds' => $source_of_funds ? $source_of_funds : null,
+				)
+			)
+		);
 
 		$response = $this->client->sendRequest( $request );
-		$response = json_decode( $response->getBody(), true );
+		$response = json_decode(
+			$response->getBody(),
+			true
+		);
 
 		return $response;
 	}
@@ -416,50 +344,59 @@ class Mastercard_GatewayService {
 	 * Request to create a session identifier for the checkout interaction.
 	 * The session identifier, when included in the Checkout.configure() function,
 	 * allows you to return the payer to the merchant's website after completing the payment attempt.
-	 * https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/session
+	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/session
 	 *
-	 * @param array $order
-	 * @param array $interaction
-	 * @param array $customer
-	 * @param array $billing
-	 * @param array $shipping
+	 * @param array $order Order array.
+	 * @param array $interaction Customer interaction.
+	 * @param array $customer Customer details.
+	 * @param array $billing Billing details.
+	 * @param array $shipping Shipping details.
 	 *
 	 * @return array
-	 * @throws Exception
-	 * @throws Mastercard_GatewayResponseException
+	 * @throws Exception It throws an exception if a request is not processed.
+	 * @throws Mastercard_GatewayResponseException It throws a GatewayResponseException if the checkout initiation is failed.
 	 */
-	public function initiateCheckout(
+	public function initiateCheckout( // phpcs:ignore
 		$order = array(),
 		$interaction = array(),
 		$customer = array(),
 		$billing = array(),
 		$shipping = array()
 	) {
-		$txnId = uniqid( sprintf( '%s-', $order['id'] ) );
-		$uri   = $this->apiUrl . 'session';
-
-		$requestData = array(
+		$txn_id       = uniqid( sprintf( '%s-', $order['id'] ) );
+		$uri          = $this->api_url . 'session';
+		$request_data = array(
 			'apiOperation'      => 'INITIATE_CHECKOUT',
 			'partnerSolutionId' => $this->getSolutionId(),
-			'order'             => array_merge( $order, array(
-				'notificationUrl' => $this->webhookUrl,
-				'reference'       => $order['id']
-			) ),
+			'order'             => array_merge(
+				$order,
+				array(
+					'notificationUrl' => $this->webhook_url,
+					'reference'       => $order['id'],
+				)
+			),
 			'billing'           => $billing,
 			'shipping'          => $shipping,
 			'interaction'       => $interaction,
 			'customer'          => $customer,
-			'transaction'       => [
-				'reference' => $txnId,
+			'transaction'       => array(
+				'reference' => $txn_id,
 				'source'    => 'INTERNET',
-			]
+			),
 		);
-		
-		$request = $this->messageFactory->createRequest( 'POST', $uri, array(), json_encode( $requestData ) );
-
-		$response = $this->client->sendRequest( $request );
-		$response = json_decode( $response->getBody(), true );
-
+		$request      = $this->message_factory->createRequest(
+			'POST',
+			$uri,
+			array(),
+			wp_json_encode(
+				$request_data
+			)
+		);
+		$response     = $this->client->sendRequest( $request );
+		$response     = json_decode(
+			$response->getBody(),
+			true
+		);
 		$this->validateCheckoutSessionResponse( $response );
 
 		return $response;
@@ -470,52 +407,59 @@ class Mastercard_GatewayService {
 	 * Request to create a session identifier for the checkout interaction.
 	 * The session identifier, when included in the Checkout.configure() function,
 	 * allows you to return the payer to the merchant's website after completing the payment attempt.
-	 * https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/session
+	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/session
 	 *
-	 * @param array $order
-	 * @param array $interaction
-	 * @param array $customer
-	 * @param array $billing
-	 * @param array $shipping
+	 * @param array $order Order array.
+	 * @param array $interaction Customer interaction.
+	 * @param array $customer Customer details.
+	 * @param array $billing Billing details.
+	 * @param array $shipping Shipping details.
 	 *
-	 * @return array
-	 * @throws Exception
-	 * @throws Mastercard_GatewayResponseException
+	 * @return array Response array.
+	 * @throws Exception It throws an exception if checkout session is not created.
+	 * @throws Mastercard_GatewayResponseException An exception is thrown when null is returned.
 	 *
 	 * @todo Remove with Legacy Hosted Checkout
 	 */
-	public function createCheckoutSession(
+	public function createCheckoutSession( // phpcs:ignore
 		$order = array(),
 		$interaction = array(),
 		$customer = array(),
 		$billing = array(),
 		$shipping = array()
 	) {
-		$txnId = uniqid( sprintf( '%s-', $order['id'] ) );
-		$uri   = $this->apiUrl . 'session';
-
-		$requestData = array(
+		$txn_id       = uniqid( sprintf( '%s-', $order['id'] ) );
+		$uri          = $this->api_url . 'session';
+		$request_data = array(
 			'apiOperation'      => 'CREATE_CHECKOUT_SESSION',
 			'partnerSolutionId' => $this->getSolutionId(),
-			'order'             => array_merge( $order, array(
-				'notificationUrl' => $this->webhookUrl,
-				'reference'       => $order['id']
-			) ),
+			'order'             => array_merge(
+				$order,
+				array(
+					'notificationUrl' => $this->webhook_url,
+					'reference'       => $order['id'],
+				)
+			),
 			'billing'           => $billing,
 			'shipping'          => $shipping,
 			'interaction'       => $interaction,
 			'customer'          => $customer,
-			'transaction'       => [
-				'reference' => $txnId,
+			'transaction'       => array(
+				'reference' => $txn_id,
 				'source'    => 'INTERNET',
-			]
+			),
 		);
-
-		$request = $this->messageFactory->createRequest( 'POST', $uri, array(), json_encode( $requestData ) );
-
-		$response = $this->client->sendRequest( $request );
-		$response = json_decode( $response->getBody(), true );
-
+		$request      = $this->message_factory->createRequest(
+			'POST',
+			$uri,
+			array(),
+			wp_json_encode( $request_data )
+		);
+		$response     = $this->client->sendRequest( $request );
+		$response     = json_decode(
+			$response->getBody(),
+			true
+		);
 		$this->validateCheckoutSessionResponse( $response );
 
 		return $response;
@@ -523,19 +467,19 @@ class Mastercard_GatewayService {
 
 	/**
 	 * Request to add or update request fields contained in the session.
-	 * PUT    https://test-gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/session/{sessionId}
+	 * PUT    https://test-gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/session/{sessionId}
 	 *
-	 * @param $session_id
-	 * @param array $order
-	 * @param array $customer
-	 * @param array $billing
-	 * @param array $shipping
-	 * @param array $authentication
-	 * @param array $token
+	 * @param int   $session_id Session ID.
+	 * @param array $order Customer WC_Order details.
+	 * @param array $customer Customer details.
+	 * @param array $billing Customer billing details.
+	 * @param array $shipping Customer shipping details.
+	 * @param array $authentication User authentication array.
+	 * @param array $token Gateway token array.
 	 *
 	 * @return mixed
-	 * @throws Exception
-	 * @throws Mastercard_GatewayResponseException
+	 * @throws Exception It throws an exception if checkout session is not updated.
+	 * @throws Mastercard_GatewayResponseException It throws an exception if checkout session is not updated.
 	 */
 	public function update_session(
 		$session_id,
@@ -547,42 +491,54 @@ class Mastercard_GatewayService {
 		$token = array()
 	) {
 		$gateway = new Mastercard_Gateway();
-		$uri     = $this->apiUrl . 'session/' . $session_id;
+		$uri     = $this->api_url . 'session/' . $session_id;
 		$params  = array(
 			'order_id'   => $gateway->remove_order_prefix( $order['id'] ),
-			'session_id' => $session_id
+			'session_id' => $session_id,
 		);
 
 		if ( ! empty( $authentication ) && ! isset( $authentication['acceptVersions'] ) ) {
 			$authentication['redirectResponseUrl'] = add_query_arg(
-				                                         'wc-api',
-				                                         Mastercard_Gateway::class,
-				                                         home_url( '/' )
-			                                         ) . '&' . http_build_query( $params );
+				'wc-api',
+				Mastercard_Gateway::class,
+				home_url( '/' )
+			) . '&' . http_build_query( $params );
 		}
 
-		$requestData = array(
+		$request_data = array(
 			'partnerSolutionId' => $this->getSolutionId(),
-			'order'             => array_merge( $order, array(
-				'notificationUrl' => $this->webhookUrl
-			) ),
+			'order'             => array_merge(
+				$order,
+				array(
+					'notificationUrl' => $this->webhook_url,
+				)
+			),
 			'billing'           => $billing,
 			'shipping'          => $shipping,
 			'customer'          => $customer,
-			'sourceOfFunds'     => array_merge( $token, array(
-				'type' => 'CARD'
-			) ),
+			'sourceOfFunds'     => array_merge(
+				$token,
+				array(
+					'type' => 'CARD',
+				)
+			),
 		);
 
 		if ( ! empty( $authentication ) ) {
-			$requestData['authentication'] = $authentication;
+			$request_data['authentication'] = $authentication;
 		}
 
-		$request = $this->messageFactory->createRequest( 'PUT', $uri, array(), json_encode( $requestData ) );
-
+		$request  = $this->message_factory->createRequest(
+			'PUT',
+			$uri,
+			array(),
+			wp_json_encode( $request_data )
+		);
 		$response = $this->client->sendRequest( $request );
-		$response = json_decode( $response->getBody(), true );
-
+		$response = json_decode(
+			$response->getBody(),
+			true
+		);
 		$this->validateSessionResponse( $response );
 
 		return $response;
@@ -595,41 +551,48 @@ class Mastercard_GatewayService {
 	 * identifier. They may be updated and obtained using the Update Session and
 	 * Retrieve Session operation respectively.
 	 *
-	 * POST https://test-gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/session
+	 * POST https://test-gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/session
 	 *
-	 * @return array
-	 * @throws Exception
+	 * @return array Session response array.
+	 * @throws Exception It throws an exception if checkout session is not created.
 	 */
 	public function create_session() {
-		$uri      = $this->apiUrl . 'session';
-		$request  = $this->messageFactory->createRequest( 'POST', $uri, array() );
+		$uri      = $this->api_url . 'session';
+		$request  = $this->message_factory->createRequest(
+			'POST',
+			$uri,
+			array()
+		);
 		$response = $this->client->sendRequest( $request );
 
-		return json_decode( $response->getBody(), true );
+		return json_decode(
+			$response->getBody(),
+			true
+		);
 	}
 
 	/**
 	 * Request to obtain an authorization for a proposed funds transfer.
 	 * An authorization is a response from a financial institution indicating that payment information
 	 * is valid and funds are available in the payers account.
-	 * https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/order/{orderid}/transaction/{transactionid}
+	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/order/{order_id}/transaction/{transactionid}
 	 *
-	 * @param string $txnId
-	 * @param string $orderId
-	 * @param array $order
-	 * @param array $authentication
-	 * @param string|null $tds_id
-	 * @param array $session
-	 * @param array $customer
-	 * @param array $billing
-	 * @param array $shipping
+	 * @param string      $txn_id Transaction ID.
+	 * @param string      $order_id WC_Order ID.
+	 * @param array       $order WC_Order items.
+	 * @param array       $authentication Authentication params.
+	 * @param string|null $tds_id 3D Secure Id.
+	 * @param array       $session Transaction session details.
+	 * @param array       $customer Customer details.
+	 * @param array       $billing Customer billing details.
+	 * @param array       $shipping Customer shipping details.
 	 *
-	 * @return mixed|ResponseInterface
-	 * @throws Exception
+	 * @return mixed|ResponseInterface Response array.
+	 * @throws Exception It throws an exception if the transaction is not authorized.
 	 */
 	public function authorize(
-		$txnId,
-		$orderId,
+		$txn_id,
+		$order_id,
 		$order,
 		$authentication,
 		$tds_id = null,
@@ -638,34 +601,45 @@ class Mastercard_GatewayService {
 		$billing = array(),
 		$shipping = array()
 	) {
-		$uri = $this->apiUrl . 'order/' . $orderId . '/transaction/' . $txnId;
+		$uri = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
 
-		$requestData = array(
+		$request_data = array(
 			'apiOperation'      => 'AUTHORIZE',
 			'3DSecureId'        => $tds_id,
 			'partnerSolutionId' => $this->getSolutionId(),
-			'order'             => array_merge( $order, array(
-				'notificationUrl' => $this->webhookUrl,
-				'reference'       => $orderId,
-			) ),
+			'order'             => array_merge(
+				$order,
+				array(
+					'notificationUrl' => $this->webhook_url,
+					'reference'       => $order_id,
+				)
+			),
 			'billing'           => $billing,
 			'shipping'          => $shipping,
 			'customer'          => $customer,
 			'session'           => $session,
-			'transaction'       => [
-				'reference' => $txnId,
+			'transaction'       => array(
+				'reference' => $txn_id,
 				'source'    => 'INTERNET',
-			]
+			),
 		);
 
 		if ( ! empty( $authentication ) ) {
-			$requestData['authentication'] = $authentication;
+			$request_data['authentication'] = $authentication;
 		}
 
-		$request = $this->messageFactory->createRequest( 'PUT', $uri, array(), json_encode( $requestData ) );
+		$request = $this->message_factory->createRequest(
+			'PUT',
+			$uri,
+			array(),
+			wp_json_encode( $request_data )
+		);
 
 		$response = $this->client->sendRequest( $request );
-		$response = json_decode( $response->getBody(), true );
+		$response = json_decode(
+			$response->getBody(),
+			true
+		);
 
 		$this->validateTxnResponse( $response );
 
@@ -679,24 +653,24 @@ class Mastercard_GatewayService {
 	 * Pay is the most common type of payment model used by merchants to accept card payments.
 	 * The Pay model is used when the merchant is allowed to bill the cardholder's account immediately,
 	 * for example when providing services or goods on the spot.
-	 * PUT https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/order/{orderid}/transaction/{transactionid}
+	 * PUT https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/order/{order_id}/transaction/{transactionid}
 	 *
-	 * @param string $txnId
-	 * @param string $orderId
-	 * @param array $order
-	 * @param array $authentication
-	 * @param string|null $tds_id
-	 * @param array $session
-	 * @param array $customer
-	 * @param array $billing
-	 * @param array $shipping
+	 * @param string      $txn_id Transaction ID.
+	 * @param string      $order_id WC_Order ID.
+	 * @param array       $order WC_Order items.
+	 * @param array       $authentication Authentication params.
+	 * @param string|null $tds_id 3D Secure Id.
+	 * @param array       $session Transaction session details.
+	 * @param array       $customer Customer details.
+	 * @param array       $billing Customer billing details.
+	 * @param array       $shipping Customer shipping details.
 	 *
-	 * @return mixed|ResponseInterface
-	 * @throws Exception
+	 * @return mixed|ResponseInterface Response array.
+	 * @throws Exception It throws an exception if the payment is not completed.
 	 */
 	public function pay(
-		$txnId,
-		$orderId,
+		$txn_id,
+		$order_id,
 		$order,
 		$authentication,
 		$tds_id = null,
@@ -705,80 +679,92 @@ class Mastercard_GatewayService {
 		$billing = array(),
 		$shipping = array()
 	) {
-		$uri = $this->apiUrl . 'order/' . $orderId . '/transaction/' . $txnId;
+		$uri = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
 
-		$requestData = array(
+		$request_data = array(
 			'apiOperation'      => 'PAY',
 			'3DSecureId'        => $tds_id,
 			'partnerSolutionId' => $this->getSolutionId(),
-			'order'             => array_merge( $order, array(
-				'notificationUrl' => $this->webhookUrl,
-				'reference'       => $orderId
-			) ),
+			'order'             => array_merge(
+				$order,
+				array(
+					'notificationUrl' => $this->webhook_url,
+					'reference'       => $order_id,
+				)
+			),
 			'billing'           => $billing,
 			'shipping'          => $shipping,
 			'customer'          => $customer,
 			'session'           => $session,
-			'transaction'       => [
-				'reference' => $txnId,
+			'transaction'       => array(
+				'reference' => $txn_id,
 				'source'    => 'INTERNET',
-			]
+			),
 		);
 
 		if ( ! empty( $authentication ) ) {
-			$requestData['authentication'] = $authentication;
+			$request_data['authentication'] = $authentication;
 		}
 
-		$request = $this->messageFactory->createRequest( 'PUT', $uri, array(), json_encode( $requestData ) );
-
+		$request  = $this->message_factory->createRequest(
+			'PUT',
+			$uri,
+			array(),
+			wp_json_encode( $request_data )
+		);
 		$response = $this->client->sendRequest( $request );
-		$response = json_decode( $response->getBody(), true );
-
+		$response = json_decode(
+			$response->getBody(),
+			true
+		);
 		$this->validateTxnResponse( $response );
 
 		return $response;
 	}
 
 	/**
-	 * Retrieve order
+	 * Retrieve order.
 	 * Request to retrieve the details of an order and all transactions associated with this order.
-	 * https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/order/{orderid}
+	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/order/{order_id}
 	 *
-	 * @param string $orderId
+	 * @param string $order_id Order ID.
 	 *
-	 * @return array
-	 * @throws \Http\Client\Exception
+	 * @return array Order details.
+	 * @throws \Http\Client\Exception It throws an exception if is not found.
 	 */
-	public function retrieveOrder( $orderId ) {
-		$uri = $this->apiUrl . 'order/' . $orderId;
-
-		$request  = $this->messageFactory->createRequest( 'GET', $uri );
+	public function retrieveOrder( $order_id ) { // phpcs:ignore
+		$uri      = $this->api_url . 'order/' . $order_id;
+		$request  = $this->message_factory->createRequest(
+			'GET',
+			$uri
+		);
 		$response = $this->client->sendRequest( $request );
-
-		$response = json_decode( $response->getBody(), true );
-
+		$response = json_decode(
+			$response->getBody(),
+			true
+		);
 		$this->validateOrderResponse( $response );
 
 		return $response;
 	}
 
 	/**
-	 * Helper method to find the authorisation transaction
+	 * Helper method to find the authorisation transaction.
 	 *
-	 * @param string $orderId
-	 * @param array $response
+	 * @param string $order_id Order ID.
+	 * @param array  $response Order details.
 	 *
 	 * @return null|array
-	 * @throws Exception
+	 * @throws Exception It throws an exception if the authorized transaction is not found.
 	 */
-	public function getAuthorizationTransaction( $orderId, $response = array() ) {
+	public function getAuthorizationTransaction( $order_id, $response = array() ) { // phpcs:ignore
 		if ( empty( $response ) ) {
-			$response = $this->retrieveOrder( $orderId );
+			$response = $this->retrieveOrder( $order_id );
 		}
 
 		// @todo: Find only the first one
 		foreach ( $response['transaction'] as $txn ) {
-			if ( $txn['transaction']['type'] === 'AUTHORIZATION' && $txn['result'] === 'SUCCESS' ) {
+			if ( 'AUTHORIZATION' === $txn['transaction']['type'] && 'SUCCESS' === $txn['result'] ) {
 				return $txn;
 			}
 		}
@@ -789,20 +775,20 @@ class Mastercard_GatewayService {
 	/**
 	 * Helper method to find the capture/pay transaction
 	 *
-	 * @param string $orderId
-	 * @param array $response
+	 * @param string $order_id Order ID.
+	 * @param array  $response Order details.
 	 *
 	 * @return null|array
-	 * @throws Exception
+	 * @throws Exception It throws an exception if the capture transaction is not found.
 	 */
-	public function getCaptureTransaction( $orderId, $response = array() ) {
+	public function getCaptureTransaction( $order_id, $response = array() ) { // phpcs:ignore
 		if ( empty( $response ) ) {
-			$response = $this->retrieveOrder( $orderId );
+			$response = $this->retrieveOrder( $order_id );
 		}
 
 		// @todo: Find only the first one
 		foreach ( $response['transaction'] as $txn ) {
-			if ( ( $txn['transaction']['type'] === 'CAPTURE' || $txn['transaction']['type'] === 'PAYMENT' ) && $txn['result'] === 'SUCCESS' ) {
+			if ( ( 'CAPTURE' === $txn['transaction']['type'] || 'PAYMENT' === $txn['transaction']['type'] ) && 'SUCCESS' === $txn['result'] ) {
 				return $txn;
 			}
 		}
@@ -812,22 +798,25 @@ class Mastercard_GatewayService {
 
 	/**
 	 * Request to retrieve the details of a transaction. For example you can retrieve the details of an authorization that you previously executed.
-	 * https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/order/{orderid}/transaction/{transactionid}
+	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/order/{order_id}/transaction/{transactionid}
 	 *
-	 * @param string $orderId
-	 * @param string $txnId
+	 * @param string $order_id Order ID.
+	 * @param string $txn_id Transaction ID.
 	 *
-	 * @return array
-	 * @throws Exception
+	 * @return array Response array.
+	 * @throws Exception It throws an exception if the transaction is not found.
 	 */
-	public function retrieveTransaction( $orderId, $txnId ) {
-		$uri = $this->apiUrl . 'order/' . $orderId . '/transaction/' . $txnId;
-
-		$request  = $this->messageFactory->createRequest( 'GET', $uri );
+	public function retrieveTransaction( $order_id, $txn_id ) { // phpcs:ignore
+		$uri      = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
+		$request  = $this->message_factory->createRequest(
+			'GET',
+			$uri
+		);
 		$response = $this->client->sendRequest( $request );
-
-		$response = json_decode( $response->getBody(), true );
-
+		$response = json_decode(
+			$response->getBody(),
+			true
+		);
 		$this->validateTxnResponse( $response );
 
 		return $response;
@@ -836,30 +825,37 @@ class Mastercard_GatewayService {
 	/**
 	 * Request to void a previous transaction. A void will reverse a previous transaction.
 	 * Typically voids will only be successful when processed not long after the original transaction.
-	 * https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/order/{orderid}/transaction/{transactionid}
+	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/order/{order_id}/transaction/{transactionid}
 	 *
-	 * @param string $orderId
-	 * @param string $txnId
+	 * @param string $order_id Order ID.
+	 * @param string $txn_id Transaction ID.
 	 *
-	 * @return mixed|\Psr\Http\Message\ResponseInterface
-	 * @throws Exception
+	 * @return mixed|\Psr\Http\Message\ResponseInterface Transaction response.
+	 * @throws Exception It throws an exception if void a previous transaction.
 	 */
-	public function voidTxn( $orderId, $txnId ) {
-		$newTxnId = 'void-' . $txnId;
-		$uri      = $this->apiUrl . 'order/' . $orderId . '/transaction/' . $newTxnId;
-
-		$request  = $this->messageFactory->createRequest( 'PUT', $uri, array(), json_encode( array(
-			'apiOperation'      => 'VOID',
-			'partnerSolutionId' => $this->getSolutionId(),
-			'transaction'       => array(
-				'targetTransactionId' => $txnId,
-				'reference'           => $txnId,
+	public function voidTxn( $order_id, $txn_id ) { // phpcs:ignore
+		$new_txn_id = 'void-' . $txn_id;
+		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
+		$request    = $this->message_factory->createRequest(
+			'PUT',
+			$uri,
+			array(),
+			wp_json_encode(
+				array(
+					'apiOperation'      => 'VOID',
+					'partnerSolutionId' => $this->getSolutionId(),
+					'transaction'       => array(
+						'targetTransactionId' => $txn_id,
+						'reference'           => $txn_id,
+					),
+				)
 			)
-		) ) );
-		$response = $this->client->sendRequest( $request );
-
-		$response = json_decode( $response->getBody(), true );
-
+		);
+		$response   = $this->client->sendRequest( $request );
+		$response   = json_decode(
+			$response->getBody(),
+			true
+		);
 		$this->validateVoidResponse( $response );
 
 		return $response;
@@ -868,41 +864,49 @@ class Mastercard_GatewayService {
 	/**
 	 * Request to capture funds previously reserved by an authorization.
 	 * A Capture transaction triggers the movement of funds from the payer's account to the merchant's account.
-	 * Typically, a Capture is linked to the authorization through the orderId - you provide the original orderId,
+	 * Typically, a Capture is linked to the authorization through the order_id - you provide the original order_id,
 	 * a new transactionId, and the amount you wish to capture.
 	 * You may provide other fields (such as shipping address) if you want to update their values; however,
 	 * you must NOT provide sourceOfFunds.
-	 * https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/order/{orderid}/transaction/{transactionid}
+	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/order/{order_id}/transaction/{transactionid}
 	 *
-	 * @param string $orderId
-	 * @param string $txnId
-	 * @param $amount
-	 * @param $currency
+	 * @param string $order_id WC_Order ID.
+	 * @param string $txn_id Transaction ID.
+	 * @param float  $amount Order amount.
+	 * @param string $currency Order currency.
 	 *
-	 * @return mixed|ResponseInterface
-	 * @throws Exception
+	 * @return mixed|ResponseInterface Capture transaction response.
+	 * @throws Exception It throws an exception if capture transaction is failed.
 	 */
-	public function captureTxn( $orderId, $txnId, $amount, $currency ) {
-		$newTxnId = 'capture-' . $txnId;
-		$uri      = $this->apiUrl . 'order/' . $orderId . '/transaction/' . $newTxnId;
-
-		$request = $this->messageFactory->createRequest( 'PUT', $uri, array(), json_encode( array(
-			'apiOperation'      => 'CAPTURE',
-			'partnerSolutionId' => $this->getSolutionId(),
-			'transaction'       => array(
-				'amount'    => $amount,
-				'currency'  => $currency,
-				'reference' => $newTxnId,
-			),
-			'order'             => array(
-				'notificationUrl' => $this->webhookUrl,
-				'reference'       => $orderId,
+	public function captureTxn( $order_id, $txn_id, $amount, $currency ) { // phpcs:ignore
+		$new_txn_id = 'capture-' . $txn_id;
+		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
+		$request    = $this->message_factory->createRequest(
+			'PUT',
+			$uri,
+			array(),
+			wp_json_encode(
+				array(
+					'apiOperation'      => 'CAPTURE',
+					'partnerSolutionId' => $this->getSolutionId(),
+					'transaction'       => array(
+						'amount'    => $amount,
+						'currency'  => $currency,
+						'reference' => $new_txn_id,
+					),
+					'order'             => array(
+						'notificationUrl' => $this->webhook_url,
+						'reference'       => $order_id,
+					),
+				)
 			)
-		) ) );
+		);
 
 		$response = $this->client->sendRequest( $request );
-		$response = json_decode( $response->getBody(), true );
-
+		$response = json_decode(
+			$response->getBody(),
+			true
+		);
 		$this->validateTxnResponse( $response );
 
 		return $response;
@@ -910,42 +914,50 @@ class Mastercard_GatewayService {
 
 	/**
 	 * Request to refund previously captured funds to the payer.
-	 * Typically, a Refund is linked to the Capture or Pay through the orderId - you provide the original orderId,
+	 * Typically, a Refund is linked to the Capture or Pay through the order_id - you provide the original order_id,
 	 * a new transactionId, and the amount you wish to refund. You may provide other fields if you want to update their values;
 	 * however, you must NOT provide sourceOfFunds.
 	 * In rare situations, you may want to refund the payer without associating the credit to a previous transaction (see Standalone Refund).
-	 * In this case, you need to provide the sourceOfFunds and a new orderId.
-	 * https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/order/{orderid}/transaction/{transactionid}
+	 * In this case, you need to provide the sourceOfFunds and a new order_id.
+	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/order/{order_id}/transaction/{transactionid}
 	 *
-	 * @param $orderId
-	 * @param $txnId
-	 * @param $amount
-	 * @param $currency
+	 * @param string $order_id WC_Order ID.
+	 * @param string $txn_id Transaction ID.
+	 * @param float  $amount Order amount.
+	 * @param string $currency Order currency.
 	 *
-	 * @return mixed|ResponseInterface
-	 * @throws Exception
+	 * @return mixed|ResponseInterface Refund transaction response.
+	 * @throws Exception It throws an exception if capture transaction is failed.
 	 */
-	public function refund( $orderId, $txnId, $amount, $currency ) {
-		$newTxnId = 'refund-' . $txnId;
-		$uri      = $this->apiUrl . 'order/' . $orderId . '/transaction/' . $newTxnId;
-
-		$request = $this->messageFactory->createRequest( 'PUT', $uri, array(), json_encode( array(
-			'apiOperation'      => 'REFUND',
-			'partnerSolutionId' => $this->getSolutionId(),
-			'transaction'       => array(
-				'amount'    => $amount,
-				'currency'  => $currency,
-				'reference' => $newTxnId,
-			),
-			'order'             => array(
-				'notificationUrl' => $this->webhookUrl,
-				'reference'       => $orderId,
+	public function refund( $order_id, $txn_id, $amount, $currency ) {
+		$new_txn_id = 'refund-' . $txn_id;
+		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
+		$request    = $this->message_factory->createRequest(
+			'PUT',
+			$uri,
+			array(),
+			wp_json_encode(
+				array(
+					'apiOperation'      => 'REFUND',
+					'partnerSolutionId' => $this->getSolutionId(),
+					'transaction'       => array(
+						'amount'    => $amount,
+						'currency'  => $currency,
+						'reference' => $new_txn_id,
+					),
+					'order'             => array(
+						'notificationUrl' => $this->webhook_url,
+						'reference'       => $order_id,
+					),
+				)
 			)
-		) ) );
+		);
 
 		$response = $this->client->sendRequest( $request );
-		$response = json_decode( $response->getBody(), true );
-
+		$response = json_decode(
+			$response->getBody(),
+			true
+		);
 		$this->validateTxnResponse( $response );
 
 		return $response;
@@ -953,15 +965,22 @@ class Mastercard_GatewayService {
 
 	/**
 	 * Request to retrieve the options available for processing a payment, for example, the credit cards and currencies.
-	 * https://mtf.gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/paymentOptionsInquiry
+	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/paymentOptionsInquiry.
+	 *
+	 * @return array $response Payment options response.
+	 * @throws Exception An exception is thrown when null is returned.
 	 */
-	public function paymentOptionsInquiry() {
-		$uri = $this->apiUrl . 'paymentOptionsInquiry';
-
-		$request  = $this->messageFactory->createRequest( 'GET', $uri );
+	public function paymentOptionsInquiry() { // phpcs:ignore
+		$uri      = $this->api_url . 'paymentOptionsInquiry';
+		$request  = $this->message_factory->createRequest(
+			'POST',
+			$uri
+		);
 		$response = $this->client->sendRequest( $request );
-
-		$response = json_decode( $response->getBody(), true );
+		$response = json_decode(
+			$response->getBody(),
+			true
+		);
 
 		return $response;
 	}
@@ -969,24 +988,30 @@ class Mastercard_GatewayService {
 	/**
 	 * Request for the gateway to store payment instrument (e.g. credit or debit cards, gift cards,
 	 * ACH bank account details) against a token, where the system generates the token id.
-	 * https://eu-gateway.mastercard.com/api/rest/version/63/merchant/{merchantId}/token
+	 * https://eu-gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/token
 	 *
-	 * @param string $session_id
+	 * @param string $session_id Session ID.
 	 *
-	 * @return mixed|ResponseInterface
-	 * @throws Exception
+	 * @return mixed|ResponseInterface Token details.
+	 * @throws Exception An exception is thrown when create card token is failed.
 	 */
-	public function createCardToken( $session_id ) {
-		$uri = $this->apiUrl . 'token';
-
-		$request = $this->messageFactory->createRequest( 'POST', $uri, array(), json_encode( array(
-			'session'       => array(
-				'id' => $session_id
-			),
-			'sourceOfFunds' => array(
-				'type' => 'CARD'
+	public function createCardToken( $session_id ) { // phpcs:ignore
+		$uri     = $this->api_url . 'token';
+		$request = $this->message_factory->createRequest(
+			'POST',
+			$uri,
+			array(),
+			wp_json_encode(
+				array(
+					'session'       => array(
+						'id' => $session_id,
+					),
+					'sourceOfFunds' => array(
+						'type' => 'CARD',
+					),
+				)
 			)
-		) ) );
+		);
 
 		$response = $this->client->sendRequest( $request );
 		$response = json_decode( $response->getBody(), true );

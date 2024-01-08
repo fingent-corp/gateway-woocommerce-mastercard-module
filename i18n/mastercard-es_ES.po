@@ -302,8 +302,7 @@ msgstr "Procesando Pago Seguro"
 msgid "Click here to continue"
 msgstr "Pulse aquí para continuar"
 
-#: templates/checkout/hostedcheckout.php:26
-#: templates/checkout/hostedcheckout.php:28
+#: templates/checkout/newhostedcheckout.php:32
 #: templates/checkout/hostedsession.php:42
 msgid "Pay"
 msgstr "Pagar"

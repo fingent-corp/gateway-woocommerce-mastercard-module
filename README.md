@@ -40,7 +40,6 @@ The module has been tested with the WordPress versions:
 WooCommerce Mastercard Payment Gateway Service module supports following list of features:
 
 - Card Payments
-- Alternative Payment Methods
 - Hosted Session
 - Hosted Checkout
 - Full Refunds
@@ -53,7 +52,7 @@ WooCommerce Mastercard Payment Gateway Service module supports following list of
 The official documentation for this module is available on: [https://mpgs.fingent.wiki/target/woocommerce-mastercard-payment-gateway-services/installation](https://mpgs.fingent.wiki/target/woocommerce-mastercard-payment-gateway-services/installation/)
 
 ## Support
-For customer support:[https://mpgsfgs.atlassian.net/servicedesk/customer/portals](https://mpgsfgs.atlassian.net/servicedesk/customer/portals/)
+For customer support: [https://mpgsfgs.atlassian.net/servicedesk/customer/portals](https://mpgsfgs.atlassian.net/servicedesk/customer/portals/)
 
 ## Obtain the module
 You can obtain the module by downloading a release from: https://github.com/Mastercard-Gateway/gateway-woocommerce-module/releases
