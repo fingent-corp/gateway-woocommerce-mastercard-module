@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: Mastercard Payment Gateway Services
- * Description: Accept payments on your WooCommerce store using Mastercard Payment Gateway Services. Requires PHP 7.4+ & WooCommerce 7.3+
+ * Description: Accept payments on your WooCommerce store using the Mastercard Payment Gateway Services. Requires PHP 7.4+ & WooCommerce 7.3+
  * Plugin URI: https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
- * Version: 1.4.1
+ * Version: 1.4.2
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * php version 8.1
@@ -14,7 +14,7 @@
  * WC tested up to: 8.3.0
  *
  * @package  Mastercard
- * @version  GIT: @1.4.1@
+ * @version  GIT: @1.4.2@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -42,7 +42,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Main class of the Mastercard Payment Gateway Services Module
  *
  * @package  Mastercard
- * @version  Release: @1.4.1@
+ * @version  Release: @1.4.2@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class WC_Mastercard {
@@ -173,7 +173,7 @@ class WC_Mastercard {
 	/**
 	 * Check if WooCommerce is active or not.
 	 *
-	 * @since 1.3.0
+	 * @since 1.2.0
 	 *
 	 * @return bool
 	 */
@@ -185,7 +185,7 @@ class WC_Mastercard {
 	/**
 	 * If WooCommerce is not active return error messgae.
 	 *
-	 * @since 1.3.0
+	 * @since 1.2.0
 	 *
 	 * @return bool
 	 */
@@ -202,7 +202,7 @@ class WC_Mastercard {
 	/**
 	 * Check if WooCommerce is active or not.
 	 *
-	 * @since 1.3.0
+	 * @since 1.2.0
 	 *
 	 * @return bool
 	 */

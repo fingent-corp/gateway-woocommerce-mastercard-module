@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.1@
+ * @version  GIT: @1.4.2@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class Mastercard_CheckoutBuilder {
@@ -166,9 +166,36 @@ class Mastercard_CheckoutBuilder {
 	 */
 	public function getOrder() { // phpcs:ignore
 		return array(
-			'amount'   => (float) $this->order->get_total(),
+			'amount'   => $this->formattedPrice( $this->order->get_total() ),
 			'currency' => get_woocommerce_currency(),
 		);
+	}
+
+	/**
+	 * Formatted price.
+	 *
+	 * @param float        $formatted_price    Formatted price.
+	 * @param float        $price              Unformatted price.
+	 * @param int          $decimals           Number of decimals.
+	 * @param string       $decimal_separator  Decimal separator.
+	 * @param float|string $original_price     Original price as float, or empty string.
+	 *
+	 * @return string
+	 */
+
+	public function formattedPrice( $price ) {
+
+		$original_price = $price;
+		$args = array(
+			'currency'           => '',
+			'decimal_separator'  => wc_get_price_decimal_separator(),
+			'decimals'           => wc_get_price_decimals(),
+			'price_format'       => get_woocommerce_price_format(),
+		);
+
+		$price = apply_filters( 'formatted_mastercard_price', number_format( $price, $args['decimals'], $args['decimal_separator'], '' ), $price, $args['decimals'], $args['decimal_separator'], '', $original_price );
+
+		return $price;
 	}
 
 	/**
