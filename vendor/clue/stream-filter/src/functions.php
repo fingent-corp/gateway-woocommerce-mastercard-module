@@ -104,27 +104,13 @@ namespace Clue\StreamFilter;
  */
 function append($stream, $callback, $read_write = STREAM_FILTER_ALL)
 {
-    $errstr = '';
-    \set_error_handler(function ($_, $error) use (&$errstr) {
-        // Match errstr from PHP's warning message.
-        // stream_filter_append() expects parameter 1 to be resource,...
-        $errstr = $error; // @codeCoverageIgnore
-    });
-
-    try {
-        $ret = \stream_filter_append($stream, register(), $read_write, $callback);
-    } catch (\TypeError $e) { // @codeCoverageIgnoreStart
-        // Throws TypeError on PHP 8.0+
-        \restore_error_handler();
-        throw $e;
-    } // @codeCoverageIgnoreEnd
-
-    \restore_error_handler();
+    $ret = @\stream_filter_append($stream, register(), $read_write, $callback);
 
     // PHP 8 throws above on type errors, older PHP and memory issues can throw here
     // @codeCoverageIgnoreStart
     if ($ret === false) {
-        throw new \RuntimeException('Unable to append filter: ' . $errstr);
+        $error = \error_get_last() + array('message' => '');
+        throw new \RuntimeException('Unable to append filter: ' . $error['message']);
     }
     // @codeCoverageIgnoreEnd
 
@@ -161,27 +147,13 @@ function append($stream, $callback, $read_write = STREAM_FILTER_ALL)
  */
 function prepend($stream, $callback, $read_write = STREAM_FILTER_ALL)
 {
-    $errstr = '';
-    \set_error_handler(function ($_, $error) use (&$errstr) {
-        // Match errstr from PHP's warning message.
-        // stream_filter_prepend() expects parameter 1 to be resource,...
-        $errstr = $error; // @codeCoverageIgnore
-    });
-
-    try {
-        $ret = \stream_filter_prepend($stream, register(), $read_write, $callback);
-    } catch (\TypeError $e) { // @codeCoverageIgnoreStart
-        // Throws TypeError on PHP 8.0+
-        \restore_error_handler();
-        throw $e;
-    } // @codeCoverageIgnoreEnd
-
-    \restore_error_handler();
+    $ret = @\stream_filter_prepend($stream, register(), $read_write, $callback);
 
     // PHP 8 throws above on type errors, older PHP and memory issues can throw here
     // @codeCoverageIgnoreStart
     if ($ret === false) {
-        throw new \RuntimeException('Unable to prepend filter: ' . $errstr);
+        $error = \error_get_last() + array('message' => '');
+        throw new \RuntimeException('Unable to prepend filter: ' . $error['message']);
     }
     // @codeCoverageIgnoreEnd
 
@@ -270,25 +242,16 @@ function prepend($stream, $callback, $read_write = STREAM_FILTER_ALL)
 function fun($filter, $parameters = null)
 {
     $fp = \fopen('php://memory', 'w');
-
-    $errstr = '';
-    \set_error_handler(function ($_, $error) use (&$errstr) {
-        // Match errstr from PHP's warning message.
-        // stream_filter_append() expects parameter 1 to be resource,...
-        $errstr = $error;
-    });
-
     if (\func_num_args() === 1) {
-        $filter = \stream_filter_append($fp, $filter, \STREAM_FILTER_WRITE);
+        $filter = @\stream_filter_append($fp, $filter, \STREAM_FILTER_WRITE);
     } else {
-        $filter = \stream_filter_append($fp, $filter, \STREAM_FILTER_WRITE, $parameters);
+        $filter = @\stream_filter_append($fp, $filter, \STREAM_FILTER_WRITE, $parameters);
     }
-
-    \restore_error_handler();
 
     if ($filter === false) {
         \fclose($fp);
-        throw new \RuntimeException('Unable to access built-in filter: ' . $errstr);
+        $error = \error_get_last() + array('message' => '');
+        throw new \RuntimeException('Unable to access built-in filter: ' . $error['message']);
     }
 
     // append filter function which buffers internally
@@ -338,26 +301,10 @@ function fun($filter, $parameters = null)
  */
 function remove($filter)
 {
-    $errstr = '';
-    \set_error_handler(function ($_, $error) use (&$errstr) {
-        // Match errstr from PHP's warning message.
-        // stream_filter_remove() expects parameter 1 to be resource,...
-        $errstr = $error;
-    });
-
-    try {
-        $ret = \stream_filter_remove($filter);
-    } catch (\TypeError $e) { // @codeCoverageIgnoreStart
-        // Throws TypeError on PHP 8.0+
-        \restore_error_handler();
-        throw $e;
-    } // @codeCoverageIgnoreEnd
-
-    \restore_error_handler();
-
-    if ($ret === false) {
+    if (@\stream_filter_remove($filter) === false) {
         // PHP 8 throws above on type errors, older PHP and memory issues can throw here
-        throw new \RuntimeException('Unable to remove filter: ' . $errstr);
+        $error = \error_get_last();
+        throw new \RuntimeException('Unable to remove filter: ' . $error['message']);
     }
 }
 

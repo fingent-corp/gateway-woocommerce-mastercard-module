@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.1@
+ * @version  GIT: @1.4.2@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -23,7 +23,7 @@
  * Show the payment form for Mastercard Payment Gateway.
  *
  * @package  Mastercard
- * @version  Release: @1.4.1@
+ * @version  Release: @1.4.2@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class Mastercard_Payment_Gateway_CC extends WC_Payment_Gateway_CC {

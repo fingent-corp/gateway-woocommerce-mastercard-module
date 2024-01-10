@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.4.2] - 2023-12-12
+### Fixed
+- Rectified the price rounding issue.
+
 ## [1.4.1] - 2023-11-05
 ### Improvements
 - Adhering to both PHPCS and WPCS coding standards completely.
@@ -10,7 +14,7 @@ All notable changes to this project will be documented in this file.
 ## [1.4.0] - 2023-05-11
 ### Improvements
 - PHP 8.1 compatibility
-- Compatibility with Wordpress 6.2 and WooCommerce 7.7
+- Compatibility with WordPress 6.4 and WooCommerce 8.3
 ### Changed
 - Updated the API version to 70
 
@@ -23,7 +27,7 @@ All notable changes to this project will be documented in this file.
 
 ## [1.2.1] - 2021-12-01
 ### Fixed
-- Fixed an error "invalid request" for Order if Customer clicks Browser Back button from Order Success Page
+- Fixed an error "invalid request" for an Order if the Customer clicks the Browser Back button from the Order Success Page
 
 ## [1.2.0] - 2021-10-19
 ### Changed

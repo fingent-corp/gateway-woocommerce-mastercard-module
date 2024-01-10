@@ -15,11 +15,11 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.1@
+ * @version  GIT: @1.4.2@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
-define( 'MPGS_MODULE_VERSION', '1.4.1' );
+define( 'MPGS_MODULE_VERSION', '1.4.2' );
 
 require_once dirname( __DIR__ ) . '/includes/class-checkout-builder.php';
 require_once dirname( __DIR__ ) . '/includes/class-gateway-service.php';
@@ -29,7 +29,7 @@ require_once dirname( __DIR__ ) . '/includes/class-payment-gateway-cc.php';
  * Main class of the Mastercard Payment Gateway Module
  *
  * @package  Mastercard
- * @version  Release: @1.4.1@
+ * @version  Release: @1.4.2@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class Mastercard_Gateway extends WC_Payment_Gateway {
@@ -531,7 +531,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 
 			$mpgs_order = $this->service->retrieveOrder( $this->add_order_prefix( $order_id ) );
 			if ( 'SUCCESS' !== $mpgs_order['result'] ) {
-				throw new Exception( 'Payment was declined.' );
+				throw new Exception( 'Payment was declined' );
 			}
 
 			$txn = $mpgs_order['transaction'][0];

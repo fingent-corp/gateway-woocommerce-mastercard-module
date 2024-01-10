@@ -15,8 +15,8 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.1@
- * @link     https://github.com/Mastercard-Gateway/gateway-woocommerce-module/
+ * @version  GIT: @1.4.2@
+ * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
 use Http\Client\Common\Exception\ClientErrorException;
