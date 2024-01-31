@@ -5,16 +5,18 @@
  * Plugin URI: https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
- * Version: 1.4.2
+ * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api
+ * Version: 1.4.3
  * Requires at least: 6.0
+ * Tested up to: 6.4.2
  * Requires PHP: 7.4
  * php version 8.1
  *
  * WC requires at least: 7.6
- * WC tested up to: 8.3.0
+ * WC tested up to: 8.5.2
  *
  * @package  Mastercard
- * @version  GIT: @1.4.2@
+ * @version  GIT: @1.4.3@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -42,7 +44,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Main class of the Mastercard Payment Gateway Services Module
  *
  * @package  Mastercard
- * @version  Release: @1.4.2@
+ * @version  Release: @1.4.3@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class WC_Mastercard {
@@ -80,6 +82,7 @@ class WC_Mastercard {
 		define( 'MPGS_ISO3_COUNTRIES', include plugin_basename( '/iso3.php' ) );
 		require_once plugin_basename( '/vendor/autoload.php' );
 		require_once plugin_basename( '/includes/class-gateway.php' );
+		require_once plugin_basename( '/includes/class-googlepay.php' );
 
 		load_plugin_textdomain( 'mastercard', false, trailingslashit( dirname( plugin_basename( __FILE__ ) ) ) . 'i18n/' );
 

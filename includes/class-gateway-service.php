@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.2@
+ * @version  GIT: @1.4.3@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -32,10 +32,10 @@ use Http\Discovery\HttpClientDiscovery;
 use Http\Message\Authentication\BasicAuth;
 use Http\Message\Formatter;
 use Http\Message\Formatter\SimpleFormatter;
-use Http\Message\MessageFactory\GuzzleMessageFactory;
 use Http\Message\RequestMatcher\RequestMatcher;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
+use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
@@ -55,9 +55,16 @@ class Mastercard_GatewayService {
 	/**
 	 * Message factory variable
 	 *
-	 * @var GuzzleMessageFactory
+	 * @var MessageFactoryInterface
 	 */
 	protected $message_factory;
+
+	/**
+	 * Stream factory variable
+	 *
+	 * @var StreamFactoryInterface
+	 */
+	protected $stream_factory;
 
 	/**
 	 * API endpoint variable
@@ -110,7 +117,7 @@ class Mastercard_GatewayService {
 			)
 		);
 
-		$this->message_factory = new GuzzleMessageFactory();
+		$this->message_factory = new Psr17Factory();
 		$this->api_url         = 'https://' . $base_url . '/api/rest/' . $api_version . '/merchant/' . $merchant_id . '/';
 		$username              = 'merchant.' . $merchant_id;
 
@@ -270,12 +277,12 @@ class Mastercard_GatewayService {
 	 * @throws Exception It throws an exception if a request is not processed.
 	 */
 	public function process3dsResult( $tds_id, $pa_res ) { // phpcs:ignore
-		$uri = $this->api_url . '3DSecureId/' . $tds_id;
-
-		$request = $this->message_factory->createRequest(
+		$uri       = $this->api_url . '3DSecureId/' . $tds_id;
+		$request   = $this->message_factory->createRequest(
 			'POST',
-			$uri,
-			array(),
+			$uri
+		);
+		$stream    = $this->message_factory->createStream(
 			wp_json_encode(
 				array(
 					'apiOperation' => 'PROCESS_ACS_RESULT',
@@ -286,8 +293,9 @@ class Mastercard_GatewayService {
 			)
 		);
 
-		$response = $this->client->sendRequest( $request );
-		$response = json_decode(
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
+		$response     = json_decode(
 			$response->getBody(),
 			true
 		);
@@ -308,16 +316,17 @@ class Mastercard_GatewayService {
 	 * @throws Exception It throws an exception if a request is not processed.
 	 */
 	public function check3dsEnrollment( $data, $order, $session = null, $source_of_funds = array() ) { // phpcs:ignore
-		$tds_id = uniqid(
+		$tds_id  = uniqid(
 			sprintf( '3DS-' ),
 			true
 		);
-		$uri    = $this->api_url . '3DSecureId/' . $tds_id;
-
+		$uri     = $this->api_url . '3DSecureId/' . $tds_id;
 		$request = $this->message_factory->createRequest(
 			'PUT',
-			$uri,
-			array(),
+			$uri			
+		);
+
+		$stream    = $this->message_factory->createStream(
 			wp_json_encode(
 				array(
 					'apiOperation'  => 'CHECK_3DS_ENROLLMENT',
@@ -329,8 +338,9 @@ class Mastercard_GatewayService {
 			)
 		);
 
-		$response = $this->client->sendRequest( $request );
-		$response = json_decode(
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
+		$response     = json_decode(
 			$response->getBody(),
 			true
 		);
@@ -384,15 +394,19 @@ class Mastercard_GatewayService {
 				'source'    => 'INTERNET',
 			),
 		);
+
 		$request      = $this->message_factory->createRequest(
 			'POST',
 			$uri,
-			array(),
+			array()			
+		);
+		$stream 	  = $this->message_factory->createStream(
 			wp_json_encode(
 				$request_data
 			)
 		);
-		$response     = $this->client->sendRequest( $request );
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
 			$response->getBody(),
 			true
@@ -451,11 +465,15 @@ class Mastercard_GatewayService {
 		);
 		$request      = $this->message_factory->createRequest(
 			'POST',
-			$uri,
-			array(),
-			wp_json_encode( $request_data )
+			$uri
 		);
-		$response     = $this->client->sendRequest( $request );
+		$stream 	  = $this->message_factory->createStream(
+			wp_json_encode(
+				$request_data
+			)
+		);
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
 			$response->getBody(),
 			true
@@ -528,14 +546,18 @@ class Mastercard_GatewayService {
 			$request_data['authentication'] = $authentication;
 		}
 
-		$request  = $this->message_factory->createRequest(
+		$request      = $this->message_factory->createRequest(
 			'PUT',
-			$uri,
-			array(),
-			wp_json_encode( $request_data )
+			$uri
 		);
-		$response = $this->client->sendRequest( $request );
-		$response = json_decode(
+		$stream 	  = $this->message_factory->createStream(
+			wp_json_encode(
+				$request_data
+			)
+		);
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
+		$response     = json_decode(
 			$response->getBody(),
 			true
 		);
@@ -560,8 +582,7 @@ class Mastercard_GatewayService {
 		$uri      = $this->api_url . 'session';
 		$request  = $this->message_factory->createRequest(
 			'POST',
-			$uri,
-			array()
+			$uri
 		);
 		$response = $this->client->sendRequest( $request );
 
@@ -628,15 +649,18 @@ class Mastercard_GatewayService {
 			$request_data['authentication'] = $authentication;
 		}
 
-		$request = $this->message_factory->createRequest(
+		$request      = $this->message_factory->createRequest(
 			'PUT',
-			$uri,
-			array(),
-			wp_json_encode( $request_data )
+			$uri
 		);
-
-		$response = $this->client->sendRequest( $request );
-		$response = json_decode(
+		$stream 	  = $this->message_factory->createStream(
+			wp_json_encode(
+				$request_data
+			)
+		);
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
+		$response     = json_decode(
 			$response->getBody(),
 			true
 		);
@@ -706,14 +730,18 @@ class Mastercard_GatewayService {
 			$request_data['authentication'] = $authentication;
 		}
 
-		$request  = $this->message_factory->createRequest(
+		$request      = $this->message_factory->createRequest(
 			'PUT',
-			$uri,
-			array(),
-			wp_json_encode( $request_data )
+			$uri
 		);
-		$response = $this->client->sendRequest( $request );
-		$response = json_decode(
+		$stream 	  = $this->message_factory->createStream(
+			wp_json_encode(
+				$request_data
+			)
+		);
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
+		$response     = json_decode(
 			$response->getBody(),
 			true
 		);
@@ -834,12 +862,13 @@ class Mastercard_GatewayService {
 	 * @throws Exception It throws an exception if void a previous transaction.
 	 */
 	public function voidTxn( $order_id, $txn_id ) { // phpcs:ignore
-		$new_txn_id = 'void-' . $txn_id;
-		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
-		$request    = $this->message_factory->createRequest(
+		$new_txn_id  = 'void-' . $txn_id;
+		$uri         = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
+		$request     = $this->message_factory->createRequest(
 			'PUT',
-			$uri,
-			array(),
+			$uri
+		);
+		$stream 	 = $this->message_factory->createStream(
 			wp_json_encode(
 				array(
 					'apiOperation'      => 'VOID',
@@ -851,8 +880,9 @@ class Mastercard_GatewayService {
 				)
 			)
 		);
-		$response   = $this->client->sendRequest( $request );
-		$response   = json_decode(
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
+		$response     = json_decode(
 			$response->getBody(),
 			true
 		);
@@ -883,8 +913,10 @@ class Mastercard_GatewayService {
 		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
 		$request    = $this->message_factory->createRequest(
 			'PUT',
-			$uri,
-			array(),
+			$uri			
+		);
+
+		$stream 	 = $this->message_factory->createStream(
 			wp_json_encode(
 				array(
 					'apiOperation'      => 'CAPTURE',
@@ -902,8 +934,9 @@ class Mastercard_GatewayService {
 			)
 		);
 
-		$response = $this->client->sendRequest( $request );
-		$response = json_decode(
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
+		$response     = json_decode(
 			$response->getBody(),
 			true
 		);
@@ -934,8 +967,9 @@ class Mastercard_GatewayService {
 		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
 		$request    = $this->message_factory->createRequest(
 			'PUT',
-			$uri,
-			array(),
+			$uri			
+		);
+		$stream 	= $this->message_factory->createStream(
 			wp_json_encode(
 				array(
 					'apiOperation'      => 'REFUND',
@@ -953,8 +987,9 @@ class Mastercard_GatewayService {
 			)
 		);
 
-		$response = $this->client->sendRequest( $request );
-		$response = json_decode(
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
+		$response     = json_decode(
 			$response->getBody(),
 			true
 		);
@@ -999,8 +1034,9 @@ class Mastercard_GatewayService {
 		$uri     = $this->api_url . 'token';
 		$request = $this->message_factory->createRequest(
 			'POST',
-			$uri,
-			array(),
+			$uri			
+		);
+		$stream  = $this->message_factory->createStream(
 			wp_json_encode(
 				array(
 					'session'       => array(
@@ -1013,8 +1049,9 @@ class Mastercard_GatewayService {
 			)
 		);
 
-		$response = $this->client->sendRequest( $request );
-		$response = json_decode( $response->getBody(), true );
+		$request_body = $request->withBody( $stream );
+		$response     = $this->client->sendRequest( $request_body );
+		$response     = json_decode( $response->getBody(), true );
 
 		return $response;
 	}

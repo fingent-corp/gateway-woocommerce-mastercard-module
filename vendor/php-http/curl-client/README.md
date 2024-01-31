@@ -2,9 +2,7 @@
 
 [![Latest Version](https://img.shields.io/github/release/php-http/curl-client.svg?style=flat-square)](https://github.com/php-http/curl-client/releases)
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
-[![Build Status](https://img.shields.io/travis/php-http/curl-client.svg?style=flat-square)](https://travis-ci.org/php-http/curl-client)
-[![Code Coverage](https://img.shields.io/scrutinizer/coverage/g/php-http/curl-client.svg?style=flat-square)](https://scrutinizer-ci.com/g/php-http/curl-client)
-[![Quality Score](https://img.shields.io/scrutinizer/g/php-http/curl-client.svg?style=flat-square)](https://scrutinizer-ci.com/g/php-http/curl-client)
+[![Tests](https://github.com/php-http/curl-client/actions/workflows/Build-Test.yml/badge.svg?branch=2.x)](https://github.com/php-http/curl-client/actions/workflows/Build-Test.yml)
 [![Total Downloads](https://img.shields.io/packagist/dt/php-http/curl-client.svg?style=flat-square)](https://packagist.org/packages/php-http/curl-client)
 
 The cURL client use the cURL PHP extension which must be activated in your `php.ini`.
