@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.2@
+ * @version  GIT: @1.4.3@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -32,7 +32,6 @@ use Http\Discovery\HttpClientDiscovery;
 use Http\Message\Authentication\BasicAuth;
 use Http\Message\Formatter;
 use Http\Message\Formatter\SimpleFormatter;
-use Http\Message\MessageFactory\GuzzleMessageFactory;
 use Http\Message\RequestMatcher\RequestMatcher;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
