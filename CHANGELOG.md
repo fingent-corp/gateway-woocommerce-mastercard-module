@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file.
 
 ## [1.4.3] - 2024-01-31
 ### Enhancement
-- Compatibility with Wordpress 6.4 and WooCommerce 8.5.
+- Compatibility with WordPress 6.4 and WooCommerce 8.5.
 
 ### Changed 
 - Replaced the obsolete php-http/message-factory package with the actively maintained psr/http-factory package.
@@ -49,7 +49,7 @@ All notable changes to this project will be documented in this file.
 ## [1.1.0] - 2020-04-7
 ### Enhancement
 - PHP 7.4 compatibility.
-- Compatibility with Wordpress 5.6 and WooCommerce 4.0.
+- Compatibility with WordPress 5.6 and WooCommerce 4.0.
 
 ## [1.0.0] - 2019-12-17
 ### Feature
