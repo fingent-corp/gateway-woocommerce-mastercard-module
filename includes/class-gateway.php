@@ -15,11 +15,11 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.2@
+ * @version  GIT: @1.4.3@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
-define( 'MPGS_MODULE_VERSION', '1.4.2' );
+define( 'MPGS_TARGET_MODULE_VERSION', '1.4.3' );
 
 require_once dirname( __DIR__ ) . '/includes/class-checkout-builder.php';
 require_once dirname( __DIR__ ) . '/includes/class-gateway-service.php';
@@ -29,7 +29,7 @@ require_once dirname( __DIR__ ) . '/includes/class-payment-gateway-cc.php';
  * Main class of the Mastercard Payment Gateway Module
  *
  * @package  Mastercard
- * @version  Release: @1.4.2@
+ * @version  Release: @1.4.3@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class Mastercard_Gateway extends WC_Payment_Gateway {
@@ -291,7 +291,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			'woocommerce_mastercard_admin',
 			plugins_url( 'assets/js/mastercard-admin.js', __FILE__ ),
 			array(),
-			MPGS_MODULE_VERSION,
+			MPGS_TARGET_MODULE_VERSION,
 			true
 		);
 	}
@@ -314,7 +314,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				'woocommerce_mastercard_hosted_checkout',
 				esc_attr( $this->get_hosted_checkout_js() ),
 				array(),
-				MPGS_MODULE_VERSION,
+				MPGS_TARGET_MODULE_VERSION,
 				false
 			);
 		}
@@ -324,7 +324,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				'woocommerce_mastercard_hosted_session',
 				esc_url( $this->get_hosted_session_js() ),
 				array(),
-				MPGS_MODULE_VERSION,
+				MPGS_TARGET_MODULE_VERSION,
 				false
 			);
 
@@ -333,7 +333,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					'woocommerce_mastercard_threeds',
 					esc_url( $this->get_threeds_js() ),
 					array(),
-					MPGS_MODULE_VERSION,
+					MPGS_TARGET_MODULE_VERSION,
 					false
 				);
 			}
@@ -1234,7 +1234,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				'description' => sprintf(
 					/* translators: 1. MPGS module vesion, 2. MPGS API version. */
 					__( 'Plugin version: %1$s<br />API version: %2$s', 'mastercard' ),
-					MPGS_MODULE_VERSION,
+					MPGS_TARGET_MODULE_VERSION,
 					self::MPGS_API_VERSION_NUM
 				)
 			),
