@@ -1,18 +1,18 @@
 <?php return array(
     'root' => array(
         'name' => '__root__',
-        'pretty_version' => '1.4.2',
-        'version' => '1.4.2.0',
+        'pretty_version' => '1.4.3',
+        'version' => '1.4.3.0',
         'reference' => NULL,
         'type' => 'woocommerce-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'dev' => true,
+        'dev' => false,
     ),
     'versions' => array(
         '__root__' => array(
-            'pretty_version' => '1.4.2',
-            'version' => '1.4.2.0',
+            'pretty_version' => '1.4.3',
+            'version' => '1.4.3.0',
             'reference' => NULL,
             'type' => 'woocommerce-plugin',
             'install_path' => __DIR__ . '/../../',

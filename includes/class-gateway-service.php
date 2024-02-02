@@ -146,7 +146,7 @@ class Mastercard_GatewayService {
 	 * @return string
 	 */
 	protected function getSolutionId() { // phpcs:ignore
-		return 'WC_' . WC()->version . '_FINGENT_' . MPGS_MODULE_VERSION;
+		return 'WC_' . WC()->version . '_FINGENT_' . MPGS_TARGET_MODULE_VERSION;
 	}
 
 	/**

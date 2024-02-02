@@ -1421,6 +1421,6 @@
             "install-path": "../symfony/polyfill-php80"
         }
     ],
-    "dev": true,
+    "dev": false,
     "dev-package-names": []
 }
