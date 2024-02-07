@@ -13,9 +13,6 @@ The module has been tested with the WooCommerce versions:
 - 8.0.1
 - 8.1.1
 - 8.2.1
-- 8.3.0
-- 8.4.0
-- 8.5.2
 
 The module has been tested with the WordPress versions:
 
