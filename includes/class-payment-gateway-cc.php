@@ -15,16 +15,16 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.3@
+ * @version  GIT: @1.4.4@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
+}
+
 /**
  * Show the payment form for Mastercard Payment Gateway.
- *
- * @package  Mastercard
- * @version  Release: @1.4.3@
- * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class Mastercard_Payment_Gateway_CC extends WC_Payment_Gateway_CC {
 	/**
@@ -33,7 +33,26 @@ class Mastercard_Payment_Gateway_CC extends WC_Payment_Gateway_CC {
 	public function form() {
 		wp_enqueue_script( 'wc-credit-card-form' );
 
-		$fields = array();
+		$fields       = array();
+		$allowed_html = array(
+			'p'     => array(
+				'class' => true,
+			),
+			'label' => array(
+				'for' => true,
+			),
+			'input' => array(
+				'id'             => true,
+				'class'          => true,
+				'inputmode'      => true,
+				'readonly'       => true,
+				'autocomplete'   => true,
+				'autocorrect'    => true,
+				'autocapitalize' => true,
+				'spellcheck'     => true,
+				'type'           => true,
+			),
+		);
 
 		$cvc_field = '<p class="form-row form-row-wide">
 			<label for="' . esc_attr( $this->id ) . '-card-cvc">' . esc_html__( 'Card code', 'mastercard' ) . '&nbsp;<span class="required">*</span></label>
@@ -55,26 +74,8 @@ class Mastercard_Payment_Gateway_CC extends WC_Payment_Gateway_CC {
 			</p>',
 		);
 
-		$allowed_html = array(
-			'p' => array(
-				'class' => true,
-			),
-			'label' => array(
-				'for' => true
-			),
-			'input' => array(
-				'id' => true,
-				'class' => true,
-				'inputmode' => true,
-				'readonly' => true,
-				'autocomplete' => true,
-				'autocorrect' => true,
-				'autocapitalize' => true,
-				'spellcheck' => true,
-				'type' => true,
-			)
-		); 
 		$default_fields['card-cvc-field'] = $cvc_field;
+
 		$fields = wp_parse_args( $fields, apply_filters( 'woocommerce_credit_card_form_fields', $default_fields, $this->id ) );
 		?>
 
@@ -90,13 +91,15 @@ class Mastercard_Payment_Gateway_CC extends WC_Payment_Gateway_CC {
 		</fieldset>
 		<?php
 
-		foreach ( $this->get_tokens() as $token ) {
-			echo '<fieldset class="token-cvc" id="token-cvc-' . esc_attr( $token->get_id() ) . '">
-				<p class="form-row form-row-wide">
-					<label for="' . esc_attr( $this->id ) . '-saved-card-cvc-' . esc_attr( $token->get_id() ) . '">' . esc_html__( 'Card code', 'mastercard' ) . '&nbsp;<span class="required">*</span></label>
-					<input id="' . esc_attr( $this->id ) . '-saved-card-cvc-' . esc_attr( $token->get_id() ) . '" class="input-text wc-credit-card-form-card-cvc" readonly="readonly" inputmode="numeric" autocomplete="off" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" maxlength="4" style="width:100px" />
-				</p>
-			</fieldset>';
+		if ( $this->get_tokens() ) {
+			foreach ( $this->get_tokens() as $token ) {
+				echo '<fieldset class="token-cvc" id="token-cvc-' . esc_attr( $token->get_id() ) . '">
+					<p class="form-row form-row-wide">
+						<label for="' . esc_attr( $this->id ) . '-saved-card-cvc-' . esc_attr( $token->get_id() ) . '">' . esc_html__( 'Card code', 'mastercard' ) . '&nbsp;<span class="required">*</span></label>
+						<input id="' . esc_attr( $this->id ) . '-saved-card-cvc-' . esc_attr( $token->get_id() ) . '" class="input-text wc-credit-card-form-card-cvc" readonly="readonly" inputmode="numeric" autocomplete="off" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" maxlength="4" style="width:100px" />
+					</p>
+				</fieldset>';
+			}
 		}
 	}
 }

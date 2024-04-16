@@ -43,18 +43,11 @@ jQuery(function ($) {
             }).change();
 
             $('#woocommerce_mpgs_gateway_method').on('change', function () {
-                if ($(this).val() === 'newhostedcheckout') {
+                if ($(this).val() === 'hosted-checkout') {
                     // Hosted Checkout
                     threedsecure.hide();
                     hc_interaction.show();
                     hc_type.hide();
-                    saved_cards.hide();
-                } else if ($(this).val() === 'hostedcheckout') {
-                    // Legacy Hosted Checkout
-                    // @todo Remove after removal of Legacy Hosted Checkout
-                    threedsecure.hide();
-                    hc_interaction.hide();
-                    hc_type.show();
                     saved_cards.hide();
                 } else {
                     // Hosted Session

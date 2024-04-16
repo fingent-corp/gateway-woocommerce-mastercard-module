@@ -1,9 +1,21 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.4.4] - 2024-04-12
+### Feature
+- Implemented a notification feature to alert the WordPress administrator whenever a new version is launched on GitHub.
+- Enabled Gutenberg block compatibility for the WooCommerce checkout page.
+- MGPS plugin compatibility with WooCommerce High-Performance Order Storage (HPOS).
+
+### Enhancement
+- Compatibility with WordPress 6.5 and WooCommerce 8.5.
+
+### Changed
+- Updated the API version to 78.
+
 ## [1.4.3] - 2024-01-31
 ### Enhancement
-- Compatibility with Wordpress 6.4 and WooCommerce 8.2.
+- Compatibility with WordPress 6.4 and WooCommerce 8.2.
 
 ### Changed 
 - Replaced the obsolete php-http/message-factory package with the actively maintained psr/http-factory package.
@@ -16,13 +28,14 @@ All notable changes to this project will be documented in this file.
 ## [1.4.1] - 2023-11-05
 ### Improvements
 - Adhering to both PHPCS and WPCS coding standards completely.
+
 ### Changed
 - Updated the API version to 73.
 
 ## [1.4.0] - 2023-05-11
 ### Improvements
 - PHP 8.1 compatibility.
-- Compatibility with WordPress 6.4 and WooCommerce 8.1.
+- Compatibility with WordPress 6.3 and WooCommerce 8.0.
 
 ### Changed
 - Updated the API version to 70.

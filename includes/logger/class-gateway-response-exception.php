@@ -15,9 +15,13 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.3@
+ * @version  GIT: @1.4.4@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
+}
 
 use Http\Client\Common\Exception\ClientErrorException;
 use Http\Client\Common\Exception\ServerErrorException;
