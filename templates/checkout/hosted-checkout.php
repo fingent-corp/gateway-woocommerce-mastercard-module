@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.3@
+ * @version  GIT: @1.4.4@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -32,9 +32,11 @@ if ( $gateway->use_embedded() ) { ?>
 	<input type="button" id="mpgs_pay" value="<?php esc_html_e( 'Pay', 'mastercard' ); ?>" onclick="Checkout.showPaymentPage();" />
 <?php } ?><script type="text/javascript">
 	function errorCallback( error ) {
-		var err = JSON.stringify( error );
-		console.error(err);
-		alert( 'Error: ' + JSON.stringify( error ) );
+		var err = JSON.stringify( error ),
+			errorWrapper = jQuery( '.woocommerce-notices-wrapper' );
+		if( errorWrapper.length > 0 ) {
+			errorWrapper.html( error.responseText );
+		}
 	}
 	function cancelCallback() {
 		window.location.href = '<?php echo esc_attr( $order->get_cancel_order_url() ); ?>';

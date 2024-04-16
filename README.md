@@ -13,6 +13,9 @@ The module has been tested with the WooCommerce versions:
 - 8.0.1
 - 8.1.1
 - 8.2.1
+- 8.3.0
+- 8.4.1
+- 8.5.2
 
 The module has been tested with the WordPress versions:
 
@@ -26,6 +29,7 @@ The module has been tested with the WordPress versions:
 - 6.2.2
 - 6.3.1
 - 6.4.2
+- 6.5.2
 
 ## Customer Information Shared with Gateway
 

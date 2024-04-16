@@ -15,11 +15,15 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.3@
+ * @version  GIT: @1.4.4@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
-define( 'MPGS_TARGET_MODULE_VERSION', '1.4.3' );
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
+}
+
+define( 'MPGS_TARGET_MODULE_VERSION', '1.4.4' );
 
 require_once dirname( __DIR__ ) . '/includes/class-checkout-builder.php';
 require_once dirname( __DIR__ ) . '/includes/class-gateway-service.php';
@@ -28,19 +32,17 @@ require_once dirname( __DIR__ ) . '/includes/class-payment-gateway-cc.php';
 /**
  * Main class of the Mastercard Payment Gateway Module
  *
- * @package  Mastercard
- * @version  Release: @1.4.3@
- * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
+ * Represents a gateway service for processing Mastercard transactions.
  */
 class Mastercard_Gateway extends WC_Payment_Gateway {
 
 	const ID = 'mpgs_gateway';
 
-	const MPGS_API_VERSION     = 'version/73';
-	const MPGS_API_VERSION_NUM = '73';
+	const MPGS_API_VERSION     = 'version/78';
+	const MPGS_API_VERSION_NUM = '78';
 
-	const HOSTED_SESSION  = 'hostedsession';
-	const HOSTED_CHECKOUT = 'newhostedcheckout';
+	const HOSTED_SESSION  = 'hosted-session';
+	const HOSTED_CHECKOUT = 'hosted-checkout';
 
 	const HC_TYPE_REDIRECT = 'redirect';
 	const HC_TYPE_MODAL    = 'modal';
@@ -63,49 +65,49 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 *
 	 * @var string
 	 */
-	protected $order_prefix;
+	protected $order_prefix = null;
 
 	/**
 	 * Sandbox
 	 *
 	 * @var bool
 	 */
-	protected $sandbox;
+	protected $sandbox = null;
 
 	/**
 	 * Username
 	 *
 	 * @var string
 	 */
-	protected $username;
+	protected $username = null;
 
 	/**
 	 * Password
 	 *
 	 * @var string
 	 */
-	protected $password;
+	protected $password = null;
 
 	/**
 	 * Gateway URL
 	 *
 	 * @var string
 	 */
-	protected $gateway_url;
+	protected $gateway_url = null;
 
 	/**
 	 * Gateway Service
 	 *
 	 * @var Mastercard_GatewayService
 	 */
-	protected $service;
+	protected $service = null;
 
 	/**
 	 * Hosted checkout Interaction
 	 *
 	 * @var string
 	 */
-	protected $hc_interaction;
+	protected $hc_interaction = null;
 
 	/**
 	 * Hosted checkout type
@@ -114,42 +116,42 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 *
 	 * @todo Remove after removal of Legacy Hosted Checkout
 	 */
-	protected $hc_type;
+	protected $hc_type = null;
 
 	/**
 	 * Capture method
 	 *
 	 * @var bool
 	 */
-	protected $capture;
+	protected $capture = null;
 
 	/**
 	 * Method
 	 *
 	 * @var string
 	 */
-	protected $method;
+	protected $method = null;
 
 	/**
 	 * 3D Secure Version 1
 	 *
 	 * @var bool
 	 */
-	protected $threedsecure_v1;
+	protected $threedsecure_v1 = null;
 
 	/**
 	 * 3D Secure Version 2 (with fallback to 3DS1)
 	 *
 	 * @var bool
 	 */
-	protected $threedsecure_v2;
+	protected $threedsecure_v2 = null;
 
 	/**
 	 * Saved Cards
 	 *
 	 * @var bool
 	 */
-	protected $saved_cards;
+	protected $saved_cards = null;
 
 	/**
 	 * Mastercard_Gateway constructor.
@@ -187,12 +189,11 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		);
 
 		$this->service = $this->init_service();
-
 		add_action(
 			'woocommerce_update_options_payment_gateways_' . $this->id,
 			array(
 				$this,
-				'process_admin_options'
+				'process_admin_options' // phpcs:ignore
 			)
 		);
 
@@ -309,7 +310,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			return;
 		}
 
-		if ( self::HOSTED_CHECKOUT === $this->method ) { 
+		if ( self::HOSTED_CHECKOUT === $this->method ) {
 			wp_enqueue_script(
 				'woocommerce_mastercard_hosted_checkout',
 				esc_attr( $this->get_hosted_checkout_js() ),
@@ -343,16 +344,16 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	/**
 	 * This function is responsible for including the necessary payment gateway scripts.
 	 *
-	 * @param string $tag Script link
+	 * @param string $tag Script link.
 	 *
-	 * @return string $tag Script link
+	 * @return string $tag Script link.
 	 */
 	public function add_js_extra_attribute( $tag ) {
 		$scripts = array( $this->get_hosted_checkout_js() );
 		if ( $scripts ) {
 			foreach ( $scripts as $script ) {
-				if ( true == strpos( $tag, $script ) ) {
-					return str_replace( ' src', ' async data-error="errorCallback" data-cancel="cancelCallback" src', $tag );	
+				if ( true === strpos( $tag, $script ) ) {
+					return str_replace( ' src', ' async data-error="errorCallback" data-cancel="cancelCallback" src', $tag );
 				}
 			}
 		}
@@ -368,18 +369,21 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * @throws Exception If there's a problem for capturing the payment.
 	 */
 	public function process_capture() {
+
 		if ( ! isset( $_REQUEST['post_ID'] ) ) { // phpcs:ignore
 			return;
 		}
 		$order = new WC_Order( sanitize_text_field( wp_unslash( $_REQUEST['post_ID'] ) ) ); // phpcs:ignore
+
 		if ( $order->get_payment_method() !== $this->id ) {
 			throw new Exception( 'Wrong payment method' );
 		}
 		if ( $order->get_status() !== 'processing' ) {
 			throw new Exception( 'Wrong order status, must be \'processing\'' );
 		}
-		if ( $order->get_meta( '_mpgs_order_captured' ) ) {
-			throw new Exception( 'Order already captured' );
+
+		if ( ! empty( $order->get_meta( '_mpgs_order_captured' ) ) ) {
+			throw new Exception( 'The order is already captured.' );
 		}
 
 		$result = $this->service->captureTxn(
@@ -401,23 +405,46 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 
 		$order->update_meta_data( '_mpgs_order_captured', true );
 		$order->save_meta_data();
+		$hpos_enabled = get_option( 'woocommerce_custom_orders_table_enabled' );
 
-		wp_safe_redirect( wp_get_referer() );
+		if ( wp_get_referer() || 'yes' !== WC_Mastercard::is_hpos() ) {
+			wp_safe_redirect( wp_get_referer() );
+		} else {
+			$return_url = add_query_arg( array(
+			    'page'    => 'wc-orders',
+			    'action'  => 'edit',
+			    'id'      => $order->get_id(),
+			    'message' => 1
+			), admin_url( 'admin.php' ) );
+			wp_safe_redirect( $return_url );
+		}
 		exit;
 	}
-
+/**
+	 * Check if WooCommerce is active or not.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
+	public function admin_notices1() {
+		$class   = 'notice notice-error';
+		$message = __( 'Kindly ensure the WooCommerce plugin is active before activating the Mastercard Payment Gateway Services plugin.', 'mastercard' );
+		printf( '<div class="%1$s"><p>%2$s</p></div>', esc_attr( $class ), esc_html( $message ) );
+	}
 	/**
 	 * This function displays admin notices.
 	 *
 	 * @return void
 	 */
 	public function admin_notices() {
+
 		if ( ! $this->enabled ) {
 			return;
 		}
 
 		if ( ! $this->username || ! $this->password ) {
-			echo '<div class="error"><p>' . esc_html__( 'API credentials are not valid. To activate the payment methods please your details to the forms below.' ) . '</p></div>';
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'API credentials are not valid. To activate the payment methods please your details to the forms below.' ) . '</p></div>';
 		}
 
 		$this->display_errors();
@@ -462,17 +489,17 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		ob_clean();
 		header( 'HTTP/1.1 200 OK' );
 
-		$three_ds_txn_id = null;
-		$gateway_recommendation = isset( $_REQUEST['response_gatewayRecommendation'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['response_gatewayRecommendation'] ) ) : null;
+		$three_ds_txn_id        = null;
+		$gateway_recommendation = isset( $_REQUEST['response_gatewayRecommendation'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['response_gatewayRecommendation'] ) ) : null; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		if ( $gateway_recommendation ) {
 			if ( 'PROCEED' === $gateway_recommendation ) {
-				if ( isset( $_REQUEST['transaction_id'] ) ) { // phpcs:ignore
-					$three_ds_txn_id = sanitize_text_field( wp_unslash( $_REQUEST['transaction_id'] ) ); // phpcs:ignore
+				if ( isset( $_REQUEST['transaction_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+					$three_ds_txn_id = sanitize_text_field( wp_unslash( $_REQUEST['transaction_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 				}
 			} else {
 				if ( isset( $_REQUEST['order_id'] ) ) { // phpcs:ignore
-					$order_id = sanitize_text_field( wp_unslash( $_REQUEST['order_id'] ) );
+					$order_id = sanitize_text_field( wp_unslash( $_REQUEST['order_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 					if ( $order_id ) {
 						$order = new WC_Order( $this->remove_order_prefix( $order_id ) ); // phpcs:ignore
@@ -521,8 +548,10 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		if ( isset( $_REQUEST['resultIndicator'] ) ) { // phpcs:ignore
 			$result_indicator = sanitize_text_field( wp_unslash( $_REQUEST['resultIndicator'] ) ); // phpcs:ignore
 		}
+
 		$order             = new WC_Order( $order_id );
 		$success_indicator = $order->get_meta( '_mpgs_success_indicator' );
+		$this->log( 'checkout_payment - ' .$order_id . '--' . $success_indicator, $result_indicator );
 
 		try {
 			if ( $success_indicator !== $result_indicator ) {
@@ -545,6 +574,17 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			wp_safe_redirect( wc_get_checkout_url() );
 			exit();
 		}
+	}
+
+	public function log( $text, $message ) {
+
+		$log_file = dirname( __DIR__ ) . '/includes/mpgs.log';
+		if ( !is_writable( $log_file ) ) {
+            @chmod( $log_file, 0777 );
+        }
+		$file = fopen( $log_file, "a" );
+	    fwrite( $file, date( 'Y-m-d h:i:s' ) . " :: " . $text . ":- " . $message . "\n" ); 
+	    fclose( $file ); 
 	}
 
 	/**
@@ -648,7 +688,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 							'process_acs_result' => '1',
 							'session_id'         => $session_id,
 							'session_version'    => $session_version,
-							'mgps_3ds_nonce'	 => wp_create_nonce( 'mastercard_3ds_nonce' ),
+							'mgps_3ds_nonce'     => wp_create_nonce( 'mastercard_3ds_nonce' ),
 							$token_key           => isset( $_REQUEST[ $token_key ] ) ? sanitize_text_field( wp_unslash( $_REQUEST[ $token_key ] ) ) : null, // phpcs:ignore
 						)
 					)
@@ -665,7 +705,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		}
 
 		if ( $process_acl_result && wp_verify_nonce( $mgps_3ds_nonce, 'mastercard_3ds_nonce' ) ) {
-			$pa_res   = isset( $_POST['PaRes'] ) ? sanitize_text_field( wp_unslash( $_POST['PaRes'] ) ) : null; 
+			$pa_res   = isset( $_POST['PaRes'] ) ? sanitize_text_field( wp_unslash( $_POST['PaRes'] ) ) : null;
 			$tds_id   = isset( $_REQUEST['3DSecureId'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['3DSecureId'] ) ) : null;
 			$response = $this->service->process3dsResult( $tds_id, $pa_res );
 
@@ -751,15 +791,15 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 
 				if ( 'DECLINED' === $gateway_code ) {
 					throw new Exception( __( 'Payment unsuccessful; your card has been declined.', 'mastercard' ) );
-				} else if ( 'EXPIRED_CARD' === $gateway_code ) {
+				} elseif ( 'EXPIRED_CARD' === $gateway_code ) {
 					throw new Exception( __( 'The card has expired. Please enter a new card for payment.', 'mastercard' ) );
-				} else if ( 'TIMED_OUT' === $gateway_code ) {
+				} elseif ( 'TIMED_OUT' === $gateway_code ) {
 					throw new Exception( __( 'We couldn\'t process your card request within the allotted time, and it timed out.', 'mastercard' ) );
-				} else if ( 'ACQUIRER_SYSTEM_ERROR' === $gateway_code ) {
+				} elseif ( 'ACQUIRER_SYSTEM_ERROR' === $gateway_code ) {
 					throw new Exception( __( 'The transaction was disrupted due to an issue in the acquirer\'s system.', 'mastercard' ) );
-				} else if ( 'UNSPECIFIED_FAILURE' === $gateway_code ) {
+				} elseif ( 'UNSPECIFIED_FAILURE' === $gateway_code ) {
 					throw new Exception( __( 'An unspecified issue has occurred with your card. Please check the details and try again.', 'mastercard' ) );
-				} else if ( 'EXPIRED_CARD' === $gateway_code ) {
+				} elseif ( 'EXPIRED_CARD' === $gateway_code ) {
 					throw new Exception( __( 'The card not authorized. Please enter a new card for payment.', 'mastercard' ) );
 				} else {
 					throw new Exception( __( 'Payment was declined.', 'mastercard' ) );
@@ -810,7 +850,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		);
 		$token->set_last4( $last4 );
 
-		$m = []; // phpcs:ignore
+		$m = array(); // phpcs:ignore
 		preg_match( '/^(\d{2})(\d{2})$/', $response['sourceOfFunds']['provided']['card']['expiry'], $m );
 
 		$token->set_expiry_month( $m[1] );
@@ -1059,10 +1099,25 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					$order_builder->getShipping()
 				);
 
-				if ( $order->meta_exists( '_mpgs_success_indicator' ) ) {
+				$this->log( 'Result', print_r($result, TRUE) );
+
+				if ( $result && $result['successIndicator'] ) {
+					$this->log( 'Create meta checkoutSession - ' . $order->get_id(), $result['successIndicator'] );
 					$order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
-				} else {
-					$order->add_meta_data( '_mpgs_success_indicator', $result['successIndicator'], true );
+
+					if ( ! $order->meta_exists( '_mpgs_success_indicator' ) ) {
+						global $wpdb, $table_prefix;
+						$wpdb->query( 
+							$wpdb->prepare(
+								"INSERT INTO " . $table_prefix . "wc_orders_meta 
+								(order_id, meta_key, meta_value) 
+								VALUES (%d, %s, %s)",
+								$order->get_id(),
+								'_mpgs_success_indicator',
+								$result['successIndicator']
+							)
+						);
+					}
 				}
 				$order->save_meta_data();
 				break;
@@ -1090,8 +1145,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					);
 				}
 
-				$session_id = $order->get_meta( '_mpgs_session_id' );
-
+				$session_id    = $order->get_meta( '_mpgs_session_id' );
 				$order_builder = new Mastercard_CheckoutBuilder( $order );
 				$result        = $this->service->update_session(
 					$session_id,
@@ -1103,10 +1157,13 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					$this->get_token_from_request()
 				);
 
-				if ( $order->meta_exists( '_mpgs_success_indicator' ) ) {
-					$order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
-				} else {
-					$order->add_meta_data( '_mpgs_success_indicator', $result['successIndicator'], true );
+				if ( $result && $result['successIndicator'] ) {
+					$this->log( 'create meta savePayment - ' . $order->get_id(), $result['successIndicator'] );
+					if ( $order->meta_exists( '_mpgs_success_indicator' ) ) {
+						$order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
+					} else {
+						$order->add_meta_data( '_mpgs_success_indicator', $result['successIndicator'], true  );
+					}	
 				}
 				$order->save_meta_data();
 				break;
@@ -1215,9 +1272,9 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			$cc_form->supports = $support;
 			set_query_var( 'cc_form', $cc_form );
 
-			load_template( dirname( __DIR__ ) . '/templates/checkout/hostedsession.php' );
+			load_template( dirname( __DIR__ ) . '/templates/checkout/hosted-session.php' );
 		} else {
-			load_template( dirname( __DIR__ ) . '/templates/checkout/newhostedcheckout.php' );
+			load_template( dirname( __DIR__ ) . '/templates/checkout/hosted-checkout.php' );
 		}
 	}
 
@@ -1236,7 +1293,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					__( 'Plugin version: %1$s<br />API version: %2$s', 'mastercard' ),
 					MPGS_TARGET_MODULE_VERSION,
 					self::MPGS_API_VERSION_NUM
-				)
+				),
 			),
 			'enabled'            => array(
 				'title'       => __( 'Enable/Disable', 'mastercard' ),
@@ -1266,7 +1323,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					self::API_NA     => __( 'North America', 'mastercard' ),
 					self::API_CUSTOM => __( 'Custom URL', 'mastercard' ),
 				),
-				'default' => self::API_EU
+				'default' => self::API_EU,
 			),
 			'custom_gateway_url' => array(
 				'title'       => __( 'Custom Gateway Host', 'mastercard' ),
@@ -1281,7 +1338,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					self::TXN_MODE_AUTH_CAPTURE => __( 'Authorize', 'mastercard' ),
 				),
 				'default'     => self::TXN_MODE_PURCHASE,
-				'description' => __( 'In “Purchase” mode, the customer is charged immediately. In Authorize mode, the transaction is only authorized and the capturing of funds is a manual process that you do using the Woocommerce admin panel.', 'mastercard' )
+				'description' => __( 'In “Purchase” mode, the customer is charged immediately. In Authorize mode, the transaction is only authorized and the capturing of funds is a manual process that you do using the Woocommerce admin panel.', 'mastercard' ),
 			),
 			'method'             => array(
 				'title'   => __( 'Integration Model', 'mastercard' ),
@@ -1290,7 +1347,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					self::HOSTED_CHECKOUT => __( 'Hosted Checkout', 'mastercard' ),
 					self::HOSTED_SESSION  => __( 'Hosted Session', 'mastercard' ),
 				),
-				'default' => self::HOSTED_CHECKOUT
+				'default' => self::HOSTED_CHECKOUT,
 			),
 			'threedsecure'       => array(
 				'title'       => __( '3D-Secure', 'mastercard' ),
@@ -1302,7 +1359,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					self::THREED_V2       => __( '3DS2 (with fallback to 3DS1)' ),
 				),
 				'default'     => self::THREED_DISABLED,
-				'description' => __( 'For more information please contact your payment service provider.', 'mastercard' )
+				'description' => __( 'For more information please contact your payment service provider.', 'mastercard' ),
 			),
 			'hc_interaction'     => array(
 				'title'   => __( 'Checkout Interaction', 'mastercard' ),
@@ -1311,7 +1368,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					self::HC_TYPE_REDIRECT => __( 'Redirect to Payment Page', 'mastercard' ),
 					self::HC_TYPE_EMBEDDED => __( 'Embedded', 'mastercard' ),
 				),
-				'default' => self::HC_TYPE_EMBEDDED
+				'default' => self::HC_TYPE_EMBEDDED,
 			),
 			'hc_type'            => array(
 				'title'   => __( 'Checkout Interaction', 'mastercard' ),
@@ -1320,7 +1377,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					self::HC_TYPE_REDIRECT => __( 'Redirect to Payment Page', 'mastercard' ),
 					self::HC_TYPE_MODAL    => __( 'Lightbox', 'mastercard' ),
 				),
-				'default' => self::HC_TYPE_MODAL
+				'default' => self::HC_TYPE_MODAL,
 			),
 			'saved_cards'        => array(
 				'title'       => __( 'Saved Cards', 'mastercard' ),
@@ -1359,23 +1416,23 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				'default'     => '',
 			),
 			'sandbox_password'   => array(
-				'title'   => __( 'Test API Password', 'mastercard' ),
-				'type'    => 'password',
+				'title'       => __( 'Test API Password', 'mastercard' ),
+				'type'        => 'password',
 				'description' => __( 'This is your test API password', 'mastercard' ),
 				'default'     => '',
 			),
 			'username'           => array(
-				'title'   => __( 'Merchant ID', 'mastercard' ),
-				'type'    => 'text',
+				'title'       => __( 'Merchant ID', 'mastercard' ),
+				'type'        => 'text',
 				'description' => __( 'This is your merchant profile ID', 'mastercard' ),
 				'default'     => '',
 			),
 			'password'           => array(
-				'title'   => __( 'API Password', 'mastercard' ),
-				'type'    => 'password',
+				'title'       => __( 'API Password', 'mastercard' ),
+				'type'        => 'password',
 				'description' => __( 'This is your API password', 'mastercard' ),
 				'default'     => '',
-			),		
+			),
 			'order_prefix'       => array(
 				'title'       => __( 'Order ID prefix', 'mastercard' ),
 				'type'        => 'text',

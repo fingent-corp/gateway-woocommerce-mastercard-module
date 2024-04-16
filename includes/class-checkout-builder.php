@@ -15,8 +15,18 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.3@
+ * @version  GIT: @1.4.4@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
+}
+
+/**
+ * Main class of the Mastercard Checkout Builder
+ *
+ * Represents a gateway service for processing Mastercard transactions.
  */
 class Mastercard_CheckoutBuilder {
 	/**
@@ -24,7 +34,7 @@ class Mastercard_CheckoutBuilder {
 	 *
 	 * @var WC_Order
 	 */
-	protected $order;
+	protected $order = null;
 
 	/**
 	 * Mastercard_Model_AbstractBuilder constructor.
@@ -174,26 +184,19 @@ class Mastercard_CheckoutBuilder {
 	/**
 	 * Formatted price.
 	 *
-	 * @param float        $formatted_price    Formatted price.
-	 * @param float        $price              Unformatted price.
-	 * @param int          $decimals           Number of decimals.
-	 * @param string       $decimal_separator  Decimal separator.
-	 * @param float|string $original_price     Original price as float, or empty string.
-	 *
+	 * @param float $price Unformatted price.
 	 * @return string
 	 */
-
-	public function formattedPrice( $price ) {
+	public function formattedPrice( $price ) { // phpcs:ignore
 
 		$original_price = $price;
-		$args = array(
-			'currency'           => '',
-			'decimal_separator'  => wc_get_price_decimal_separator(),
-			'decimals'           => wc_get_price_decimals(),
-			'price_format'       => get_woocommerce_price_format(),
+		$args           = array(
+			'currency'          => '',
+			'decimal_separator' => wc_get_price_decimal_separator(),
+			'decimals'          => wc_get_price_decimals(),
+			'price_format'      => get_woocommerce_price_format(),
 		);
-
-		$price = apply_filters( 'formatted_mastercard_price', number_format( $price, $args['decimals'], $args['decimal_separator'], '' ), $price, $args['decimals'], $args['decimal_separator'], '', $original_price );
+		$price          = apply_filters( 'formatted_mastercard_price', number_format( $price, $args['decimals'], $args['decimal_separator'], '' ), $price, $args['decimals'], $args['decimal_separator'], '', $original_price );
 
 		return $price;
 	}
