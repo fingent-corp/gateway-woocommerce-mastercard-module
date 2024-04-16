@@ -8,14 +8,14 @@ All notable changes to this project will be documented in this file.
 - MGPS plugin compatibility with WooCommerce High-Performance Order Storage (HPOS).
 
 ### Enhancement
-- Compatibility with Wordpress 6.5 and WooCommerce 8.5.
+- Compatibility with WordPress 6.5 and WooCommerce 8.5.
 
 ### Changed
 - Updated the API version to 78.
 
 ## [1.4.3] - 2024-01-31
 ### Enhancement
-- Compatibility with Wordpress 6.4 and WooCommerce 8.2.
+- Compatibility with WordPress 6.4 and WooCommerce 8.2.
 
 ### Changed 
 - Replaced the obsolete php-http/message-factory package with the actively maintained psr/http-factory package.

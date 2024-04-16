@@ -5,12 +5,12 @@
 * Add - Implemented a notification feature to alert the WordPress administrator whenever a new version is launched on GitHub.
 * Add - Enabled Gutenberg block compatibility for the WooCommerce checkout page.
 * Add - MGPS plugin compatibility with WooCommerce High-Performance Order Storage (HPOS).
-* Enhancement - Compatibility with Wordpress 6.5 and WooCommerce 8.5.
+* Enhancement - Compatibility with WordPress 6.5 and WooCommerce 8.5.
 * Update - Updated the API version to 78.
 
 2024-01-31 - version 1.4.3
 
-* Enhancement - Compatibility with Wordpress 6.4 and WooCommerce 8.2.
+* Enhancement - Compatibility with WordPress 6.4 and WooCommerce 8.2.
 * Add - Replaced the obsolete php-http/message-factory package with the actively maintained psr/http-factory package.
 * Update - Added nyholm/psr7 package.
 
@@ -47,7 +47,7 @@
 2020-07-04 - version 1.1.0
 
 * Enhancement - PHP 7.4 compatibility.
-* Enhancement - Compatibility with Wordpress 5.6 and WooCommerce 4.0.
+* Enhancement - Compatibility with WordPress 5.6 and WooCommerce 4.0.
 
 2019-12-17 - version 1.0.0
 
