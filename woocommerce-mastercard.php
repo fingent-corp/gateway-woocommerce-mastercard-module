@@ -89,14 +89,17 @@ class WC_Mastercard {
 	public function init() {
 		define( 'MPGS_TARGET_PLUGIN_FILE', __FILE__ );
 		define( 'MPGS_TARGET_PLUGIN_BASENAME', plugin_basename( MPGS_TARGET_PLUGIN_FILE ) );
+
 		add_action( 'admin_init', array( $this, 'stop' ) );
+
 		if ( ! class_exists( 'WC_Payment_Gateway' ) ) {
 			return;
 		}
+		
 		define( 'MPGS_ISO3_COUNTRIES', include plugin_basename( '/iso3.php' ) );
-		require_once plugin_dir_path( __FILE__ ) . 'vendor/autoload.php';
-		require_once plugin_dir_path( __FILE__ ) . '/includes/class-gateway.php';
-		require_once plugin_dir_path( __FILE__ ) . '/includes/class-gateway-notification.php';
+		require_once plugin_basename( '/vendor/autoload.php' );
+		require_once plugin_basename( '/includes/class-gateway.php' );
+		require_once plugin_basename( '/includes/class-gateway-notification.php' );
 		load_plugin_textdomain( 'mastercard', false, trailingslashit( dirname( plugin_basename( __FILE__ ) ) ) . 'i18n/' );
 		// phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped, WordPress.Security.NonceVerification.Recommended
 		add_filter(
