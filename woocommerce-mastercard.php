@@ -6,17 +6,17 @@
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api
- * Version: 1.4.4
+ * Version: 1.4.5
  * Requires at least: 6.0
- * Tested up to: 6.5
+ * Tested up to: 6.6.1
  * Requires PHP: 7.4
  * php version 8.1
  *
  * WC requires at least: 7.6
- * WC tested up to: 8.5.2
+ * WC tested up to: 9.1.2
  *
  * @package  Mastercard
- * @version  GIT: @1.4.4@
+ * @version  GIT: @1.4.5@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -47,7 +47,7 @@ use Automattic\WooCommerce\Internal\Features\FeaturesController;
  * Main class of the Mastercard Payment Gateway Services Module
  *
  * @package  Mastercard
- * @version  Release: @1.4.4@
+ * @version  Release: @1.4.5@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class WC_Mastercard {
@@ -89,18 +89,19 @@ class WC_Mastercard {
 	public function init() {
 		define( 'MPGS_TARGET_PLUGIN_FILE', __FILE__ );
 		define( 'MPGS_TARGET_PLUGIN_BASENAME', plugin_basename( MPGS_TARGET_PLUGIN_FILE ) );
-
 		add_action( 'admin_init', array( $this, 'stop' ) );
+		add_action( 'admin_head', array( $this, 'mpgs_custom_css' ) );
 
 		if ( ! class_exists( 'WC_Payment_Gateway' ) ) {
 			return;
 		}
-		
+
 		define( 'MPGS_ISO3_COUNTRIES', include plugin_basename( '/iso3.php' ) );
 		require_once plugin_basename( '/vendor/autoload.php' );
 		require_once plugin_basename( '/includes/class-gateway.php' );
 		require_once plugin_basename( '/includes/class-gateway-notification.php' );
 		load_plugin_textdomain( 'mastercard', false, trailingslashit( dirname( plugin_basename( __FILE__ ) ) ) . 'i18n/' );
+
 		// phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped, WordPress.Security.NonceVerification.Recommended
 		add_filter(
 			'woocommerce_order_actions',
@@ -109,12 +110,15 @@ class WC_Mastercard {
 				$order_id     = self::get_order_id();
 				if ( $order_id ) {
 					$order = new WC_Order( $order_id );
-					if ( $order->get_payment_method() === Mastercard_Gateway::ID ) {
-						if ( ! $order->get_meta( '_mpgs_order_captured' ) ) {
-							if ( 'processing' === $order->get_status() ) {
-								$actions['mpgs_capture_order'] = __( 'Capture payment', 'mastercard' );
-							}
-						}
+
+					if ( $order->get_payment_method() === Mastercard_Gateway::ID
+						 && ! $order->get_meta( '_mpgs_order_captured' )
+						 && $order->get_status() == 'processing'
+					) {
+						$actions[ 'mpgs_capture_payment' ] = __(
+							'Capture Authorized Amount',
+							'mastercard'
+						);
 					}
 				}
 				return $actions;
@@ -224,9 +228,9 @@ class WC_Mastercard {
 	}
 
 	/**
-	 * Check if WooCommerce is active or not.
+	 * Apply Custom CSS to Admin Area.
 	 *
-	 * @since 1.2.0
+	 * @since 1.4.5
 	 *
 	 * @return void
 	 */
@@ -234,6 +238,24 @@ class WC_Mastercard {
 		$class   = 'notice notice-error';
 		$message = __( 'Kindly ensure the WooCommerce plugin is active before activating the Mastercard Payment Gateway Services plugin.', 'mastercard' );
 		printf( '<div class="%1$s"><p>%2$s</p></div>', esc_attr( $class ), esc_html( $message ) );
+	}
+
+	/**
+	 * Check if WooCommerce is active or not.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
+	public function mpgs_custom_css() {
+		if( 'shop_order' === get_post_type() ) {
+			$order_id = self::get_order_id();
+			$order    = new WC_Order( $order_id );
+
+			if( 'mpgs_gateway' === $order->get_payment_method() && 'refunded' === $order->get_status() ) {
+				echo '<style>#woocommerce-order-items .add-items .button.refund-items { display:none; }</style>';
+			}
+		}
 	}
 
 	/**
@@ -396,7 +418,7 @@ class WC_Mastercard {
 	/**
 	 * Function to declare compatibility with cart_checkout_blocks feature.
 	 *
-	 * @since 1.4.4
+	 * @since 1.4.5
 	 * @return void
 	 */
 	public function declare_cart_checkout_blocks_compatibility() { // phpcs:ignore Universal.Files.SeparateFunctionsFromOO.Mixed
@@ -409,7 +431,7 @@ class WC_Mastercard {
 	/**
 	 * Function to register the Mastercard payment method type.
 	 *
-	 * @since 1.4.4
+	 * @since 1.4.5
 	 * @return void
 	 */
 	public function woocommerce_gateway_mastercard_woocommerce_block_support() {

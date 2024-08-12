@@ -1,5 +1,10 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2024-07-09 - version 1.4.5
+
+* Enhancement - Compatibility with WordPress 6.6 and WooCommerce 9.1.
+* Update - Updated the API version to 81.
+
 2024-04-12 - version 1.4.4
 
 * Add - Implemented a notification feature to alert the WordPress administrator whenever a new version is launched on GitHub.

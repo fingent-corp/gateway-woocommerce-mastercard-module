@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.4.5] - 2024-07-09
+### Enhancement
+- Compatibility with WordPress 6.6 and WooCommerce 9.1.
+
+### Changed
+- Updated the API version to 81.
+
 ## [1.4.4] - 2024-04-12
 ### Feature
 - Implemented a notification feature to alert the WordPress administrator whenever a new version is launched on GitHub.

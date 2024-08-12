@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.4@
+ * @version  GIT: @1.4.5@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -102,6 +102,13 @@ class Mastercard_Gateway_Notification {
 	 * @var string|null
 	 */
 	protected $changelog = null;
+
+	/**
+	 * Plugin slug variable.
+	 *
+	 * @var string|null
+	 */
+	protected $plugin_slug;
 
 	/**
 	 * GatewayService constructor.

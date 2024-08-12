@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.4@
+ * @version  GIT: @1.4.5@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -143,7 +143,9 @@ class Mastercard_GatewayService {
 			$request_matcher
 		);
 
-		set_exception_handler( array( $this, 'exception_handler' ) );
+		if( ! is_admin() ) {
+			set_exception_handler( array( $this, 'exception_handler' ) );
+		}
 	}
 
 	/**
@@ -197,7 +199,7 @@ class Mastercard_GatewayService {
 		$message  = '<div class="wc-block-components-notice-banner is-error"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path d="M12 3.2c-4.8 0-8.8 3.9-8.8 8.8 0 4.8 3.9 8.8 8.8 8.8 4.8 0 8.8-3.9 8.8-8.8 0-4.8-4-8.8-8.8-8.8zm0 16c-4 0-7.2-3.3-7.2-7.2C4.8 8 8 4.8 12 4.8s7.2 3.3 7.2 7.2c0 4-3.2 7.2-7.2 7.2zM11 17h2v-6h-2v6zm0-8h2V7h-2v2z"></path></svg><div class="wc-block-components-notice-banner__content"><ul><li>';
 		$message .= sprintf(
 			/* translators: %s: error message */
-			__( 'Error communicating with payment gateway API: "%s"', 'mastercard' ),
+			__( 'Error: "%s"', 'mastercard' ),
 			$exception->getMessage()
 		);
 		$message .= '</li></ul></div></div>';
@@ -215,7 +217,11 @@ class Mastercard_GatewayService {
 	 */
 	public function validateCheckoutSessionResponse( $data ) { // phpcs:ignore
 		if ( ! isset( $data['result'] ) || 'SUCCESS' !== $data['result'] ) {
-			throw new Mastercard_GatewayResponseException( 'Missing or invalid session result.' );
+			if( isset( $data['error']['explanation'] ) ) {
+				throw new Mastercard_GatewayResponseException( $data['error']['explanation'] );
+			} else {
+				throw new Mastercard_GatewayResponseException( 'Missing or invalid session result.' );
+			}
 		}
 
 		if ( ! isset( $data['session']['id'] ) ) {
@@ -415,7 +421,7 @@ class Mastercard_GatewayService {
 			'customer'          => $customer,
 			'transaction'       => array(
 				'reference' => $txn_id,
-				'source'    => 'INTERNET',
+				'source'    => 'INTERNET',				
 			),
 		);
 		$request      = $this->message_factory->createRequest(

@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.4@
+ * @version  GIT: @1.4.5@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -136,6 +136,7 @@ class Mastercard_CheckoutBuilder {
 				'firstName' => self::safe( $this->order->get_shipping_first_name(), 50 ),
 				'lastName'  => self::safe( $this->order->get_shipping_last_name(), 50 ),
 			),
+			
 		);
 	}
 
@@ -158,8 +159,7 @@ class Mastercard_CheckoutBuilder {
 	 * @return array
 	 */
 	public function getHostedCheckoutOrder() { // phpcs:ignore
-		$gateway = new Mastercard_Gateway();
-
+		$gateway      = new Mastercard_Gateway();
 		return array_merge(
 			array(
 				'id'          => (string) $gateway->add_order_prefix( $this->order->get_id() ),
@@ -188,7 +188,6 @@ class Mastercard_CheckoutBuilder {
 	 * @return string
 	 */
 	public function formattedPrice( $price ) { // phpcs:ignore
-
 		$original_price = $price;
 		$args           = array(
 			'currency'          => '',

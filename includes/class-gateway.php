@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.4@
+ * @version  GIT: @1.4.5@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MPGS_TARGET_MODULE_VERSION', '1.4.4' );
+define( 'MPGS_TARGET_MODULE_VERSION', '1.4.5' );
 
 require_once dirname( __DIR__ ) . '/includes/class-checkout-builder.php';
 require_once dirname( __DIR__ ) . '/includes/class-gateway-service.php';
@@ -38,8 +38,8 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 
 	const ID = 'mpgs_gateway';
 
-	const MPGS_API_VERSION     = 'version/78';
-	const MPGS_API_VERSION_NUM = '78';
+	const MPGS_API_VERSION     = 'version/81';
+	const MPGS_API_VERSION_NUM = '81';
 
 	const HOSTED_SESSION  = 'hosted-session';
 	const HOSTED_CHECKOUT = 'hosted-checkout';
@@ -55,6 +55,9 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 
 	const TXN_MODE_PURCHASE     = 'capture';
 	const TXN_MODE_AUTH_CAPTURE = 'authorize';
+
+	const HF_FIXED      = 'fixed';
+	const HF_PERCENTAGE = 'percentage';
 
 	const THREED_DISABLED = 'no';
 	const THREED_V1       = 'yes'; // Backward compatibility with checkbox value.
@@ -187,8 +190,9 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			'refunds',
 			'tokenization',
 		);
+		$this->hf_enabled      = $this->get_option( 'hf_enabled', false );
+		$this->service         = $this->init_service();
 
-		$this->service = $this->init_service();
 		add_action(
 			'woocommerce_update_options_payment_gateways_' . $this->id,
 			array(
@@ -199,7 +203,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 
 		add_action( 'admin_enqueue_scripts', array( $this, 'admin_scripts' ) );
 		add_action( 'wp_enqueue_scripts', array( $this, 'payment_gateway_scripts' ), 10 );
-		add_action( 'woocommerce_order_action_mpgs_capture_order', array( $this, 'process_capture' ) );
+		add_action( 'woocommerce_order_action_mpgs_capture_payment', array( $this, 'process_capture' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'receipt_page' ) );
 		add_action( 'woocommerce_api_mastercard_gateway', array( $this, 'return_handler' ) );
 		add_action( 'admin_notices', array( $this, 'admin_notices' ) );
@@ -374,7 +378,6 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			return;
 		}
 		$order = new WC_Order( sanitize_text_field( wp_unslash( $_REQUEST['post_ID'] ) ) ); // phpcs:ignore
-
 		if ( $order->get_payment_method() !== $this->id ) {
 			throw new Exception( 'Wrong payment method' );
 		}
@@ -420,25 +423,13 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		}
 		exit;
 	}
-/**
-	 * Check if WooCommerce is active or not.
-	 *
-	 * @since 1.2.0
-	 *
-	 * @return void
-	 */
-	public function admin_notices1() {
-		$class   = 'notice notice-error';
-		$message = __( 'Kindly ensure the WooCommerce plugin is active before activating the Mastercard Payment Gateway Services plugin.', 'mastercard' );
-		printf( '<div class="%1$s"><p>%2$s</p></div>', esc_attr( $class ), esc_html( $message ) );
-	}
+
 	/**
 	 * This function displays admin notices.
 	 *
 	 * @return void
 	 */
 	public function admin_notices() {
-
 		if ( ! $this->enabled ) {
 			return;
 		}
@@ -551,7 +542,6 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 
 		$order             = new WC_Order( $order_id );
 		$success_indicator = $order->get_meta( '_mpgs_success_indicator' );
-		$this->log( 'checkout_payment - ' .$order_id . '--' . $success_indicator, $result_indicator );
 
 		try {
 			if ( $success_indicator !== $result_indicator ) {
@@ -574,17 +564,6 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			wp_safe_redirect( wc_get_checkout_url() );
 			exit();
 		}
-	}
-
-	public function log( $text, $message ) {
-
-		$log_file = dirname( __DIR__ ) . '/includes/mpgs.log';
-		if ( !is_writable( $log_file ) ) {
-            @chmod( $log_file, 0777 );
-        }
-		$file = fopen( $log_file, "a" );
-	    fwrite( $file, date( 'Y-m-d h:i:s' ) . " :: " . $text . ":- " . $message . "\n" ); 
-	    fclose( $file ); 
 	}
 
 	/**
@@ -871,10 +850,11 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 */
 	protected function process_wc_order( $order, $order_data, $txn_data ) {
 		$this->validate_order( $order, $order_data );
-
 		$captured = 'CAPTURED' === $order_data['status'];
 		$order->add_meta_data( '_mpgs_order_captured', $captured );
 		$order->add_meta_data( '_mpgs_order_paid', 1 );
+		$order->add_meta_data( '_mpgs_transaction_id', $txn_data['transaction']['id'] );
+		$order->add_meta_data( '_mpgs_transaction_reference', $txn_data['transaction']['reference'] );
 		$order->payment_complete( $txn_data['transaction']['id'] );
 
 		if ( $captured ) {
@@ -1099,10 +1079,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					$order_builder->getShipping()
 				);
 
-				$this->log( 'Result', print_r($result, TRUE) );
-
 				if ( $result && $result['successIndicator'] ) {
-					$this->log( 'Create meta checkoutSession - ' . $order->get_id(), $result['successIndicator'] );
 					$order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
 
 					if ( ! $order->meta_exists( '_mpgs_success_indicator' ) ) {
@@ -1158,7 +1135,6 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				);
 
 				if ( $result && $result['successIndicator'] ) {
-					$this->log( 'create meta savePayment - ' . $order->get_id(), $result['successIndicator'] );
 					if ( $order->meta_exists( '_mpgs_success_indicator' ) ) {
 						$order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
 					} else {
@@ -1307,12 +1283,14 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				'type'        => 'text',
 				'description' => __( 'This controls the title which the user sees during checkout.', 'mastercard' ),
 				'default'     => __( 'Mastercard Payment Gateway Services', 'mastercard' ),
+				'css'         => 'min-height: 33px;'
 			),
 			'description'        => array(
 				'title'       => __( 'Description', 'mastercard' ),
 				'type'        => 'text',
 				'description' => __( 'The description displayed when this payment method is selected.', 'mastercard' ),
 				'default'     => 'Pay with your card via Mastercard.',
+				'css'         => 'min-height: 33px;'
 			),
 			'gateway_url'        => array(
 				'title'   => __( 'Gateway', 'mastercard' ),
@@ -1329,6 +1307,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				'title'       => __( 'Custom Gateway Host', 'mastercard' ),
 				'type'        => 'text',
 				'description' => __( 'Enter only the hostname without https prefix. For example na.gateway.mastercard.com.', 'mastercard' ),
+				'css'         => 'min-height: 33px;'
 			),
 			'txn_mode'           => array(
 				'title'       => __( 'Transaction Mode', 'mastercard' ),
@@ -1412,32 +1391,37 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			'sandbox_username'   => array(
 				'title'       => __( 'Test Merchant ID', 'mastercard' ),
 				'type'        => 'text',
-				'description' => __( 'This is your test merchant profile ID prefixed with TEST', 'mastercard' ),
+				'description' => __( 'This is your test merchant profile ID prefixed with TEST.', 'mastercard' ),
 				'default'     => '',
+				'css'         => 'min-height: 33px;'
 			),
 			'sandbox_password'   => array(
 				'title'       => __( 'Test API Password', 'mastercard' ),
 				'type'        => 'password',
-				'description' => __( 'This is your test API password', 'mastercard' ),
+				'description' => __( 'This is your test API password.', 'mastercard' ),
 				'default'     => '',
+				'css'         => 'min-height: 33px;'
 			),
 			'username'           => array(
 				'title'       => __( 'Merchant ID', 'mastercard' ),
 				'type'        => 'text',
-				'description' => __( 'This is your merchant profile ID', 'mastercard' ),
+				'description' => __( 'This is your merchant profile ID.', 'mastercard' ),
 				'default'     => '',
+				'css'         => 'min-height: 33px;'
 			),
 			'password'           => array(
 				'title'       => __( 'API Password', 'mastercard' ),
 				'type'        => 'password',
-				'description' => __( 'This is your API password', 'mastercard' ),
+				'description' => __( 'This is your API password.', 'mastercard' ),
 				'default'     => '',
+				'css'         => 'min-height: 33px;'
 			),
 			'order_prefix'       => array(
 				'title'       => __( 'Order ID prefix', 'mastercard' ),
 				'type'        => 'text',
-				'description' => __( 'Should be specified in case multiple integrations use the same Merchant ID', 'mastercard' ),
+				'description' => __( 'Should be specified in case multiple integrations use the same Merchant ID.', 'mastercard' ),
 				'default'     => '',
+				'css'         => 'min-height: 33px;'
 			),
 		);
 	}
