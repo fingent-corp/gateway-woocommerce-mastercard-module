@@ -1,6 +1,6 @@
 # Mastercard Payment Gateway Services module for WooCommerce
 
-<p align="center">
+<p align="center" style="margin-top: 25px;">
 <a href="https://www.fingent.com/"><img alt="Fingent logo" height="50px" src="https://www.fingent.com/wp-content/uploads/Fingent-Logo-01.png"/></a>&nbsp;&nbsp;<img alt="MC logo" height="50px" src="https://www.mastercard.co.in/content/dam/public/mastercardcom/in/en/logos/mc-logo-52.svg"/>
 </p>
 
@@ -25,6 +25,10 @@ The module has been tested with the WooCommerce versions:
 - 8.3.0
 - 8.4.1
 - 8.5.2
+- 8.7.1
+- 8.0.0
+- 9.0.2
+- 9.1.4
 
 The module has been tested with the WordPress versions:
 
@@ -39,6 +43,7 @@ The module has been tested with the WordPress versions:
 - 6.3.1
 - 6.4.2
 - 6.5.2
+- 6.6.1
 
 ## Customer Information Shared with Gateway
 
@@ -53,16 +58,28 @@ The module has been tested with the WordPress versions:
 ## Feature Support
 
 WooCommerce Mastercard Payment Gateway Service module supports following list of features:
-
-- Card Payments
-- Hosted Session
-- Hosted Checkout
-- Full Refunds
-- Partial Refunds
-- 3DSv1
-- 3DSv2
-- Tokenization
-
+1. **Card Payments**
+Ability to process credit & debit card Payments.
+2. **Hosted Checkout**
+Allows you to collect payment details from your payer through an interaction hosted and displayed.
+3. **Google Pay (only supported in Hosted Checkout)**
+    Users will have the capability to make payments utilizing the Google Pay option within the Hosted checkout. Please ensure that the MID has Google Pay enabled for this payment option to appear on the checkout page.
+4. **Hosted Session**
+Allows you to take control over the layout and styling of your payment page while reducing PCI compliance
+5. **Address Verification Service (AVS)**
+Address Verification Services is a fraud deterrent service that protects against fraudulent use of cards in non-face-to-face transactions by verifying the cardholders’ billing address. This must first be enabled on a merchant account.
+6. **3D Secure v1**
+Ability to authenticate cardholders using 3DS -1. This must first be enabled on a merchant account.
+7. **3D Secure v2**
+Ability to authenticate cardholders using 3DS2. This must first be enabled on a merchant account.
+8. **Capture Payments**
+The manual process of capturing funds for the authorized orders can be done via the Backend.
+9. **Full Refunds**
+Ability to refund the full transaction amount into the cardholder’s account.
+10. **Partial Refunds**
+Ability to refund the partial transaction amount into the cardholder’s account.
+11. **Tokenization**
+Tokenization makes the card payment experience secure by converting your 16-digit card numbers to encrypted tokens.
 ## Documentation
 The official documentation for this module is available on: [https://mpgs.fingent.wiki/target/woocommerce-mastercard-payment-gateway-services/installation](https://mpgs.fingent.wiki/target/woocommerce-mastercard-payment-gateway-services/installation/)
 
