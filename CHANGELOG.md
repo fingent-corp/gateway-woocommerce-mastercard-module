@@ -1,7 +1,7 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [1.4.6] - 2024-08-27
+## [1.4.6] - 2024-08-30
 ### Added
 - Implemented the ability to process void transactions.
 - Implemented the ability to add mandatory or optional extra fees on the checkout page.
