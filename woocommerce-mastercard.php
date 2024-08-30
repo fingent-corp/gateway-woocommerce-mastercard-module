@@ -6,17 +6,17 @@
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api
- * Version: 1.4.5
- * Requires at least: 6.0
+ * Version: 1.4.6
+ * Requires at least: 5.6.0
  * Tested up to: 6.6.1
  * Requires PHP: 7.4
  * php version 8.1
  *
  * WC requires at least: 7.6
- * WC tested up to: 9.1.2
+ * WC tested up to: 9.1.4
  *
  * @package  Mastercard
- * @version  GIT: @1.4.5@
+ * @version  GIT: @1.4.6@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -47,7 +47,7 @@ use Automattic\WooCommerce\Internal\Features\FeaturesController;
  * Main class of the Mastercard Payment Gateway Services Module
  *
  * @package  Mastercard
- * @version  Release: @1.4.5@
+ * @version  Release: @1.4.6@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class WC_Mastercard {
@@ -90,7 +90,6 @@ class WC_Mastercard {
 		define( 'MPGS_TARGET_PLUGIN_FILE', __FILE__ );
 		define( 'MPGS_TARGET_PLUGIN_BASENAME', plugin_basename( MPGS_TARGET_PLUGIN_FILE ) );
 		add_action( 'admin_init', array( $this, 'stop' ) );
-		add_action( 'admin_head', array( $this, 'mpgs_custom_css' ) );
 
 		if ( ! class_exists( 'WC_Payment_Gateway' ) ) {
 			return;
@@ -117,6 +116,11 @@ class WC_Mastercard {
 					) {
 						$actions[ 'mpgs_capture_payment' ] = __(
 							'Capture Authorized Amount',
+							'mastercard'
+						);
+
+						$actions[ 'mpgs_void_payment' ] = __(
+							'Void',
 							'mastercard'
 						);
 					}
@@ -190,6 +194,7 @@ class WC_Mastercard {
 				);
 			}
 		);
+		add_filter( 'woocommerce_admin_order_should_render_refunds', array( $this, 'admin_order_should_render_refunds' ), 10, 3 );
 	}
 
 	/**
@@ -230,7 +235,7 @@ class WC_Mastercard {
 	/**
 	 * Apply Custom CSS to Admin Area.
 	 *
-	 * @since 1.4.5
+	 * @since 1.4.4
 	 *
 	 * @return void
 	 */
@@ -241,21 +246,25 @@ class WC_Mastercard {
 	}
 
 	/**
-	 * Check if WooCommerce is active or not.
+	 * Determines whether the admin order page should render refunds.
 	 *
-	 * @since 1.2.0
+	 * This function is used to check if refunds should be displayed on the admin order page. 
+	 * It can be used to add custom logic or conditions for rendering refunds in the order details view.
 	 *
-	 * @return void
+	 * @param bool $render_refunds Indicates whether refunds should be rendered.
+	 * @param int $order_id The ID of the order being viewed.
+	 * @param WC_Order $order The order object for which the refunds are being checked.
+	 * @return bool Updated value of $render_refunds indicating whether refunds should be rendered.
 	 */
-	public function mpgs_custom_css() {
-		if( 'shop_order' === get_post_type() ) {
-			$order_id = self::get_order_id();
-			$order    = new WC_Order( $order_id );
-
-			if( 'mpgs_gateway' === $order->get_payment_method() && 'refunded' === $order->get_status() ) {
-				echo '<style>#woocommerce-order-items .add-items .button.refund-items { display:none; }</style>';
-			}
+	public function admin_order_should_render_refunds( $render_refunds, $order_id, $order ) { 
+		if( 
+			( 'mpgs_gateway' === $order->get_payment_method() && 'refunded' === $order->get_status() ) || 
+			( 'mpgs_gateway' === $order->get_payment_method() && empty( get_post_meta( $order_id, '_mpgs_order_captured', true ) ) ) 
+		) {
+			return false;
 		}
+
+		return $render_refunds;
 	}
 
 	/**
@@ -418,7 +427,7 @@ class WC_Mastercard {
 	/**
 	 * Function to declare compatibility with cart_checkout_blocks feature.
 	 *
-	 * @since 1.4.5
+	 * @since 1.4.4
 	 * @return void
 	 */
 	public function declare_cart_checkout_blocks_compatibility() { // phpcs:ignore Universal.Files.SeparateFunctionsFromOO.Mixed
@@ -431,7 +440,7 @@ class WC_Mastercard {
 	/**
 	 * Function to register the Mastercard payment method type.
 	 *
-	 * @since 1.4.5
+	 * @since 1.4.4
 	 * @return void
 	 */
 	public function woocommerce_gateway_mastercard_woocommerce_block_support() {

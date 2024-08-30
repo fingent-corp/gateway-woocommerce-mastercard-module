@@ -1,5 +1,10 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2024-08-27 - version 1.4.6
+
+* Add - Implemented the ability to process void transactions.
+* Add - Implemented the ability to add mandatory or optional extra fees on the checkout page.
+
 2024-07-09 - version 1.4.5
 
 * Enhancement - Compatibility with WordPress 6.6 and WooCommerce 9.1.
