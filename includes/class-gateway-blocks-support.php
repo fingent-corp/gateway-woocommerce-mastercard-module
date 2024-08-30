@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.5@
+ * @version  GIT: @1.4.6@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -28,7 +28,7 @@ use Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodTyp
 /**
  * Class Mastercard_Gateway_Blocks.
  *
- * @since 1.4.5
+ * @since 1.4.4
  */
 final class Mastercard_Gateway_Blocks_Support extends AbstractPaymentMethodType {
 	/**

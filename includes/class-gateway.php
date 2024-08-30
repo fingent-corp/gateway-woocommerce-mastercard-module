@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.5@
+ * @version  GIT: @1.4.6@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MPGS_TARGET_MODULE_VERSION', '1.4.5' );
+define( 'MPGS_TARGET_MODULE_VERSION', '1.4.6' );
 
 require_once dirname( __DIR__ ) . '/includes/class-checkout-builder.php';
 require_once dirname( __DIR__ ) . '/includes/class-gateway-service.php';
@@ -204,10 +204,12 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		add_action( 'admin_enqueue_scripts', array( $this, 'admin_scripts' ) );
 		add_action( 'wp_enqueue_scripts', array( $this, 'payment_gateway_scripts' ), 10 );
 		add_action( 'woocommerce_order_action_mpgs_capture_payment', array( $this, 'process_capture' ) );
+		add_action( 'woocommerce_order_action_mpgs_void_payment', array( $this, 'void_authorized_order' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'receipt_page' ) );
 		add_action( 'woocommerce_api_mastercard_gateway', array( $this, 'return_handler' ) );
 		add_action( 'admin_notices', array( $this, 'admin_notices' ) );
 		add_filter( 'script_loader_tag', array( $this, 'add_js_extra_attribute' ), 10 );
+		add_action( 'woocommerce_cart_calculate_fees', array( $this, 'add_handling_fee' ) );
 	}
 
 	/**
@@ -271,6 +273,18 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	public function process_admin_options() {
 		$saved = parent::process_admin_options();
 		try {
+			if( 'mpgs_gateway' === $this->id ) {
+				static $error_added = false;
+				if( isset( $this->settings['hf_amount_type'] ) && 'percentage' === $this->settings['hf_amount_type'] ) {
+					if ( absint( $this->settings['handling_fee_amount'] ) > 100 ) {
+						if ( ! $error_added ) {
+							WC_Admin_Settings::add_error( __( 'The maximum allowable percentage is 100.', 'mastercard' ) );
+							$error_added = true;
+						}
+						$this->update_option( 'handling_fee_amount', 100 );
+					}
+				}
+			}
 			$service = $this->init_service();
 			$service->paymentOptionsInquiry();
 		} catch ( Exception $e ) {
@@ -424,6 +438,64 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		exit;
 	}
 
+	/**
+	 * Reverse Authorization.
+	 *
+	 * @return void
+	 *
+	 * @throws Exception If there's a problem for capturing the payment.
+	 */
+    public function void_authorized_order() {
+        try {
+        	$order_id   = sanitize_text_field( wp_unslash( $_REQUEST['post_ID'] ) ); // phpcs:ignore
+            $order      = new WC_Order( $order_id );
+            $auth_txn   = $this->service->getAuthorizationTransaction( $this->add_order_prefix( $order_id ) );
+
+            if ( $order->get_payment_method() != $this->id ) {
+                throw new Exception( 'Wrong payment method' );
+            }
+            if ( $order->get_status() != 'processing' ) {
+                throw new Exception( 'Wrong order status, must be \'processing\'' );
+            }
+            if ( $order->get_meta( '_mpgs_order_captured' ) ) {
+                throw new Exception( 'Order already reversed' );
+            }
+
+            $transaction_id = $order->get_meta( '_mpgs_transaction_id' );
+
+            if( $transaction_id === $auth_txn['transaction']['id'] || $transaction_id === $auth_txn['authentication']['transactionId'] ) {
+	            $result = $this->service->voidTxn(
+					$this->add_order_prefix( $order->get_id() ),
+					$auth_txn['transaction']['id']
+				);		
+	         	
+	         	if( 'SUCCESS' === $result['result'] ) {
+		            $txn = $result['transaction'];
+		            $order->update_status( 'cancelled', sprintf( __( 'Gateway reverse authorization (ID: %s)',
+		                'mastercard' ),
+		                $txn['id'] ) );
+		        } else {
+		        	throw new Exception( 'Gateway reverse authorization failure.' );
+		        }
+
+	            if ( wp_get_referer() || 'yes' !== WC_Mastercard::is_hpos() ) {
+	                wp_safe_redirect( wp_get_referer() );
+	            } else {
+	                $return_url = add_query_arg( array(
+	                    'page'    => 'wc-orders',
+	                    'action'  => 'edit',
+	                    'id'      => $order->get_id(),
+	                    'message' => 1
+	                ), admin_url( 'admin.php' ) );
+	                wp_safe_redirect( $return_url );
+	            }
+	            exit;
+	        }
+        } catch ( Exception $e ) {
+            wp_die( $e->getMessage(), __( 'Gateway reverse authorization failure.' ) );
+        }
+    }
+    
 	/**
 	 * This function displays admin notices.
 	 *
@@ -1077,7 +1149,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					$order_builder->getCustomer(),
 					$order_builder->getBilling(),
 					$order_builder->getShipping()
-				);
+				);		
 
 				if ( $result && $result['successIndicator'] ) {
 					$order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
@@ -1423,6 +1495,41 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				'default'     => '',
 				'css'         => 'min-height: 33px;'
 			),
+			'handling_fee'      => array(
+				'title'       => __( 'Handling Fee', 'mastercard' ),
+				'type'        => 'title',
+				'description' => __( 'The handling amount for the order, including taxes on the handling.', 'mastercard' ),
+			),
+			'hf_enabled'            => array(
+				'title'       => __( 'Enable/Disable', 'mastercard' ),
+				'label'       => __( 'Enable', 'mastercard' ),
+				'type'        => 'checkbox',
+				'description' => '',
+				'default'     => 'no',
+			),
+			'handling_text'      => array(
+				'title'       => __( 'Handling Fee Text', 'mastercard' ),
+				'type'        => 'text',
+				'description' => __( 'Display text for handling fee.', 'mastercard' ),
+				'default'     => '',
+				'css'         => 'min-height: 33px;'
+			),
+			'hf_amount_type'     => array(
+				'title'   => __( 'Applicable Amount Type', 'mastercard' ),
+				'type'    => 'select',
+				'options' => array(
+					self::HF_FIXED      => __( 'Fixed', 'mastercard' ),
+					self::HF_PERCENTAGE => __( 'Percentage', 'mastercard' ),
+				),
+				'default' => self::HF_FIXED,
+			),
+			'handling_fee_amount' => array(
+				'title'       => __( 'Amount', 'mastercard' ),
+				'type'        => 'text',
+				'description' => __( 'The total amount for handling fee; Eg: 10.00 or 10%.', 'mastercard' ),
+				'default'     => '',
+				'css'         => 'min-height: 33px;'
+			)
 		);
 	}
 
@@ -1538,5 +1645,26 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 */
 	protected function is_order_paid( WC_Order $order ) {
 		return (bool) $order->get_meta( '_mpgs_order_paid', 0 );
+	}
+
+	/**
+	 * Adds a handling fee to the WooCommerce cart calculation.
+	 * 
+	 * This ensures that the handling fee is added during the cart calculation process.
+	 */
+	public function add_handling_fee() {
+		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled ){
+			$handling_text = $this->get_option( 'handling_text' );
+			$amount_type   = $this->get_option( 'hf_amount_type' );
+			$handling_fee  = $this->get_option( 'handling_fee_amount' );
+
+			if ( self::HF_PERCENTAGE === $amount_type ) {
+				$surcharge = ( WC()->cart->cart_contents_total ) * ( $handling_fee / 100 );
+			} else {
+				$surcharge = $handling_fee;
+			}
+
+		    WC()->cart->add_fee( $handling_text, $surcharge, true, '' );
+		}
 	}
 }

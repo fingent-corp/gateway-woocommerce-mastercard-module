@@ -11,10 +11,6 @@ Payments through this module are processed securely via the Mastercard Payment G
 
 ## Compatibility
 The module has been tested with the WooCommerce versions:
-
-- 7.3.0
-- 7.4.1 
-- 7.5.1 
 - 7.6.1 
 - 7.7.2
 - 7.8.0
@@ -31,9 +27,6 @@ The module has been tested with the WooCommerce versions:
 - 9.1.4
 
 The module has been tested with the WordPress versions:
-
-- 5.2.4
-- 5.3.2
 - 5.6.0
 - 5.7.2
 - 5.9.1

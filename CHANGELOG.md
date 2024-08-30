@@ -1,12 +1,14 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.4.6] - 2024-08-27
+### Added
+- Implemented the ability to process void transactions.
+- Implemented the ability to add mandatory or optional extra fees on the checkout page.
+
 ## [1.4.5] - 2024-07-09
 ### Enhancement
 - Compatibility with WordPress 6.6 and WooCommerce 9.1.
-
-### Changed
-- Updated the API version to 81.
 
 ## [1.4.4] - 2024-04-12
 ### Feature
