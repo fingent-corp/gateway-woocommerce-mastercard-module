@@ -1,6 +1,6 @@
 == Mastercard Payment Gateway Services Changelog ==
 
-2024-08-27 - version 1.4.6
+2024-08-30 - version 1.4.6
 
 * Add - Implemented the ability to process void transactions.
 * Add - Implemented the ability to add mandatory or optional extra fees on the checkout page.
