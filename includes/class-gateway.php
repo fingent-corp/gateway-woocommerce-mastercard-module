@@ -1653,13 +1653,17 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * This ensures that the handling fee is added during the cart calculation process.
 	 */
 	public function add_handling_fee() {
+		if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
+            return;
+        }
+        
 		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled ){
 			$handling_text = $this->get_option( 'handling_text' );
 			$amount_type   = $this->get_option( 'hf_amount_type' );
-			$handling_fee  = $this->get_option( 'handling_fee_amount' );
+			$handling_fee  = $this->get_option( 'handling_fee_amount' ) ? $this->get_option( 'handling_fee_amount' ) : 0;
 
 			if ( self::HF_PERCENTAGE === $amount_type ) {
-				$surcharge = ( WC()->cart->cart_contents_total ) * ( $handling_fee / 100 );
+				$surcharge = (float)( WC()->cart->cart_contents_total ) * ( (float) $handling_fee / 100 );
 			} else {
 				$surcharge = $handling_fee;
 			}
