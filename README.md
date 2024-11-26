@@ -9,34 +9,22 @@
 
 Payments through this module are processed securely via the Mastercard Payment Gateway. This ensures that card data is managed in compliance with all legal requirements. The gateway monitors every transaction and handles sensitive payment data on PCI Level 1 certified servers, simplifying PCI compliance for your business.
 
+## Installation
+
+**Minimum Requirements**
+
+* WooCommerce 8.5 or greater
+* PHP version 7.4 or greater
+* cURL
+
 ## Compatibility
 The module has been tested with the WooCommerce versions:
-- 7.6.1 
-- 7.7.2
-- 7.8.0
-- 7.9.0
-- 8.0.1
-- 8.1.1
-- 8.2.1
-- 8.3.0
-- 8.4.1
+
 - 8.5.2
 - 8.7.1
 - 8.0.0
 - 9.0.2
 - 9.1.4
-
-The module has been tested with the WordPress versions:
-- 5.6.0
-- 5.7.2
-- 5.9.1
-- 6.0.3
-- 6.1.2
-- 6.2.2
-- 6.3.1
-- 6.4.2
-- 6.5.2
-- 6.6.1
 
 ## Customer Information Shared with Gateway
 
@@ -74,13 +62,13 @@ Ability to refund the partial transaction amount into the cardholder’s account
 11. **Tokenization**
 Tokenization makes the card payment experience secure by converting your 16-digit card numbers to encrypted tokens.
 ## Documentation
-The official documentation for this module is available on: [https://mpgs.fingent.wiki/target/woocommerce-mastercard-payment-gateway-services/installation](https://mpgs.fingent.wiki/target/woocommerce-mastercard-payment-gateway-services/installation/)
+The official documentation for this module is available on: [https://mpgs.fingent.wiki/target/woocommerce-mastercard-payment-gateway-services/installation](https://mpgs.fingent.wiki/enterprise/woocommerce-mastercard-payment-gateway-services/overview-and-feature-support)
 
 ## Support
 For customer support: [https://mpgsfgs.atlassian.net/servicedesk/customer/portals](https://mpgsfgs.atlassian.net/servicedesk/customer/portals/)
 
 ## Obtain the module
-You can obtain the module by downloading a release from: https://github.com/Mastercard-Gateway/gateway-woocommerce-module/releases
+You can obtain the module by downloading a release from: https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/releases
 ## Installation of Module
 To use WooCommerce MPGS for WordPress, you need to install both the MasterCard Payment Gateway Services module and the WooCommerce module. 
 ### Steps to install WooCommerce for WordPress:
@@ -95,7 +83,7 @@ Follow the below steps:
 ### Steps to install MasterCard Payment Gateway Services for WordPress
 Follow the below steps:
 1. There are two ways to install the plugin into WordPress, either:
-1.1 Download the gateway-woocommerce-module plugin zip file from https://github.com/Mastercard-Gateway/gateway-woocommerce-module/releases and extract to the /wp-content/plugins/ directory,
+1.1 Download the gateway-woocommerce-module plugin zip file from https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/releases and extract to the /wp-content/plugins/ directory,
 **or**
 1.2. Connect to Backoffice of your shop with the available admin credentials and install the plugin through the WordPress plugins screen directly.
 Goto: Admin => Plugins => Installed Plugins => Click on 'Add New' => Then in the Top click on "Upload Plugin" button.

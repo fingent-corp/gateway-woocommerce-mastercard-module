@@ -20,13 +20,14 @@ jQuery(function ($) {
         init: function () {
             var sandbox_username = $('#woocommerce_mpgs_gateway_sandbox_username').parents('tr').eq(0),
                 sandbox_password = $('#woocommerce_mpgs_gateway_sandbox_password').parents('tr').eq(0),
-                username = $('#woocommerce_mpgs_gateway_username').parents('tr').eq(0),
-                password = $('#woocommerce_mpgs_gateway_password').parents('tr').eq(0),
-                threedsecure = $('#woocommerce_mpgs_gateway_threedsecure').parents('tr').eq(0),
-                gateway_url = $('#woocommerce_mpgs_gateway_custom_gateway_url').parents('tr').eq(0),
-                hc_interaction = $('#woocommerce_mpgs_gateway_hc_interaction').parents('tr').eq(0),
-                hc_type = $('#woocommerce_mpgs_gateway_hc_type').parents('tr').eq(0),
-                saved_cards = $('#woocommerce_mpgs_gateway_saved_cards').parents('tr').eq(0);
+                username         = $('#woocommerce_mpgs_gateway_username').parents('tr').eq(0),
+                password         = $('#woocommerce_mpgs_gateway_password').parents('tr').eq(0),
+                threedsecure     = $('#woocommerce_mpgs_gateway_threedsecure').parents('tr').eq(0),
+                gateway_url      = $('#woocommerce_mpgs_gateway_custom_gateway_url').parents('tr').eq(0),
+                hc_interaction   = $('#woocommerce_mpgs_gateway_hc_interaction').parents('tr').eq(0),
+                hc_type          = $('#woocommerce_mpgs_gateway_hc_type').parents('tr').eq(0),
+                saved_cards      = $('#woocommerce_mpgs_gateway_saved_cards').parents('tr').eq(0),
+                merchant_info    = $('#woocommerce_mpgs_gateway_merchant_info');
 
             $('#woocommerce_mpgs_gateway_sandbox').on('change', function () {
                 if ($(this).is(':checked')) {
@@ -66,17 +67,41 @@ jQuery(function ($) {
                 }
             }).change();
 
+            $('#woocommerce_mpgs_gateway_method').on('change', function () {
+                if ($(this).val() === 'hosted-checkout' && $('#woocommerce_mpgs_gateway_hc_interaction').val() === 'redirect') {
+                    merchant_info.show();
+                    merchant_info.next().show();
+                    merchant_info.next().next().show();
+                } else {
+                    merchant_info.hide();
+                    merchant_info.next().hide();
+                    merchant_info.next().next().hide();
+                }
+            }).change();
+
+            $('#woocommerce_mpgs_gateway_hc_interaction').on('change', function () {
+                if ($(this).val() === 'redirect') {
+                    merchant_info.show();
+                    merchant_info.next().show();
+                    merchant_info.next().next().show();
+                } else {
+                    merchant_info.hide();
+                    merchant_info.next().hide();
+                    merchant_info.next().next().hide();
+                }
+            }).change();
+
             $( '#woocommerce_mpgs_gateway_handling_fee_amount' ).before( '<span id="handling_fee_amount_label"></span>' );
             $( '#handling_fee_amount_label' ).css({ "width": "35px", "height": "31px", "line-height": "30px", "background-color": "#eaeaea", "text-align": "center", "position": "absolute", "left": "1px", "top": "1px", "border-radius": "3px 0 0 3px" }).parent().css( "position", "relative" );
             $( '#woocommerce_mpgs_gateway_handling_fee_amount' ).css( "padding-left", "45px" );
-            if( $( '#woocommerce_mpgs_gateway_hf_amount_type' ).val() == 'fixed' ) {
+            if( $( '#woocommerce_mpgs_gateway_hf_amount_type' ).val() === 'fixed' ) {
                 $( '#handling_fee_amount_label' ).html( wcSettings.currency.symbol );
             } else {
                 $( '#handling_fee_amount_label' ).html( '%' );
             }
 
             $('#woocommerce_mpgs_gateway_hf_amount_type').on('change', function () {
-                if( $( this ).val() == 'fixed' ) {
+                if( $( this ).val() === 'fixed' ) {
                     $( '#handling_fee_amount_label' ).html( wcSettings.currency.symbol );
                 } else {
                     $( '#handling_fee_amount_label' ).html( '%' );
@@ -84,11 +109,11 @@ jQuery(function ($) {
             }).change(); 
             $( '#woocommerce_mpgs_gateway_handling_fee_amount' ).on( 'keypress', function(e) {
                 var charCode = ( e.which ) ? e.which : e.keyCode;
-                if ( charCode == 46 || charCode == 8 || charCode == 9 || charCode == 27 || charCode == 13 ||
-                    ( charCode == 65 && ( e.ctrlKey === true || e.metaKey === true ) ) ||
-                    ( charCode == 67 && ( e.ctrlKey === true || e.metaKey === true ) ) ||
-                    ( charCode == 86 && ( e.ctrlKey === true || e.metaKey === true ) ) ||
-                    ( charCode == 88 && ( e.ctrlKey === true || e.metaKey === true ) ) ||
+                if ( charCode === 46 || charCode === 8 || charCode === 9 || charCode === 27 || charCode === 13 ||
+                    ( charCode === 65 && ( e.ctrlKey === true || e.metaKey === true ) ) ||
+                    ( charCode === 67 && ( e.ctrlKey === true || e.metaKey === true ) ) ||
+                    ( charCode === 86 && ( e.ctrlKey === true || e.metaKey === true ) ) ||
+                    ( charCode === 88 && ( e.ctrlKey === true || e.metaKey === true ) ) ||
                     // Allow: home, end, left, right
                     ( charCode >= 35 && charCode <= 39 ) ) {
                     return;
@@ -108,6 +133,39 @@ jQuery(function ($) {
                     this.value = value.substring( 0, value.length - 1 );
                 }
             });   
+
+            $( '#woocommerce_mpgs_gateway_merchant_logo' ).after( '&nbsp;&nbsp;&nbsp;<a href="javascript:;" id="mpgs_gateway_merchant_logo" class="button">Upload</a>' );
+
+            var customUploader = '';
+            $( '#mpgs_gateway_merchant_logo' ).on( 'click', function(e) {
+                e.preventDefault();
+                if ( customUploader) {
+                    customUploader.open();
+                    return;
+                }
+                customUploader = wp.media.frames.file_frame = wp.media({
+                    title: 'Upload logo',
+                    button: {
+                        text: 'Choose logo'
+                    },
+                    multiple: false,
+                    library: {
+                        type: [ 'image/jpeg', 'image/png', 'image/svg+xml' ]
+                    },
+                });
+                customUploader.on('select', function() {                    
+                    var attachment = customUploader.state().get('selection').first().toJSON();
+                    var previousElement = e.target.previousElementSibling;
+                    
+                    if( previousElement ) {
+                        $( previousElement ).val( attachment.url );
+                        if( $( previousElement ).parents( '#mainform' ).find( '.woocommerce-save-button' ).attr( 'disabled' ) === 'disabled' ) {
+                            $( previousElement ).parents( '#mainform' ).find( '.woocommerce-save-button' ).removeAttr( 'disabled' );
+                        }
+                    }
+                });
+                customUploader.open();
+            }); 
         }
     };
     wc_mastercard_admin.init();

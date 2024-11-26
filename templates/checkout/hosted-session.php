@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.6@
+ * @version  GIT: @1.4.7@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -219,14 +219,14 @@
 			$.when( savePayment(
 				getPaymentData()
 			)).done(function ( response ) {
-					if ( is3DsV2Enabled() ) {
-						initiateAuthentication();
-					} else {
-						document.querySelector( 'form.mpgs_hostedsession > input[name=session_id]' ).value = response.session.id;
-						document.querySelector( 'form.mpgs_hostedsession > input[name=session_version]' ).value = response.session.version;
-						document.querySelector( 'form.mpgs_hostedsession' ).submit();
-					}
-				}).fail( console.error );
+				if ( is3DsV2Enabled() ) {
+					initiateAuthentication();
+				} else {
+					document.querySelector( 'form.mpgs_hostedsession > input[name=session_id]' ).value = response.session.id;
+					document.querySelector( 'form.mpgs_hostedsession > input[name=session_version]' ).value = response.session.version;
+					document.querySelector( 'form.mpgs_hostedsession' ).submit();
+				}
+			}).fail( console.error );
 		}
 
 		function initializeTokenPaymentSession( session_id, id ) {
@@ -257,6 +257,7 @@
 							if ( is3DsV1Enabled() ) {
 								document.querySelector( 'form.mpgs_hostedsession > input[name=check_3ds_enrollment]' ).value = '1';
 							}
+							console.log(response);
 							placeOrder( response );
 						} else {
 							errorsContainer.innerText = hsLoadingFailedMsg + ' (unexpected status: ' + response.status + ')';

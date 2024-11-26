@@ -1,6 +1,20 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.4.7] - 2024-10-08
+### Added
+- Introduced a new 'Merchant Information' section in the plugin settings for admins to easily update merchant information.
+- Eliminated the intermediate page in the 'Redirect to Payment Page' process for Hosted Checkout.
+
+### Enhancement
+- Compatibility with WooCommerce 9.3.
+
+### Changed
+- Updated the API version to 84.
+
+### Fixed
+- Resolved an issue where line items were not correctly transmitted to the payment gateway.
+
 ## [1.4.6] - 2024-08-30
 ### Added
 - Implemented the ability to process void transactions.
@@ -9,6 +23,9 @@ All notable changes to this project will be documented in this file.
 ## [1.4.5] - 2024-07-09
 ### Enhancement
 - Compatibility with WordPress 6.6 and WooCommerce 9.1.
+
+### Changed
+- Updated the API version to 81.
 
 ## [1.4.4] - 2024-04-12
 ### Feature

@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.6@
+ * @version  GIT: @1.4.7@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -56,22 +56,18 @@ class Mastercard_Payment_Gateway_CC extends WC_Payment_Gateway_CC {
 
 		$cvc_field = '<p class="form-row form-row-wide">
 			<label for="' . esc_attr( $this->id ) . '-card-cvc">' . esc_html__( 'Card code', 'mastercard' ) . '&nbsp;<span class="required">*</span></label>
-			<input id="' . esc_attr( $this->id ) . '-card-cvc" class="input-text wc-credit-card-form-card-cvc" readonly="readonly" inputmode="numeric" autocomplete="off" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" maxlength="4" ' . $this->field_name( 'card-cvc' ) . ' style="width:100px" />
-		</p>';
+			<input id="' . esc_attr( $this->id ) . '-card-cvc" class="input-text wc-credit-card-form-card-cvc" readonly="readonly" inputmode="numeric" autocomplete="off" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" maxlength="4" ' . $this->field_name( 'card-cvc' ) . ' style="width:100px" /></p>';
 
 		$default_fields = array(
 			'card-number-field'       => '<p class="form-row form-row-wide">
 				<label for="' . esc_attr( $this->id ) . '-card-number">' . esc_html__( 'Card number', 'mastercard' ) . '&nbsp;<span class="required">*</span></label>
-				<input id="' . esc_attr( $this->id ) . '-card-number" class="input-text wc-credit-card-form-card-number" inputmode="numeric" readonly="readonly" autocomplete="cc-number" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" ' . $this->field_name( 'card-number' ) . ' />
-			</p>',
+				<input id="' . esc_attr( $this->id ) . '-card-number" class="input-text wc-credit-card-form-card-number" inputmode="numeric" readonly="readonly" autocomplete="cc-number" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" ' . $this->field_name( 'card-number' ) . ' /></p>',
 			'card-expiry-month-field' => '<p class="form-row form-row-first">
 				<label for="' . esc_attr( $this->id ) . '-card-expiry-month">' . esc_html__( 'Expiry (MM)', 'mastercard' ) . '&nbsp;<span class="required">*</span></label>
-				<input id="' . esc_attr( $this->id ) . '-card-expiry-month" class="input-text wc-credit-card-form-card-expiry" inputmode="numeric" readonly="readonly" autocomplete="cc-exp-month" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" ' . $this->field_name( 'card-expiry-month' ) . ' />
-			</p>',
+				<input id="' . esc_attr( $this->id ) . '-card-expiry-month" class="input-text wc-credit-card-form-card-expiry" inputmode="numeric" readonly="readonly" autocomplete="cc-exp-month" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" ' . $this->field_name( 'card-expiry-month' ) . ' /></p>',
 			'card-expiry-year-field'  => '<p class="form-row form-row-last">
 				<label for="' . esc_attr( $this->id ) . '-card-expiry-year">' . esc_html__( 'Expiry (YY)', 'mastercard' ) . '&nbsp;<span class="required">*</span></label>
-				<input id="' . esc_attr( $this->id ) . '-card-expiry-year" class="input-text wc-credit-card-form-card-expiry" inputmode="numeric" readonly="readonly" autocomplete="cc-exp-year" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" ' . $this->field_name( 'card-expiry-year' ) . ' />
-			</p>',
+				<input id="' . esc_attr( $this->id ) . '-card-expiry-year" class="input-text wc-credit-card-form-card-expiry" inputmode="numeric" readonly="readonly" autocomplete="cc-exp-year" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" ' . $this->field_name( 'card-expiry-year' ) . ' /></p>',
 		);
 
 		$default_fields['card-cvc-field'] = $cvc_field;

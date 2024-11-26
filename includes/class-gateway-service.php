@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.6@
+ * @version  GIT: @1.4.7@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -92,6 +92,20 @@ class Mastercard_GatewayService {
 	protected $webhook_url = null;
 
 	/**
+	 * Webhook endpoint variable
+	 *
+	 * @var string|null
+	 */
+	protected $username;
+
+	/**
+	 * Webhook endpoint variable
+	 *
+	 * @var string|null
+	 */
+	protected $password;
+	
+	/**
 	 * GatewayService constructor.
 	 *
 	 * @param string $base_url Mastercard API Base URL.
@@ -123,14 +137,15 @@ class Mastercard_GatewayService {
 
 		$this->message_factory = new Psr17Factory();
 		$this->api_url         = 'https://' . $base_url . '/api/rest/' . $api_version . '/merchant/' . $merchant_id . '/';
-		$username              = 'merchant.' . $merchant_id;
+		$this->username        = 'merchant.' . $merchant_id;
+		$this->password        = $password;
 
 		$client = new PluginClient(
 			HttpClientDiscovery::find(),
 			array(
 				new ContentLengthPlugin(),
 				new HeaderSetPlugin( array( 'Content-Type' => 'application/json;charset=UTF-8' ) ),
-				new AuthenticationPlugin( new BasicAuth( $username, $password ) ),
+				new AuthenticationPlugin( new BasicAuth( $this->username, $this->password ) ),
 				new Mastercard_ApiErrorPlugin( $logger ),
 				new Mastercard_ApiLoggerPlugin( $logger ),
 			)
@@ -165,7 +180,7 @@ class Mastercard_GatewayService {
 	 *
 	 * @return mixed The safely handled value.
 	 */
-	public static function safe( $value, $limited = 0 ) {
+	public static function is_safe( $value, $limited = 0 ) {
 		if ( '' === $value ) {
 			return null;
 		}
@@ -251,7 +266,7 @@ class Mastercard_GatewayService {
 	 * @return void
 	 */
 	public function validateTxnResponse( $data ) { // phpcs:ignore
-		// @todo
+		return $data;
 	}
 
 	/**
@@ -262,7 +277,7 @@ class Mastercard_GatewayService {
 	 * @return void
 	 */
 	public function validateOrderResponse( $data ) { // phpcs:ignore
-		// @todo
+		return $data;
 	}
 
 	/**
@@ -273,7 +288,7 @@ class Mastercard_GatewayService {
 	 * @return void
 	 */
 	public function validateVoidResponse( $data ) { // phpcs:ignore
-		// @todo
+		return $data;
 	}
 
 	/**
@@ -412,8 +427,8 @@ class Mastercard_GatewayService {
 				$order,
 				array(
 					'notificationUrl' => $this->webhook_url,
-					'reference'       => $order['id'],
-				),
+					'reference'       => $order['id'],				
+				),			
 			),
 			'billing'           => $billing,
 			'shipping'          => $shipping,
@@ -424,6 +439,7 @@ class Mastercard_GatewayService {
 				'source'    => 'INTERNET',				
 			),
 		);
+		
 		$request      = $this->message_factory->createRequest(
 			'POST',
 			$uri,
@@ -434,12 +450,14 @@ class Mastercard_GatewayService {
 				$request_data
 			)
 		);
+
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
 			$response->getBody(),
 			true
 		);
+
 		$this->validateCheckoutSessionResponse( $response );
 
 		return $response;
@@ -480,7 +498,7 @@ class Mastercard_GatewayService {
 				$order,
 				array(
 					'notificationUrl' => $this->webhook_url,
-					'reference'       => $order['id'],
+					'reference'       => $order['id'],					
 				)
 			),
 			'billing'           => $billing,
@@ -501,6 +519,7 @@ class Mastercard_GatewayService {
 				$request_data
 			)
 		);
+
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
@@ -543,7 +562,6 @@ class Mastercard_GatewayService {
 			'order_id'   => $gateway->remove_order_prefix( $order['id'] ),
 			'session_id' => $session_id,
 		);
-
 		if ( ! empty( $authentication ) && ! isset( $authentication['acceptVersions'] ) ) {
 			$authentication['redirectResponseUrl'] = add_query_arg(
 				'wc-api',
@@ -758,11 +776,11 @@ class Mastercard_GatewayService {
 		if ( ! empty( $authentication ) ) {
 			$request_data['authentication'] = $authentication;
 		}
-
 		$request      = $this->message_factory->createRequest(
 			'PUT',
 			$uri
 		);
+
 		$stream       = $this->message_factory->createStream(
 			wp_json_encode(
 				$request_data
