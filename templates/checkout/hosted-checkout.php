@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.6@
+ * @version  GIT: @1.4.7@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -29,9 +29,9 @@
 if ( $gateway->use_embedded() ) { ?>
 	<div id="embed-target"></div>
 <?php } else { ?>
-	<input type="button" id="mpgs_pay" value="<?php esc_html_e( 'Pay', 'mastercard' ); ?>" onclick="Checkout.showPaymentPage();" />
+	<input type="button" id="mpgs_pay" style="display: none;" value="<?php esc_html_e( 'Pay', 'mastercard' ); ?>" onclick="Checkout.showPaymentPage();" />
 <?php } ?><script type="text/javascript">
-	function errorCallback( error ) {
+	function errorCallback( error ) { 
 		var err = JSON.stringify( error ),
 			errorWrapper = jQuery( '.woocommerce-notices-wrapper' );
 		if( errorWrapper.length > 0 ) {
@@ -60,6 +60,13 @@ if ( $gateway->use_embedded() ) { ?>
 			$( '#mpgs_pay' ).prop( 'disabled', function ( i, v ) {
 				return !v;
 			});
+			var url = window.location.href,
+				hash = url.split( '#' )[1]; 
+    
+		    if ( hash == '__hc-action-cancel' ) {
+		        window.location.href = '<?php echo wc_get_checkout_url(); ?>';
+		    } 
+			$('#mpgs_pay').trigger( 'click' );
 		}
 		<?php } ?>
 		function waitFor( name, callback ) {
@@ -82,7 +89,7 @@ if ( $gateway->use_embedded() ) { ?>
 				Checkout.configure( config );
 				<?php if ( $gateway->use_embedded() ) { ?>
 					Checkout.showEmbeddedPage( '#embed-target' );
-				<?php } else { ?>
+				<?php } else { ?> 
 					togglePay();
 				<?php } ?>
 			});
@@ -93,11 +100,10 @@ if ( $gateway->use_embedded() ) { ?>
 			dataType: 'json'
 		});
 		<?php if ( ! $gateway->use_embedded() ) { ?>
-			togglePay();
+			togglePay();			
 		<?php } ?>
 		$.when( xhr )
 			.done( $.proxy( configureHostedCheckout, this ) )
 			.fail( $.proxy( errorCallback, this ) );
-
 	})( jQuery );
 </script>

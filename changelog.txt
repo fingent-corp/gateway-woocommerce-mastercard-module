@@ -1,5 +1,13 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2024-10-08 - version 1.4.7
+
+* Add - Introduced a new 'Merchant Information' section in the plugin settings for admins to easily update merchant information.
+* Add - Eliminated the intermediate page in the 'Redirect to Payment Page' process for Hosted Checkout.
+* Enhancement - Compatibility with WooCommerce 9.3.
+* Update - Updated the API version to 84.
+* Fix - Resolved an issue where line items were not correctly transmitted to the payment gateway.
+
 2024-08-30 - version 1.4.6
 
 * Add - Implemented the ability to process void transactions.

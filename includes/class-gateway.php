@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.6@
+ * @version  GIT: @1.4.7@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MPGS_TARGET_MODULE_VERSION', '1.4.6' );
+define( 'MPGS_TARGET_MODULE_VERSION', '1.4.7' );
 
 require_once dirname( __DIR__ ) . '/includes/class-checkout-builder.php';
 require_once dirname( __DIR__ ) . '/includes/class-gateway-service.php';
@@ -36,10 +36,11 @@ require_once dirname( __DIR__ ) . '/includes/class-payment-gateway-cc.php';
  */
 class Mastercard_Gateway extends WC_Payment_Gateway {
 
-	const ID = 'mpgs_gateway';
+	const ID            = 'mpgs_gateway';
+	const GATEWAY_TITLE = 'Mastercard Payment Gateway Services';
 
-	const MPGS_API_VERSION     = 'version/81';
-	const MPGS_API_VERSION_NUM = '81';
+	const MPGS_API_VERSION     = 'version/84';
+	const MPGS_API_VERSION_NUM = '84';
 
 	const HOSTED_SESSION  = 'hosted-session';
 	const HOSTED_CHECKOUT = 'hosted-checkout';
@@ -150,6 +151,27 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	protected $threedsecure_v2 = null;
 
 	/**
+	 * Handling fees
+	 *
+	 * @var bool
+	 */
+	public $hf_enabled = null;
+
+	/**
+	 * Send Line Items
+	 *
+	 * @var bool
+	 */
+	public $send_line_items = null;
+
+	/**
+	 * Merchant Information
+	 *
+	 * @var bool
+	 */
+	public $mif_enabled = null;
+
+	/**
 	 * Saved Cards
 	 *
 	 * @var bool
@@ -161,10 +183,10 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 *
 	 * @throws Exception If there's a problem connecting to the gateway.
 	 */
-	public function __construct() {
+	public function __construct() { 
 		$this->id                 = self::ID;
-		$this->title              = __( 'Mastercard Payment Gateway Services', 'mastercard' );
-		$this->method_title       = __( 'Mastercard Payment Gateway Services', 'mastercard' );
+		$this->title              = __( self::GATEWAY_TITLE, 'mastercard' );
+		$this->method_title       = __( self::GATEWAY_TITLE, 'mastercard' );
 		$this->has_fields         = true;
 		$this->method_description = __(
 			'Accept payments on your WooCommerce store using Mastercard Payment Gateway Services.',
@@ -191,6 +213,8 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			'tokenization',
 		);
 		$this->hf_enabled      = $this->get_option( 'hf_enabled', false );
+		$this->send_line_items = $this->get_option( 'send_line_items', false );
+		$this->mif_enabled     = $this->get_option( 'mif_enabled', false );
 		$this->service         = $this->init_service();
 
 		add_action(
@@ -210,6 +234,8 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		add_action( 'admin_notices', array( $this, 'admin_notices' ) );
 		add_filter( 'script_loader_tag', array( $this, 'add_js_extra_attribute' ), 10 );
 		add_action( 'woocommerce_cart_calculate_fees', array( $this, 'add_handling_fee' ) );
+		add_action( 'woocommerce_checkout_update_order_meta', array( $this, 'save_mpgs_handling_fee_on_place_order' ), 10, 2 );
+		add_action( 'woocommerce_store_api_checkout_update_order_meta', array( $this, 'save_mpgs_handling_fee_api_on_place_order' ), 10, 1 );
 	}
 
 	/**
@@ -224,7 +250,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		$this->username = 'no' === $this->sandbox ? $this->get_option( 'username' ) : $this->get_option( 'sandbox_username' );
 		$this->password = 'no' === $this->sandbox ? $this->get_option( 'password' ) : $this->get_option( 'sandbox_password' );
 
-		$logging_level = $this->get_debug_logging_enabled()
+		$logging_level = $this->is_debug_logging_enabled()
 			? \Monolog\Logger::DEBUG
 			: \Monolog\Logger::ERROR;
 
@@ -243,7 +269,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 *
 	 * @return bool True if debug logging is enabled, false otherwise.
 	 */
-	protected function get_debug_logging_enabled() {
+	protected function is_debug_logging_enabled() {
 		if ( 'yes' === $this->sandbox ) {
 			return 'yes' === $this->get_option( 'debug', false );
 		}
@@ -256,7 +282,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 *
 	 * @return string The URL of the payment gateway.
 	 */
-	protected function get_gateway_url() {
+	public function get_gateway_url() {
 		$gateway_url = $this->get_option( 'gateway_url', self::API_EU );
 		if ( self::API_CUSTOM === $gateway_url ) {
 			$gateway_url = $this->get_option( 'custom_gateway_url' );
@@ -283,7 +309,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 						}
 						$this->update_option( 'handling_fee_amount', 100 );
 					}
-				}
+				}   
 			}
 			$service = $this->init_service();
 			$service->paymentOptionsInquiry();
@@ -306,6 +332,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		if ( 'woocommerce_page_wc-settings' !== get_current_screen()->id ) {
 			return;
 		}
+		wp_enqueue_media();
 		wp_enqueue_script(
 			'woocommerce_mastercard_admin',
 			plugins_url( 'assets/js/mastercard-admin.js', __FILE__ ),
@@ -321,7 +348,6 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * @return void
 	 */
 	public function payment_gateway_scripts() {
-		global $wp;
 		$order_id = get_query_var( 'order-pay' );
 		$order    = new WC_Order( $order_id );
 		if ( $order->get_payment_method() !== $this->id ) {
@@ -421,8 +447,8 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		);
 
 		$order->update_meta_data( '_mpgs_order_captured', true );
+		$order->update_meta_data( '_mpgs_transaction_mode', 'captured' );
 		$order->save_meta_data();
-		$hpos_enabled = get_option( 'woocommerce_custom_orders_table_enabled' );
 
 		if ( wp_get_referer() || 'yes' !== WC_Mastercard::is_hpos() ) {
 			wp_safe_redirect( wp_get_referer() );
@@ -461,7 +487,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
                 throw new Exception( 'Order already reversed' );
             }
 
-            $transaction_id = $order->get_meta( '_mpgs_transaction_id' );
+            $transaction_id = $order->get_meta( '_mpgs_transaction_id' );  
 
             if( $transaction_id === $auth_txn['transaction']['id'] || $transaction_id === $auth_txn['authentication']['transactionId'] ) {
 	            $result = $this->service->voidTxn(
@@ -470,6 +496,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				);		
 	         	
 	         	if( 'SUCCESS' === $result['result'] ) {
+	         		$order->update_meta_data( '_mpgs_transaction_mode', 'void' );
 		            $txn = $result['transaction'];
 		            $order->update_status( 'cancelled', sprintf( __( 'Gateway reverse authorization (ID: %s)',
 		                'mastercard' ),
@@ -495,7 +522,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
             wp_die( $e->getMessage(), __( 'Gateway reverse authorization failure.' ) );
         }
     }
-    
+
 	/**
 	 * This function displays admin notices.
 	 *
@@ -677,7 +704,8 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 *
 	 * @return void
 	 */
-	protected function process_hosted_session_payment( $three_ds_txn_id = null ) {
+	protected function process_hosted_session_payment( $three_ds_txn_id = null ) { 
+
 		$order_id        = isset( $_REQUEST['order_id'] ) ? $this->remove_order_prefix( sanitize_text_field( wp_unslash( $_REQUEST['order_id'] ) ) ) : null; // phpcs:ignore
 		$session_id      = isset( $_REQUEST['session_id'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['session_id'] ) ) : null; // phpcs:ignore
 		$session_version = isset( $_REQUEST['session_version'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['session_version'] ) ) : null; // phpcs:ignore
@@ -752,7 +780,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				exit();
 			}
 
-			$this->pay( $session, $order );
+			$this->pay( $session, $order, null );
 		}
 
 		if ( $process_acl_result && wp_verify_nonce( $mgps_3ds_nonce, 'mastercard_3ds_nonce' ) ) {
@@ -775,7 +803,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		}
 
 		if ( ! $check_3ds && ! $process_acl_result && ! $this->threedsecure_v1 ) {
-			$this->pay( $session, $order );
+			$this->pay( $session, $order, null );
 		}
 
 		$order->update_status( 'failed', __( 'Unexpected payment condition error.', 'mastercard' ) );
@@ -838,7 +866,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			}
 
 			if ( 'SUCCESS' !== $mpgs_txn['result'] ) {
-				$gateway_code = $mpgs_txn['response']['gatewayCode'];
+				$gateway_code = $mpgs_txn['response']['gatewayCode']; 
 
 				if ( 'DECLINED' === $gateway_code ) {
 					throw new Exception( __( 'Payment unsuccessful; your card has been declined.', 'mastercard' ) );
@@ -850,7 +878,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					throw new Exception( __( 'The transaction was disrupted due to an issue in the acquirer\'s system.', 'mastercard' ) );
 				} elseif ( 'UNSPECIFIED_FAILURE' === $gateway_code ) {
 					throw new Exception( __( 'An unspecified issue has occurred with your card. Please check the details and try again.', 'mastercard' ) );
-				} elseif ( 'EXPIRED_CARD' === $gateway_code ) {
+				} elseif ( 'AUTHORIZATION_FAILED' === $gateway_code ) {
 					throw new Exception( __( 'The card not authorized. Please enter a new card for payment.', 'mastercard' ) );
 				} else {
 					throw new Exception( __( 'Payment was declined.', 'mastercard' ) );
@@ -860,7 +888,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			$this->process_wc_order( $order, $mpgs_txn['order'], $mpgs_txn );
 
 			if ( $this->saved_cards && $order->get_meta( '_save_card' ) ) {
-				$this->process_saved_cards( $session, $order->get_user_id( 'system' ) );
+				$this->process_saved_cards( $session, $order->get_user_id( 'system' ) );	
 			}
 
 			wp_safe_redirect( $this->get_return_url( $order ) );
@@ -923,7 +951,9 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	protected function process_wc_order( $order, $order_data, $txn_data ) {
 		$this->validate_order( $order, $order_data );
 		$captured = 'CAPTURED' === $order_data['status'];
+		$transaction_mode = ( $this->capture ) ? self::TXN_MODE_PURCHASE : self::TXN_MODE_AUTH_CAPTURE;
 		$order->add_meta_data( '_mpgs_order_captured', $captured );
+		$order->add_meta_data( '_mpgs_transaction_mode', $transaction_mode );
 		$order->add_meta_data( '_mpgs_order_paid', 1 );
 		$order->add_meta_data( '_mpgs_transaction_id', $txn_data['transaction']['id'] );
 		$order->add_meta_data( '_mpgs_transaction_reference', $txn_data['transaction']['reference'] );
@@ -1149,7 +1179,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					$order_builder->getCustomer(),
 					$order_builder->getBilling(),
 					$order_builder->getShipping()
-				);		
+				);
 
 				if ( $result && $result['successIndicator'] ) {
 					$order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
@@ -1227,9 +1257,11 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				}
 				$order->save_meta_data();
 				break;
-
 			case '/mastercard/v1/webhook':
 				break;
+
+			default:
+				break;	
 		}
 
 		return $result;
@@ -1302,7 +1334,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		$order = new WC_Order( $order_id );
 
 		set_query_var( 'order', $order );
-		set_query_var( 'gateway', $this );
+		set_query_var( 'gateway', $this ); 
 
 		if ( self::HOSTED_SESSION === $this->method ) {
 			$display_tokenization = $this->supports( 'tokenization' ) && is_checkout() && $this->saved_cards;
@@ -1332,205 +1364,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * @return void
 	 */
 	public function init_form_fields() {
-		$this->form_fields = array(
-			'heading'            => array(
-				'title'       => null,
-				'type'        => 'title',
-				'description' => sprintf(
-					/* translators: 1. MPGS module vesion, 2. MPGS API version. */
-					__( 'Plugin version: %1$s<br />API version: %2$s', 'mastercard' ),
-					MPGS_TARGET_MODULE_VERSION,
-					self::MPGS_API_VERSION_NUM
-				),
-			),
-			'enabled'            => array(
-				'title'       => __( 'Enable/Disable', 'mastercard' ),
-				'label'       => __( 'Enable', 'mastercard' ),
-				'type'        => 'checkbox',
-				'description' => '',
-				'default'     => 'no',
-			),
-			'title'              => array(
-				'title'       => __( 'Title', 'mastercard' ),
-				'type'        => 'text',
-				'description' => __( 'This controls the title which the user sees during checkout.', 'mastercard' ),
-				'default'     => __( 'Mastercard Payment Gateway Services', 'mastercard' ),
-				'css'         => 'min-height: 33px;'
-			),
-			'description'        => array(
-				'title'       => __( 'Description', 'mastercard' ),
-				'type'        => 'text',
-				'description' => __( 'The description displayed when this payment method is selected.', 'mastercard' ),
-				'default'     => 'Pay with your card via Mastercard.',
-				'css'         => 'min-height: 33px;'
-			),
-			'gateway_url'        => array(
-				'title'   => __( 'Gateway', 'mastercard' ),
-				'type'    => 'select',
-				'options' => array(
-					self::API_AS     => __( 'Asia Pacific', 'mastercard' ),
-					self::API_EU     => __( 'Europe', 'mastercard' ),
-					self::API_NA     => __( 'North America', 'mastercard' ),
-					self::API_CUSTOM => __( 'Custom URL', 'mastercard' ),
-				),
-				'default' => self::API_EU,
-			),
-			'custom_gateway_url' => array(
-				'title'       => __( 'Custom Gateway Host', 'mastercard' ),
-				'type'        => 'text',
-				'description' => __( 'Enter only the hostname without https prefix. For example na.gateway.mastercard.com.', 'mastercard' ),
-				'css'         => 'min-height: 33px;'
-			),
-			'txn_mode'           => array(
-				'title'       => __( 'Transaction Mode', 'mastercard' ),
-				'type'        => 'select',
-				'options'     => array(
-					self::TXN_MODE_PURCHASE     => __( 'Purchase', 'mastercard' ),
-					self::TXN_MODE_AUTH_CAPTURE => __( 'Authorize', 'mastercard' ),
-				),
-				'default'     => self::TXN_MODE_PURCHASE,
-				'description' => __( 'In “Purchase” mode, the customer is charged immediately. In Authorize mode, the transaction is only authorized and the capturing of funds is a manual process that you do using the Woocommerce admin panel.', 'mastercard' ),
-			),
-			'method'             => array(
-				'title'   => __( 'Integration Model', 'mastercard' ),
-				'type'    => 'select',
-				'options' => array(
-					self::HOSTED_CHECKOUT => __( 'Hosted Checkout', 'mastercard' ),
-					self::HOSTED_SESSION  => __( 'Hosted Session', 'mastercard' ),
-				),
-				'default' => self::HOSTED_CHECKOUT,
-			),
-			'threedsecure'       => array(
-				'title'       => __( '3D-Secure', 'mastercard' ),
-				'label'       => __( 'Use 3D-Secure', 'mastercard' ),
-				'type'        => 'select',
-				'options'     => array(
-					self::THREED_DISABLED => __( 'Disabled' ),
-					self::THREED_V1       => __( '3DS1' ),
-					self::THREED_V2       => __( '3DS2 (with fallback to 3DS1)' ),
-				),
-				'default'     => self::THREED_DISABLED,
-				'description' => __( 'For more information please contact your payment service provider.', 'mastercard' ),
-			),
-			'hc_interaction'     => array(
-				'title'   => __( 'Checkout Interaction', 'mastercard' ),
-				'type'    => 'select',
-				'options' => array(
-					self::HC_TYPE_REDIRECT => __( 'Redirect to Payment Page', 'mastercard' ),
-					self::HC_TYPE_EMBEDDED => __( 'Embedded', 'mastercard' ),
-				),
-				'default' => self::HC_TYPE_EMBEDDED,
-			),
-			'hc_type'            => array(
-				'title'   => __( 'Checkout Interaction', 'mastercard' ),
-				'type'    => 'select',
-				'options' => array(
-					self::HC_TYPE_REDIRECT => __( 'Redirect to Payment Page', 'mastercard' ),
-					self::HC_TYPE_MODAL    => __( 'Lightbox', 'mastercard' ),
-				),
-				'default' => self::HC_TYPE_MODAL,
-			),
-			'saved_cards'        => array(
-				'title'       => __( 'Saved Cards', 'mastercard' ),
-				'label'       => __( 'Enable payment via saved tokenized cards', 'mastercard' ),
-				'type'        => 'checkbox',
-				'description' => __( 'If enabled, users will be able to pay with a saved card during checkout. Card details are saved in the payment gateway, not on your store.', 'mastercard' ),
-				'default'     => 'yes',
-			),
-			'debug'              => array(
-				'title'       => __( 'Debug Logging', 'mastercard' ),
-				'label'       => __( 'Enable Debug Logging', 'mastercard' ),
-				'type'        => 'checkbox',
-				'description' => __( 'Logs all communication with Mastercard gateway to file ./wp-content/mastercard.log. Debug logging only works in Sandbox mode.', 'mastercard' ),
-				'default'     => 'no',
-			),
-			'api_details'        => array(
-				'title'       => __( 'API credentials', 'mastercard' ),
-				'type'        => 'title',
-				'description' => sprintf(
-					/* translators: Gateway API Credentials */
-					__( 'Enter your API credentials to process payments via this payment gateway. Learn how to access your <a href="%s" target="_blank">Gateway API Credentials</a>.', 'mastercard' ),
-					'https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/pickSecurityModel/secureYourIntegration.html?locale=en_US'
-				),
-			),
-			'sandbox'            => array(
-				'title'       => __( 'Test Sandbox', 'mastercard' ),
-				'label'       => __( 'Enable test sandbox mode', 'mastercard' ),
-				'type'        => 'checkbox',
-				'description' => __( 'Place the payment gateway in test mode using test API credentials (real payments will not be taken).', 'mastercard' ),
-				'default'     => 'yes',
-			),
-			'sandbox_username'   => array(
-				'title'       => __( 'Test Merchant ID', 'mastercard' ),
-				'type'        => 'text',
-				'description' => __( 'This is your test merchant profile ID prefixed with TEST.', 'mastercard' ),
-				'default'     => '',
-				'css'         => 'min-height: 33px;'
-			),
-			'sandbox_password'   => array(
-				'title'       => __( 'Test API Password', 'mastercard' ),
-				'type'        => 'password',
-				'description' => __( 'This is your test API password.', 'mastercard' ),
-				'default'     => '',
-				'css'         => 'min-height: 33px;'
-			),
-			'username'           => array(
-				'title'       => __( 'Merchant ID', 'mastercard' ),
-				'type'        => 'text',
-				'description' => __( 'This is your merchant profile ID.', 'mastercard' ),
-				'default'     => '',
-				'css'         => 'min-height: 33px;'
-			),
-			'password'           => array(
-				'title'       => __( 'API Password', 'mastercard' ),
-				'type'        => 'password',
-				'description' => __( 'This is your API password.', 'mastercard' ),
-				'default'     => '',
-				'css'         => 'min-height: 33px;'
-			),
-			'order_prefix'       => array(
-				'title'       => __( 'Order ID prefix', 'mastercard' ),
-				'type'        => 'text',
-				'description' => __( 'Should be specified in case multiple integrations use the same Merchant ID.', 'mastercard' ),
-				'default'     => '',
-				'css'         => 'min-height: 33px;'
-			),
-			'handling_fee'      => array(
-				'title'       => __( 'Handling Fee', 'mastercard' ),
-				'type'        => 'title',
-				'description' => __( 'The handling amount for the order, including taxes on the handling.', 'mastercard' ),
-			),
-			'hf_enabled'            => array(
-				'title'       => __( 'Enable/Disable', 'mastercard' ),
-				'label'       => __( 'Enable', 'mastercard' ),
-				'type'        => 'checkbox',
-				'description' => '',
-				'default'     => 'no',
-			),
-			'handling_text'      => array(
-				'title'       => __( 'Handling Fee Text', 'mastercard' ),
-				'type'        => 'text',
-				'description' => __( 'Display text for handling fee.', 'mastercard' ),
-				'default'     => '',
-				'css'         => 'min-height: 33px;'
-			),
-			'hf_amount_type'     => array(
-				'title'   => __( 'Applicable Amount Type', 'mastercard' ),
-				'type'    => 'select',
-				'options' => array(
-					self::HF_FIXED      => __( 'Fixed', 'mastercard' ),
-					self::HF_PERCENTAGE => __( 'Percentage', 'mastercard' ),
-				),
-				'default' => self::HF_FIXED,
-			),
-			'handling_fee_amount' => array(
-				'title'       => __( 'Amount', 'mastercard' ),
-				'type'        => 'text',
-				'description' => __( 'The total amount for handling fee; Eg: 10.00 or 10%.', 'mastercard' ),
-				'default'     => '',
-				'css'         => 'min-height: 33px;'
-			)
-		);
+		$this->form_fields = include dirname( __DIR__ ) . '/includes/settings-mastercard.php';
 	}
 
 	/**
@@ -1668,7 +1502,58 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				$surcharge = $handling_fee;
 			}
 
+			if ( WC()->session ) {
+				WC()->session->set( 'mpgs_handling_fee', $surcharge );
+			}
+
 		    WC()->cart->add_fee( $handling_text, $surcharge, true, '' );
+		}
+	}
+
+	/**
+	 * Save MasterCard Payment Gateway Services (MPGS) handling fee to the order.
+	 *
+	 * This function is triggered during the WooCommerce checkout process, right after the 
+	 * "Place Order" button is clicked and the order is being created. It adds the handling 
+	 * fee related to MPGS to the order metadata, which can later be used for calculations, 
+	 * displaying fees in the backend, or other custom logic.
+	 *
+	 * @param WC_Order $order_id The order id.
+	 * @param array    $data  The posted data during checkout process (billing, shipping, etc.).
+	 */
+	public function save_mpgs_handling_fee_on_place_order( $order_id, $data ) {
+		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled ) {
+		    if ( $order_id ) {
+		    	$order = wc_get_order( $order_id ); 
+		        $handling_fee = WC()->session->get( 'mpgs_handling_fee' );
+		        $order->update_meta_data( '_mpgs_handling_fee', $handling_fee );
+		        $order->save();
+		        WC()->session->__unset( '_mpgs_handling_fee' );
+		    }
+		} else {
+			WC()->session->__unset( '_mpgs_handling_fee' );
+		}
+	}
+
+	/**
+	 * Save MasterCard Payment Gateway Services (MPGS) handling fee to the order through WooCommerce checkout block.
+	 *
+	 * This function is triggered during the WooCommerce checkout process, right after the 
+	 * "Place Order" button is clicked and the order is being created. It adds the handling 
+	 * fee related to MPGS to the order metadata, which can later be used for calculations, 
+	 * displaying fees in the backend, or other custom logic.
+	 *
+	 * @param WC_Order $order_id The order id.
+	 */
+	public function save_mpgs_handling_fee_api_on_place_order( $order ) {
+		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled ) {
+			if ( $order ) {
+		        $handling_fee = WC()->session->get( 'mpgs_handling_fee' );
+		        $order->update_meta_data( '_mpgs_handling_fee', $handling_fee );
+		        WC()->session->__unset( '_mpgs_handling_fee' );
+		    }
+	    } else {
+			WC()->session->__unset( '_mpgs_handling_fee' );
 		}
 	}
 }

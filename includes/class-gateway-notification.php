@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.6@
+ * @version  GIT: @1.4.7@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -171,7 +171,6 @@ class Mastercard_Gateway_Notification {
 						$mgps_plugin_info->plugin       = $plugin_file;
 						$mgps_plugin_info->new_version  = $latest_version;
 						$mgps_plugin_info->url          = 'https://api.' . $this->base_url . '/repos/' . $this->owner . '/' . $this->repo;
-						// $mgps_plugin_info->package      = $response_body['assets'][0]['browser_download_url'];
 						$mgps_plugin_info->package      = "";
 						$mgps_plugin_info->icons        = array();
 						$mgps_plugin_info->banners      = array();
@@ -236,17 +235,6 @@ class Mastercard_Gateway_Notification {
 	 */
 	public function update_database() {
 		update_option( '_mgps_target_module_version', MPGS_TARGET_MODULE_VERSION );
-		$settings_options = get_option( 'woocommerce_' . $this->id . '_settings' );
-
-		if ( ! empty( $settings_options ) || isset( $settings_options ) ) {
-			if ( 'newhostedcheckout' === $settings_options['method'] ) {
-				$settings_options['method'] = 'hosted_checkout';
-			} elseif ( 'hostedsession' === $settings_options['method'] ) {
-				$settings_options['method'] = 'hosted_session';
-			}
-
-			update_option( 'woocommerce_' . $this->id . '_settings', $settings_options );
-		}
 	}
 
 	/**

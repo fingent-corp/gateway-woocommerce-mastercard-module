@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.6@
+ * @version  GIT: @1.4.7@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -37,12 +37,20 @@ class Mastercard_CheckoutBuilder {
 	protected $order = null;
 
 	/**
+	 * Mastercard Gateway object
+	 *
+	 * @var WC_Order
+	 */
+	protected $gateway = null;
+
+	/**
 	 * Mastercard_Model_AbstractBuilder constructor.
 	 *
 	 * @param array $order WC_Order.
 	 */
 	public function __construct( $order ) {
-		$this->order = $order;
+		$this->order   = $order;
+		$this->gateway = new Mastercard_Gateway();
 	}
 
 	/**
@@ -64,7 +72,7 @@ class Mastercard_CheckoutBuilder {
 	 *
 	 * @return boolean Returns true if the value is safe and within the limit, otherwise returns false.
 	 */
-	public static function safe( $value, $limited = 0 ) {
+	public static function is_safe( $value, $limited = 0 ) {
 		if ( '' === $value ) {
 			return null;
 		}
@@ -84,12 +92,12 @@ class Mastercard_CheckoutBuilder {
 	public function getBilling() { // phpcs:ignore
 		return array(
 			'address' => array(
-				'street'        => self::safe( $this->order->get_billing_address_1(), 100 ),
-				'street2'       => self::safe( $this->order->get_billing_address_2(), 100 ),
-				'city'          => self::safe( $this->order->get_billing_city(), 100 ),
-				'postcodeZip'   => self::safe( $this->order->get_billing_postcode(), 10 ),
+				'street'        => self::is_safe( $this->order->get_billing_address_1(), 100 ),
+				'street2'       => self::is_safe( $this->order->get_billing_address_2(), 100 ),
+				'city'          => self::is_safe( $this->order->get_billing_city(), 100 ),
+				'postcodeZip'   => self::is_safe( $this->order->get_billing_postcode(), 10 ),
 				'country'       => $this->iso2ToIso3( $this->order->get_billing_country() ),
-				'stateProvince' => self::safe( $this->order->get_billing_state(), 20 ),
+				'stateProvince' => self::is_safe( $this->order->get_billing_state(), 20 ),
 			),
 		);
 	}
@@ -102,11 +110,11 @@ class Mastercard_CheckoutBuilder {
 	 * @return bool
 	 */
 	public function orderIsVirtual( $order ) { // phpcs:ignore
-		if ( empty( $this->order->get_shipping_address_1() ) ) {
+		if ( empty( $order->get_shipping_address_1() ) ) {
 			return true;
 		}
 
-		if ( empty( $this->order->get_shipping_first_name() ) ) {
+		if ( empty( $order->get_shipping_first_name() ) ) {
 			return true;
 		}
 
@@ -125,16 +133,16 @@ class Mastercard_CheckoutBuilder {
 
 		return array(
 			'address' => array(
-				'street'        => self::safe( $this->order->get_shipping_address_1(), 100 ),
-				'street2'       => self::safe( $this->order->get_shipping_address_2(), 100 ),
-				'city'          => self::safe( $this->order->get_shipping_city(), 100 ),
-				'postcodeZip'   => self::safe( $this->order->get_shipping_postcode(), 10 ),
+				'street'        => self::is_safe( $this->order->get_shipping_address_1(), 100 ),
+				'street2'       => self::is_safe( $this->order->get_shipping_address_2(), 100 ),
+				'city'          => self::is_safe( $this->order->get_shipping_city(), 100 ),
+				'postcodeZip'   => self::is_safe( $this->order->get_shipping_postcode(), 10 ),
 				'country'       => $this->iso2ToIso3( $this->order->get_shipping_country() ),
-				'stateProvince' => self::safe( $this->order->get_shipping_state(), 20 ),
+				'stateProvince' => self::is_safe( $this->order->get_shipping_state(), 20 ),
 			),
 			'contact' => array(
-				'firstName' => self::safe( $this->order->get_shipping_first_name(), 50 ),
-				'lastName'  => self::safe( $this->order->get_shipping_last_name(), 50 ),
+				'firstName' => self::is_safe( $this->order->get_shipping_first_name(), 50 ),
+				'lastName'  => self::is_safe( $this->order->get_shipping_last_name(), 50 ),
 			),
 			
 		);
@@ -148,8 +156,8 @@ class Mastercard_CheckoutBuilder {
 	public function getCustomer() { // phpcs:ignore
 		return array(
 			'email'     => $this->order->get_billing_email(),
-			'firstName' => self::safe( $this->order->get_billing_first_name(), 50 ),
-			'lastName'  => self::safe( $this->order->get_billing_last_name(), 50 ),
+			'firstName' => self::is_safe( $this->order->get_billing_first_name(), 50 ),
+			'lastName'  => self::is_safe( $this->order->get_billing_last_name(), 50 ),
 		);
 	}
 
@@ -159,14 +167,77 @@ class Mastercard_CheckoutBuilder {
 	 * @return array
 	 */
 	public function getHostedCheckoutOrder() { // phpcs:ignore
-		$gateway      = new Mastercard_Gateway();
-		return array_merge(
-			array(
-				'id'          => (string) $gateway->add_order_prefix( $this->order->get_id() ),
-				'description' => 'Ordered goods',
-			),
-			$this->getOrder()
-		);
+		$order_summary = array();
+		if ( isset( $this->gateway->hf_enabled ) && 'yes' === $this->gateway->hf_enabled ) {
+			$handling_fee = $this->order->get_meta( '_mpgs_handling_fee' );
+		} else {
+			$handling_fee = 0;
+		}
+		$shipping_fee = (float)( $handling_fee ) + (float) $this->order->get_shipping_total();
+
+		if( 'yes' === $this->gateway->send_line_items ) {
+			$line_items = array(); 
+			$items = $this->order->get_items();
+
+			if ( $items ) {
+				foreach ( $items as $item ) {
+					$product = $item->get_product();
+					$line_items[] = array(
+						'name'      => $item->get_name(),
+						'quantity'  => $item->get_quantity(),
+						'sku'       => $product->get_sku(),
+						'unitPrice' => $this->formattedPrice( $product->get_price() ),
+					);
+				}
+			}
+
+			$order_summary = array(
+				'id'          => (string) $this->gateway->add_order_prefix( $this->order->get_id() ),
+				'description' => 'Customer Order Summary',
+				'item'        => $line_items,
+				'itemAmount'  => $this->formattedPrice( $this->order->get_subtotal() ),
+			);
+
+			if( $shipping_fee ) {
+				$order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
+			}
+
+			if( $this->order->get_total_tax() ) {
+				$order_summary['taxAmount'] = $this->formattedPrice( $this->order->get_total_tax() );
+			}
+
+			if( $this->order->get_total_discount() ) {
+				$order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
+			}
+		
+			return array_merge(
+				$order_summary,
+				$this->getOrder()
+			);
+		} else {
+			$order_summary = array(
+				'id'          => (string) $this->gateway->add_order_prefix( $this->order->get_id() ),
+				'description' => 'Customer Order Summary',
+				'itemAmount'  => $this->formattedPrice( $this->order->get_subtotal() ),
+			);
+
+			if( $shipping_fee ) {
+				$order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
+			}
+
+			if( $this->order->get_total_tax() ) {
+				$order_summary['taxAmount'] = $this->formattedPrice( $this->order->get_total_tax() );
+			}
+
+			if( $this->order->get_total_discount() ) {
+				$order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
+			}
+
+			return array_merge(
+				$order_summary,
+				$this->getOrder()
+			);
+		}
 	}
 
 	/**
@@ -175,8 +246,9 @@ class Mastercard_CheckoutBuilder {
 	 * @return array
 	 */
 	public function getOrder() { // phpcs:ignore
+		$order_total = $this->order->get_total();
 		return array(
-			'amount'   => $this->formattedPrice( $this->order->get_total() ),
+			'amount'   => $this->formattedPrice( $order_total ),
 			'currency' => get_woocommerce_currency(),
 		);
 	}
@@ -209,19 +281,57 @@ class Mastercard_CheckoutBuilder {
 	 * @return array
 	 */
 	public function getInteraction( $capture = true, $return_url = null ) { // phpcs:ignore
-		return array(
-			'merchant'       => array(
-				'name' => esc_html( get_bloginfo( 'name', 'display' ) ),
-			),
-			'returnUrl'      => $return_url,
-			'displayControl' => array(
-				'customerEmail'  => 'HIDE',
-				'billingAddress' => 'HIDE',
-				'paymentTerms'   => 'HIDE',
-				'shipping'       => 'HIDE',
-			),
-			'operation'      => $capture ? 'PURCHASE' : 'AUTHORIZE',
+		$merchant_interaction = array();
+
+		if( 'yes' === $this->gateway->mif_enabled ) {
+			$merchant_name  = $this->gateway->get_option( 'merchant_name' );
+			$sitename       = get_bloginfo( 'name', 'display' );
+			$merchant_name  = $merchant_name ? preg_replace( "/['\"]/", '', $merchant_name ) : $sitename;
+			$merchant_name  = $this->getExcerpt( $merchant_name, 39 );
+
+			$merchant       = array(
+				'name'    => esc_html( $merchant_name ),
+				'address' => array( 
+					'line1'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line1' ), 100 ),
+					'line2'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line2' ), 100 ),
+					'line3'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line3' ), 100 ),
+					'line4'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line4' ), 100 )
+				)
+			);
+
+			if( $this->gateway->get_option( 'merchant_email' ) ) {
+				$merchant['email'] = $this->gateway->get_option( 'merchant_email' );
+			}
+
+			if( $this->gateway->get_option( 'merchant_logo' ) ) {
+				$merchant['logo'] = self::force_https_url( $this->gateway->get_option( 'merchant_logo' ) );
+			}
+
+			if( $this->gateway->get_option( 'merchant_phone' ) ) {
+				$merchant['phone'] = $this->getExcerpt( $this->gateway->get_option( 'merchant_phone' ), 20 );
+			}
+
+			$merchant_interaction['merchant'] = $merchant;
+		} else {
+			$sitename = $this->getExcerpt( get_bloginfo( 'name', 'display' ), 39 );
+			$merchant_interaction['merchant']['name'] = $sitename;
+		}
+
+		$interaction = array_merge(
+			$merchant_interaction,
+			array(
+				'returnUrl'      => $return_url,
+				'displayControl' => array(
+					'customerEmail'  => 'HIDE',
+					'billingAddress' => 'HIDE',
+					'paymentTerms'   => 'HIDE',
+					'shipping'       => 'HIDE',
+				),
+				'operation'      => $capture ? 'PURCHASE' : 'AUTHORIZE',
+			)
 		);
+
+		return $interaction; 
 	}
 
 	/**
@@ -234,10 +344,15 @@ class Mastercard_CheckoutBuilder {
 	 * @deprecated
 	 */
 	public function getLegacyInteraction( $capture = true, $return_url = null ) { // phpcs:ignore
+		$merchant_name = $this->gateway->get_option( 'merchant_name' );
+		$sitename      = get_bloginfo( 'name', 'display' );
+		$merchant_name = $merchant_name ? $merchant_name : $sitename;
+		$merchant_name = $this->getExcerpt( $merchant_name, 39 );
+
 		return array(
 			'operation'      => $capture ? 'PURCHASE' : 'AUTHORIZE',
 			'merchant'       => array(
-				'name' => esc_html( get_bloginfo( 'name', 'display' ) ),
+				'name' => esc_html( $merchant_name ),
 			),
 			'returnUrl'      => $return_url,
 			'displayControl' => array(
@@ -249,4 +364,48 @@ class Mastercard_CheckoutBuilder {
 			),
 		);
 	}
+
+	/**
+	 * Create an excerpt from a given text.
+	 *
+	 * @param string $text The text to create an excerpt from.
+	 * @param int $length The length of the excerpt (number of words).
+	 * @return string The excerpt.
+	 */
+	public function getExcerpt( $text, $length = 50 ) {
+	    if ( strlen( $text ) > $length ) {
+	        $excerpt = substr( $text, 0, $length );
+	    } else {
+	        $excerpt = $text;
+	    }
+	    
+	    return $this->attempt_transliteration( $excerpt );
+	}
+
+	/**
+	 * Force https for urls.
+	 *
+	 * @param mixed $content
+	 * @return string
+	 */
+	public static function force_https_url( $url ) {
+		return str_replace( 'http:', 'https:', (string) $url );
+	}
+
+	public function attempt_transliteration( $field ) {
+        $encode = mb_detect_encoding( $field );
+        if ( $encode !== 'ASCII' ) {
+            if ( function_exists( 'transliterator_transliterate' ) ) {
+                $field = transliterator_transliterate( 'Any-Latin; Latin-ASCII; [\u0080-\u7fff] remove', $field );
+            } else {
+                // fall back to iconv if intl module not available
+                $field = remove_accents( $field );
+                $field = iconv( $encode, 'ASCII//TRANSLIT//IGNORE', $field );
+                $field = str_ireplace( '?', '', $field );
+                $field = trim( $field );
+            }
+        }
+
+        return $field;
+    }
 }

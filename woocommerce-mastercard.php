@@ -5,18 +5,19 @@
  * Plugin URI: https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
- * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api
- * Version: 1.4.6
- * Requires at least: 5.6.0
+ * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api, woocommerce-blocks
+ * Version: 1.4.7
+ * Requires Plugins: woocommerce
+ * Requires at least: 6.0
  * Tested up to: 6.6.1
- * Requires PHP: 7.4
+ * Requires PHP: 8.1
  * php version 8.1
  *
- * WC requires at least: 7.6
- * WC tested up to: 9.1.4
+ * WC requires at least: 8.5
+ * WC tested up to: 9.3.3
  *
  * @package  Mastercard
- * @version  GIT: @1.4.6@
+ * @version  GIT: @1.4.7@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -47,7 +48,7 @@ use Automattic\WooCommerce\Internal\Features\FeaturesController;
  * Main class of the Mastercard Payment Gateway Services Module
  *
  * @package  Mastercard
- * @version  Release: @1.4.6@
+ * @version  Release: @1.4.7@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class WC_Mastercard {
@@ -62,7 +63,7 @@ class WC_Mastercard {
 	/**
 	 * WC_Mastercard constructor.
 	 */
-	public function __construct() {
+	public function __construct() { 
 		add_action( 'plugins_loaded', array( $this, 'init' ) );
 		add_action( 'init', array( $this, 'clean_output_buffer' ) );
 		add_action( 'before_woocommerce_init', array( $this, 'declare_cart_checkout_blocks_compatibility' ) );
@@ -105,7 +106,6 @@ class WC_Mastercard {
 		add_filter(
 			'woocommerce_order_actions',
 			function ( $actions ) {
-				$hpos_enabled = get_option( 'woocommerce_custom_orders_table_enabled' );
 				$order_id     = self::get_order_id();
 				if ( $order_id ) {
 					$order = new WC_Order( $order_id );
@@ -118,7 +118,6 @@ class WC_Mastercard {
 							'Capture Authorized Amount',
 							'mastercard'
 						);
-
 						$actions[ 'mpgs_void_payment' ] = __(
 							'Void',
 							'mastercard'
@@ -182,7 +181,7 @@ class WC_Mastercard {
 							),
 						),
 					)
-				);
+				);			
 				register_rest_route(
 					'mastercard/v1',
 					'/webhook',
@@ -194,7 +193,10 @@ class WC_Mastercard {
 				);
 			}
 		);
+		add_action( 'admin_head', array( $this, 'mpgs_admin_styles' ) );
 		add_filter( 'woocommerce_admin_order_should_render_refunds', array( $this, 'admin_order_should_render_refunds' ), 10, 3 );
+		add_filter( 'manage_woocommerce_page_wc-orders_columns', array( $this, 'transaction_mode_columns' ) );
+		add_action( 'manage_woocommerce_page_wc-orders_custom_column', array( $this, 'transaction_mode_column_data' ), 10, 2 );
 	}
 
 	/**
@@ -235,7 +237,7 @@ class WC_Mastercard {
 	/**
 	 * Apply Custom CSS to Admin Area.
 	 *
-	 * @since 1.4.4
+	 * @since 1.4.5
 	 *
 	 * @return void
 	 */
@@ -416,6 +418,52 @@ class WC_Mastercard {
 	}
 
 	/**
+	 * Enqueue custom styles for the admin dashboard related to the Mastercard Payment Gateway Services (MPGS).
+	 *
+	 * This function is used to add custom CSS styles to the WordPress admin area, specifically for pages
+	 * that handle Mastercard Payment Gateway Services (MPGS) settings or features. It ensures that the 
+	 * admin UI for these pages is styled according to the requirements of the plugin.
+	 *
+	 * @since 1.4.5
+	 */
+	public function mpgs_admin_styles() {
+		echo '<style>
+		    .mgps-transaction-mode {
+		    	display: inline-flex;
+				line-height: 2.5em;
+				color: #454545;
+				background: #e5e5e5;
+				border-radius: 4px;
+				border-bottom: 1px solid rgba(0,0,0,.05);
+				margin: -.25em 0;
+				cursor: inherit !important;
+				white-space: nowrap;
+				max-width: 100%;
+		    }
+		    .mgps-transaction-mode > span {
+				margin: 0 1em;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+			.mgps-transaction-mode.mpgs-purchase {
+				background: #c6e1c6;
+			  	color: #2c4700;
+			}
+			.mgps-transaction-mode.mpgs-authorize {
+				background: #d1ecf1;
+			  	color: #0c5460;
+			}
+			.mgps-transaction-mode.mpgs-captured {
+				background: #fff3cd;
+			  	color: #856404;
+			}
+			.mgps-transaction-mode.mpgs-void {
+				color: #721c24;
+  				background-color: #f8d7da;
+			}
+	  	</style>';
+	}
+	/**
 	 * Is_order_pay_page - Returns true when viewing the order received page.
 	 *
 	 * @return bool
@@ -427,7 +475,7 @@ class WC_Mastercard {
 	/**
 	 * Function to declare compatibility with cart_checkout_blocks feature.
 	 *
-	 * @since 1.4.4
+	 * @since 1.4.5
 	 * @return void
 	 */
 	public function declare_cart_checkout_blocks_compatibility() { // phpcs:ignore Universal.Files.SeparateFunctionsFromOO.Mixed
@@ -440,7 +488,7 @@ class WC_Mastercard {
 	/**
 	 * Function to register the Mastercard payment method type.
 	 *
-	 * @since 1.4.4
+	 * @since 1.4.5
 	 * @return void
 	 */
 	public function woocommerce_gateway_mastercard_woocommerce_block_support() {
@@ -455,6 +503,55 @@ class WC_Mastercard {
 				$payment_method_registry->register( new Mastercard_Gateway_Blocks_Support() );
 			}
 		);
+	}
+
+	/**
+	 * Adds transaction mode column to the existing columns in the list table.
+	 *
+	 * This function modifies the list of columns by adding or altering
+	 * columns, typically for displaying additional information like
+	 * transaction modes or other custom data.
+	 *
+	 * @param array $columns Existing columns in the list table.
+	 * @return array Modified array of columns including the transaction mode column.
+	 */
+	public function transaction_mode_columns( $columns ) {
+	    $columns['mgps_transaction'] = 'Transaction Mode';
+	    return $columns;
+	}
+
+	/**
+	 * Callback function to display data in the custom 'transaction_mode' column in the WooCommerce Orders List Table.
+	 *
+	 * @param string $column The name of the column currently being processed.
+	 * @param WC_Order $order The order object for the current row being displayed.
+	 */
+	public function transaction_mode_column_data( $column, $order ) {	
+	    if ( 'mgps_transaction' === $column ) {
+	        switch ( $order->get_meta( '_mpgs_transaction_mode' ) ) {
+	        	case 'capture':
+	        		$transaction_mode = '<mark class="mgps-transaction-mode mpgs-purchase"><span>Purchase</span></mark>';
+	        		break;
+	        	
+	        	case 'authorize':
+	        		$transaction_mode = '<mark class="mgps-transaction-mode mpgs-authorize"><span>Authorize</span></mark>';
+	        		break;
+
+	        	case 'captured':
+	        		$transaction_mode = '<mark class="mgps-transaction-mode mpgs-captured"><span>Captured</span></mark>';
+	        		break;	
+
+	        	case 'void':
+	        		$transaction_mode = '<mark class="mgps-transaction-mode mpgs-void"><span>Void</span></mark>';	
+	        		break;	
+
+	        	default:
+	        		$transaction_mode = '<mark class="mgps-transaction-mode mpgs-na"><span>N/A</span></mark>';
+	        		break;
+	        }
+
+	        echo $transaction_mode;
+	    }
 	}
 }
 

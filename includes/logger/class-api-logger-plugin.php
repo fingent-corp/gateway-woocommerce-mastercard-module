@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.6@
+ * @version  GIT: @1.4.7@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -103,12 +103,8 @@ class Mastercard_ApiLoggerPlugin implements Plugin {
 		);
 
 		return $next( $request )->then(
-			function (
-				ResponseInterface $response
-			) use (
-				$request
-			) {
-				$body = json_decode( $response->getBody(), true );
+			function ( ResponseInterface $response ) use ( $request ) {
+				$body = json_decode( $response->getBody(), true ); 
 				if ( json_last_error() !== JSON_ERROR_NONE ) {
 					$body = $response->getBody();
 				}
