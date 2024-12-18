@@ -1,23 +1,23 @@
 <?php
 /**
  * Plugin Name: Mastercard Payment Gateway Services
- * Description: Accept payments on your WooCommerce store using the Mastercard Payment Gateway Services. Requires PHP 8.1+ & WooCommerce 7.3+
+ * Description: Accept payments on your WooCommerce store using the Mastercard Payment Gateway Services. Requires PHP 8.1+ & WooCommerce 8.5+
  * Plugin URI: https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api, woocommerce-blocks
- * Version: 1.4.7
+ * Version: 1.4.8
  * Requires Plugins: woocommerce
  * Requires at least: 6.0
- * Tested up to: 6.6.1
+ * Tested up to: 6.7.1
  * Requires PHP: 8.1
  * php version 8.1
  *
  * WC requires at least: 8.5
- * WC tested up to: 9.3.3
+ * WC tested up to: 9.4.2
  *
  * @package  Mastercard
- * @version  GIT: @1.4.7@
+ * @version  GIT: @1.4.8@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -48,7 +48,7 @@ use Automattic\WooCommerce\Internal\Features\FeaturesController;
  * Main class of the Mastercard Payment Gateway Services Module
  *
  * @package  Mastercard
- * @version  Release: @1.4.7@
+ * @version  Release: @1.4.8@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class WC_Mastercard {
@@ -186,9 +186,9 @@ class WC_Mastercard {
 					'mastercard/v1',
 					'/webhook',
 					array(
-						'methods'             => 'GET',
-						'callback'            => array( $this, 'rest_route_forward' ),
+						'methods'             => 'POST',
 						'permission_callback' => array( $this, 'get_items_permissions_check' ),
+						'callback'            => array( $this, 'rest_route_forward' ),
 					)
 				);
 			}
@@ -461,6 +461,20 @@ class WC_Mastercard {
 				color: #721c24;
   				background-color: #f8d7da;
 			}
+			.woocommerce table.form-table input[type="text"], .woocommerce table.form-table input[type="password"] {
+				width: 500px;
+			}
+			.woocommerce table.form-table .webhook_wrap {
+				position: relative;
+				width: max-content;
+			}
+			.woocommerce table.form-table .webhook_wrap .dashicons-admin-page {
+				position: absolute;
+				top: 7px;
+				right: 6px;
+				color: #666;
+				cursor: pointer;
+			}
 	  	</style>';
 	}
 	/**
@@ -545,6 +559,10 @@ class WC_Mastercard {
 	        		$transaction_mode = '<mark class="mgps-transaction-mode mpgs-void"><span>Void</span></mark>';	
 	        		break;	
 
+	        	case 'refund':
+	        		$transaction_mode = '<mark class="mgps-transaction-mode mpgs-void"><span>Refunded</span></mark>';	
+	        		break;
+	        			
 	        	default:
 	        		$transaction_mode = '<mark class="mgps-transaction-mode mpgs-na"><span>N/A</span></mark>';
 	        		break;

@@ -6,6 +6,7 @@
  */
 
 defined( 'ABSPATH' ) || exit;
+$gateway = '';
 
 return array(
 	'heading'            => array(
@@ -178,6 +179,23 @@ return array(
 		'default'     => '',
 		'css'         => 'min-height: 33px;'
 	),
+	'webhook_details'        => array(
+		'title'       => __( 'Webhook Notifications', 'mastercard' ),
+		'type'        => 'title',
+		'description' => sprintf(
+			/* translators: Gateway API Credentials */
+			__( '<p>Manage webhook notifications sent from the gateway to your system to track when a transaction for an order is created or updated. Learn how to access your <a href="%s" target="_blank">Webhook Secret</a>.</p>', 'mastercard' ),
+			'https://mpgs.fingent.wiki/enterprise/woocommerce-mastercard-payment-gateway-services/configuration/api-configuration'
+		),
+	),
+	'webhook_secret'       => array(
+		'title'       => __( 'Webhook Secret', 'mastercard' ),
+		'type'        => 'text',
+		'description' => __( 'Use the secret to authenticate and verify that the webhook notification is sent by the gateway.', 'mastercard' ),
+		'default'     => '',
+		'css'         => 'min-height: 33px;'
+	),
+	
 	'handling_fee'      => array(
 		'title'       => __( 'Handling Fee', 'mastercard' ),
 		'type'        => 'title',
