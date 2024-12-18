@@ -22,7 +22,7 @@ The module has been tested with the WooCommerce versions:
 
 - 8.5.2
 - 8.7.1
-- 8.0.0
+- 8.8.0
 - 9.0.2
 - 9.1.4
 - 9.3.1
