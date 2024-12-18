@@ -1,6 +1,12 @@
 == Mastercard Payment Gateway Services Changelog ==
 
-2024-10-08 - version 1.4.7
+2024-12-18 - version 1.4.8
+* Add - Implemented a webhook feature to send notifications from the gateway to your system about newly created or updated order transactions.
+* Enhancement - Compatibility with WordPress 6.7 and WooCommerce 9.4.
+* Update - Updated the API version to 100.
+* Fix - Fixed the SRC configuration issue in the 'Click to Pay' section of Hosted Checkout.
+
+2024-11-26 - version 1.4.7
 
 * Add - Introduced a new 'Merchant Information' section in the plugin settings for admins to easily update merchant information.
 * Add - Eliminated the intermediate page in the 'Redirect to Payment Page' process for Hosted Checkout.

@@ -26,6 +26,7 @@ The module has been tested with the WooCommerce versions:
 - 9.0.2
 - 9.1.4
 - 9.3.1
+- 9.4.2
 
 ## Customer Information Shared with Gateway
 

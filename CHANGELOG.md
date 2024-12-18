@@ -1,7 +1,20 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [1.4.7] - 2024-10-08
+## [1.4.8] - 2024-12-18
+### Added
+- Implemented a webhook feature to send notifications from the gateway to your system about newly created or updated order transactions.
+
+### Enhancement
+- Compatibility with WordPress 6.7 and WooCommerce 9.4.
+
+### Changed
+- Updated the API version to 100.
+
+### Fixed
+- Fixed the SRC configuration issue in the 'Click to Pay' section of Hosted Checkout.
+
+## [1.4.7] - 2024-11-26
 ### Added
 - Introduced a new 'Merchant Information' section in the plugin settings for admins to easily update merchant information.
 - Eliminated the intermediate page in the 'Redirect to Payment Page' process for Hosted Checkout.

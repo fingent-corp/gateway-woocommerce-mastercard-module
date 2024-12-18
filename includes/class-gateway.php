@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.7@
+ * @version  GIT: @1.4.8@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MPGS_TARGET_MODULE_VERSION', '1.4.7' );
+define( 'MPGS_TARGET_MODULE_VERSION', '1.4.8' );
 
 require_once dirname( __DIR__ ) . '/includes/class-checkout-builder.php';
 require_once dirname( __DIR__ ) . '/includes/class-gateway-service.php';
@@ -39,8 +39,8 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	const ID            = 'mpgs_gateway';
 	const GATEWAY_TITLE = 'Mastercard Payment Gateway Services';
 
-	const MPGS_API_VERSION     = 'version/84';
-	const MPGS_API_VERSION_NUM = '84';
+	const MPGS_API_VERSION     = 'version/100';
+	const MPGS_API_VERSION_NUM = '100';
 
 	const HOSTED_SESSION  = 'hosted-session';
 	const HOSTED_CHECKOUT = 'hosted-checkout';
@@ -557,12 +557,12 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			$amount,
 			$order->get_currency()
 		);
+		$order->update_meta_data( '_mpgs_transaction_mode', 'refund' );
 		$order->add_order_note(
 			sprintf(
 				/* translators: 1. Transaction amount, 2. Transaction currency, 3. Transaction id. */
-				__( 'Mastercard registered refund %1$s %2$s (ID: %3$s)', 'mastercard' ),
-				$result['transaction']['amount'],
-				$result['transaction']['currency'],
+				__( 'Mastercard registered refund %1$s (ID: %2$s)', 'mastercard' ),
+				wc_price( $result['transaction']['amount'] ),
 				$result['transaction']['id']
 			)
 		);
@@ -1258,13 +1258,52 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				$order->save_meta_data();
 				break;
 			case '/mastercard/v1/webhook':
+				$this->mgps_webhook_handler( $request );
 				break;
-
+	
 			default:
 				break;	
 		}
 
 		return $result;
+	}
+
+	public function mgps_webhook_handler( $request ) {
+		$body                = $request->get_body();
+    	$headers             = $request->get_headers();
+    	$secret              = $headers['x_notification_secret'][0];
+    	$notification_secret = $this->get_option( 'webhook_secret' );
+    	$response            = json_decode( $body, true );
+    	$order_status        = array( 'cancelled', 'failed', 'on-hold' );
+
+    	if ( $secret !== $notification_secret ) {
+	        return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
+	    }
+
+    	if ( json_last_error() !== JSON_ERROR_NONE ) {
+	        return new WP_REST_Response( array( 'error' => 'Invalid JSON' ), 400 );
+	    }
+
+	    $order_id = absint( $this->remove_order_prefix( $response['order']['id'] ) );
+
+	    if( $order_id ) {
+	    	$order = new WC_Order( $order_id );
+
+	    	switch ( $response['gatewayEntryPoint'] ) {
+	    		case 'CHECKOUT_VIA_WEBSITE':
+	    			if( 'SUCCESS' === $response['result'] ) {
+						if ( in_array( $order->get_status(), $order_status ) ) {
+							$this->process_wc_order( $order, $response['order'], $response );
+						}
+					} 
+					break;
+
+	    		default:
+	    			break;
+	    	}  	
+    	} else {
+    		return new WP_REST_Response( array( 'error' => 'Invalid Order' ), 400 );
+    	}
 	}
 
 	/**
