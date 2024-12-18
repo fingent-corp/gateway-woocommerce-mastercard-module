@@ -1,8 +1,8 @@
 <?php return array(
     'root' => array(
         'name' => '__root__',
-        'pretty_version' => '1.4.4',
-        'version' => '1.4.4.0',
+        'pretty_version' => '1.4.8',
+        'version' => '1.4.8.0',
         'reference' => NULL,
         'type' => 'woocommerce-plugin',
         'install_path' => __DIR__ . '/../../',
@@ -11,8 +11,8 @@
     ),
     'versions' => array(
         '__root__' => array(
-            'pretty_version' => '1.4.4',
-            'version' => '1.4.4.0',
+            'pretty_version' => '1.4.8',
+            'version' => '1.4.8.0',
             'reference' => NULL,
             'type' => 'woocommerce-plugin',
             'install_path' => __DIR__ . '/../../',
@@ -58,8 +58,8 @@
         'php-http/async-client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'php-http/client-common' => array(
@@ -74,8 +74,8 @@
         'php-http/client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'php-http/curl-client' => array(
@@ -150,8 +150,8 @@
         'psr/http-client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'psr/http-factory' => array(

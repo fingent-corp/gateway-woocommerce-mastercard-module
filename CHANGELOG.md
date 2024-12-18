@@ -3,16 +3,13 @@ All notable changes to this project will be documented in this file.
 
 ## [1.4.8] - 2024-12-18
 ### Added
-- Implemented a webhook feature to send notifications from the gateway to your system about newly created or updated order transactions.
+- Introduced a webhook feature to notify your system about updates to order transactions. This ensures that orders marked as “Failed” in the platform Admin orders section are updated when the payment is successfully processed in the Merchant portal.
 
 ### Enhancement
 - Compatibility with WordPress 6.7 and WooCommerce 9.4.
 
 ### Changed
 - Updated the API version to 100.
-
-### Fixed
-- Fixed the SRC configuration issue in the 'Click to Pay' section of Hosted Checkout.
 
 ## [1.4.7] - 2024-11-26
 ### Added
