@@ -44,6 +44,13 @@ class Mastercard_CheckoutBuilder {
 	protected $gateway = null;
 
 	/**
+	 * Gateway URL.
+	 *
+	 * @var WC_Order
+	 */
+	protected $api_url = null;
+
+	/**
 	 * Mastercard_Model_AbstractBuilder constructor.
 	 *
 	 * @param array $order WC_Order.
@@ -51,6 +58,7 @@ class Mastercard_CheckoutBuilder {
 	public function __construct( $order ) {
 		$this->order   = $order;
 		$this->gateway = new Mastercard_Gateway();
+		$this->api_url = 'https://' . $this->gateway->get_gateway_url();
 	}
 
 	/**
@@ -291,6 +299,7 @@ class Mastercard_CheckoutBuilder {
 
 			$merchant       = array(
 				'name'    => esc_html( $merchant_name ),
+				'url'     => $this->api_url,
 				'address' => array( 
 					'line1'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line1' ), 100 ),
 					'line2'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line2' ), 100 ),
@@ -315,6 +324,7 @@ class Mastercard_CheckoutBuilder {
 		} else {
 			$sitename = $this->getExcerpt( get_bloginfo( 'name', 'display' ), 39 );
 			$merchant_interaction['merchant']['name'] = $sitename;
+			$merchant_interaction['merchant']['url']  = $this->api_url;
 		}
 
 		$interaction = array_merge(
@@ -392,6 +402,19 @@ class Mastercard_CheckoutBuilder {
 		return str_replace( 'http:', 'https:', (string) $url );
 	}
 
+	/**
+	 * Attempts to transliterate the given field into a standard ASCII format.
+	 *
+	 * This function is typically used to ensure that text fields are free of 
+	 * special characters or non-ASCII characters, which may cause issues in 
+	 * processing, storage, or compatibility with external systems.
+	 *
+	 * @param mixed $field The field to be transliterated. This can be a string 
+	 *                     or another data type that needs to be processed.
+	 * 
+	 * @return mixed The transliterated value if the operation is successful, 
+	 *               or the original field if transliteration is not applicable.
+	 */
 	public function attempt_transliteration( $field ) {
         $encode = mb_detect_encoding( $field );
         if ( $encode !== 'ASCII' ) {
