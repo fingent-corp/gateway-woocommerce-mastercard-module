@@ -1,19 +1,34 @@
 {
+    "name": "fingent/woocommerce-mastercard",
+    "description": "Accept payments on your WooCommerce store using the Mastercard Payment Gateway Services.",
+    "authors": [
+        {
+            "name": "Fingent Global Solutions Pvt. Ltd",
+            "email": "mastercard_support_team@fingent.com"
+        }
+    ],
     "version": "1.4.8",
     "type": "woocommerce-plugin",
+    "prefer-stable": true,
+    "minimum-stability": "stable",
     "require": {
+        "php": ">=7.4",
         "php-http/curl-client": "^2.3",
-        "php-http/client-common": "^2.6",
-        "guzzlehttp/psr7": "^2.6",
-        "php-http/logger-plugin": "^1.3",
-        "monolog/monolog": "^3.4",
-        "psr/http-factory": "^1.0",
-        "psr/http-message": "^2.0",
+        "php-http/client-common": "^1.9 || ^2.0",
+        "guzzlehttp/psr7": "^2.7",
+        "php-http/logger-plugin": "^1.2||^1.3||^1.4",
+        "monolog/monolog": "^2.4||^2.9||^3.8",
+        "psr/log": "^1.0 || ^2.0 || ^3.0",
+        "psr/http-factory": "^1.1",
+        "psr/http-message": "^1.0",
         "nyholm/psr7": "^1.8"
     },
     "config": {
         "allow-plugins": {
             "php-http/discovery": false
+        },
+        "platform": {
+            "php": "7.4"
         }
     }
 }

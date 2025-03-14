@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.8@
+ * @version  GIT: @1.4.9@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MPGS_TARGET_MODULE_VERSION', '1.4.8' );
+define( 'MPGS_TARGET_MODULE_VERSION', '1.4.9' );
 
 require_once dirname( __DIR__ ) . '/includes/class-checkout-builder.php';
 require_once dirname( __DIR__ ) . '/includes/class-gateway-service.php';
@@ -233,9 +233,13 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		add_action( 'woocommerce_api_mastercard_gateway', array( $this, 'return_handler' ) );
 		add_action( 'admin_notices', array( $this, 'admin_notices' ) );
 		add_filter( 'script_loader_tag', array( $this, 'add_js_extra_attribute' ), 10 );
-		add_action( 'woocommerce_cart_calculate_fees', array( $this, 'add_handling_fee' ) );
+		add_action( 'woocommerce_cart_calculate_fees', array( $this, 'add_handling_fee' ), 10, 1 );
 		add_action( 'woocommerce_checkout_update_order_meta', array( $this, 'save_mpgs_handling_fee_on_place_order' ), 10, 2 );
 		add_action( 'woocommerce_store_api_checkout_update_order_meta', array( $this, 'save_mpgs_handling_fee_api_on_place_order' ), 10, 1 );
+		add_action( 'wp_footer', array( $this, 'refresh_handling_fees_on_checkout' ) );
+		add_action( 'wp_ajax_update_selected_payment_method', array( $this, 'update_selected_payment_method' ) );
+		add_action( 'wp_ajax_nopriv_update_selected_payment_method', array( $this, 'update_selected_payment_method' ) );
+		add_action( 'template_redirect', array( $this, 'define_default_payment_gateway' ) );
 	}
 
 	/**
@@ -1525,27 +1529,31 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * 
 	 * This ensures that the handling fee is added during the cart calculation process.
 	 */
-	public function add_handling_fee() {
+	public function add_handling_fee( $cart ) {
 		if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
             return;
         }
-        
-		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled ){
-			$handling_text = $this->get_option( 'handling_text' );
-			$amount_type   = $this->get_option( 'hf_amount_type' );
-			$handling_fee  = $this->get_option( 'handling_fee_amount' ) ? $this->get_option( 'handling_fee_amount' ) : 0;
 
-			if ( self::HF_PERCENTAGE === $amount_type ) {
-				$surcharge = (float)( WC()->cart->cart_contents_total ) * ( (float) $handling_fee / 100 );
-			} else {
-				$surcharge = $handling_fee;
+        $chosen_gateway = WC()->session->get( 'chosen_payment_method' );
+
+        if ( ! empty( $chosen_gateway ) ) {
+			if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled && self::ID === $chosen_gateway ){
+				$handling_text = $this->get_option( 'handling_text' );
+				$amount_type   = $this->get_option( 'hf_amount_type' );
+				$handling_fee  = $this->get_option( 'handling_fee_amount' ) ? $this->get_option( 'handling_fee_amount' ) : 0;
+
+				if ( self::HF_PERCENTAGE === $amount_type ) {
+					$surcharge = (float)( WC()->cart->cart_contents_total ) * ( (float) $handling_fee / 100 );
+				} else {
+					$surcharge = $handling_fee;
+				}
+
+				if ( WC()->session ) {
+					WC()->session->set( 'mpgs_handling_fee', $surcharge );
+				}
+
+			    WC()->cart->add_fee( $handling_text, $surcharge, true, '' );
 			}
-
-			if ( WC()->session ) {
-				WC()->session->set( 'mpgs_handling_fee', $surcharge );
-			}
-
-		    WC()->cart->add_fee( $handling_text, $surcharge, true, '' );
 		}
 	}
 
@@ -1561,7 +1569,9 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * @param array    $data  The posted data during checkout process (billing, shipping, etc.).
 	 */
 	public function save_mpgs_handling_fee_on_place_order( $order_id, $data ) {
-		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled ) {
+		$chosen_gateway = WC()->session->get( 'chosen_payment_method' );
+
+		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled && self::ID === $chosen_gateway ) {
 		    if ( $order_id ) {
 		    	$order = wc_get_order( $order_id ); 
 		        $handling_fee = WC()->session->get( 'mpgs_handling_fee' );
@@ -1585,7 +1595,9 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * @param WC_Order $order_id The order id.
 	 */
 	public function save_mpgs_handling_fee_api_on_place_order( $order ) {
-		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled ) {
+		$chosen_gateway = WC()->session->get( 'chosen_payment_method' );
+
+		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled && self::ID === $chosen_gateway ) {
 			if ( $order ) {
 		        $handling_fee = WC()->session->get( 'mpgs_handling_fee' );
 		        $order->update_meta_data( '_mpgs_handling_fee', $handling_fee );
@@ -1594,5 +1606,99 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	    } else {
 			WC()->session->__unset( '_mpgs_handling_fee' );
 		}
+	}
+
+	/**
+	 * Refreshes the handling fees on the checkout page dynamically.
+	 * 
+	 * This function is typically hooked into WooCommerce's AJAX or checkout update events.
+	 * It ensures that handling fees are recalculated whenever the checkout page is refreshed,
+	 * preventing outdated fee calculations due to changes in cart contents or other conditions.
+	 */
+	public function refresh_handling_fees_on_checkout() {
+		if ( is_checkout() && ! is_wc_endpoint_url( 'order-received' ) ) {
+			static $executed = false;
+
+			if ( $executed ) {
+				return;
+			}
+
+        	$executed      = true;
+        	$amount_type   = $this->get_option( 'hf_amount_type' );
+        	$handling_fee  = $this->get_option( 'handling_fee_amount' ) ? $this->get_option( 'handling_fee_amount' ) : 0;
+
+			if ( self::HF_PERCENTAGE === $amount_type ) {
+				$surcharge = (float)( WC()->cart->cart_contents_total ) * ( (float) $handling_fee / 100 );
+			} else {
+				$surcharge = $handling_fee;
+			}
+	        ?>
+	        <script type="text/javascript">
+	        	const handlingText = '<?php echo sanitize_title( $this->get_option( 'handling_text' ) ); ?>';
+	        	const handlingFeeWrapper = '<div class="wc-block-components-totals-item wc-block-components-totals-fees wc-block-components-totals-fees__<?php echo sanitize_title( $this->get_option( 'handling_text' ) ); ?>"><span class="wc-block-components-totals-item__label"><?php echo $this->get_option( 'handling_text' ); ?></span><span class="wc-block-formatted-money-amount wc-block-components-formatted-money-amount wc-block-components-totals-item__value"><?php echo wc_price( $surcharge ); ?></span><div class="wc-block-components-totals-item__description"></div></div>';
+		        jQuery(function($) {
+		            // Detect when payment method is changed
+		            $( document ).on( 'change', 'input[name="payment_method"]', function() { 
+	                    $( document.body ).trigger( "update_checkout" );
+		            });
+		        });
+	        </script>
+	        <?php
+		}
+	}
+
+	/**
+	 * Updates the selected payment method for the current user or session.
+	 * 
+	 * This function is typically used in WooCommerce or similar payment processing 
+	 * plugins to update the user's chosen payment method when they select a new option
+	 * at checkout. It ensures that the selected method is stored and used for order processing.
+	 * 
+	 * Implementation details may include:
+	 * - Retrieving the selected payment method from the request.
+	 * - Updating the user session or meta data accordingly.
+	 * - Validating the payment method before updating.
+	 * - Returning a response (if used in an AJAX call).
+	 *
+	 * @return void 
+	 */
+	public function update_selected_payment_method() {
+	    if ( isset( $_POST['payment_method'] ) ) {
+	    	$payment_method = sanitize_text_field( $_POST['payment_method'] ); 
+	        WC()->session->set( 'chosen_payment_method', $payment_method );
+	        WC()->cart->calculate_totals();
+
+	        wp_send_json_success();
+	    } else {
+	        wp_send_json_error();
+	    }
+	}
+
+	/**
+	 * Refreshes handling fees dynamically on the WooCommerce checkout block.
+	 *
+	 * This function ensures that handling fees are recalculated and updated when
+	 * the checkout block is refreshed. It is typically used in cases where handling 
+	 * fees depend on cart contents, shipping method, or other dynamic conditions.
+	 *
+	 * @return boolean
+	 */
+	public static function refresh_handling_fees_on_checkout_block() {
+		return true;
+	}
+
+	/**
+	 * Define the default payment gateway for the checkout process.
+	 *
+	 * This function sets the default payment method when a customer visits
+	 * the checkout page. It ensures the preferred gateway (e.g., Simplify Payments)
+	 * is pre-selected to streamline the checkout experience.
+	 */
+	public function define_default_payment_gateway() {
+	    if( is_checkout() && ! is_wc_endpoint_url() ) {
+	        $payment_gateways = WC()->payment_gateways->get_available_payment_gateways();
+	        $first_gateway = reset( $payment_gateways );
+	        WC()->session->set( 'chosen_payment_method', $first_gateway->id );
+	    }
 	}
 }

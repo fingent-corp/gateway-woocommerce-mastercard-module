@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.7@
+ * @version  GIT: @1.4.9@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -80,6 +80,8 @@ final class Mastercard_Gateway_Blocks_Support extends AbstractPaymentMethodType 
             'mpgs_gateway-blocks-integration',
             WC_Mastercard::plugin_url() . '/includes/assets/js/checkout.js',
             array(
+                'wp-hooks', 
+                'wc-blocks-checkout',
                 'wc-blocks-registry',
                 'wc-settings',
                 'wp-element',
