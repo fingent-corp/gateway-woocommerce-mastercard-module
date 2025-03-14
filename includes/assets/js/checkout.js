@@ -31,3 +31,81 @@ const settings = window.wc.wcSettings.getSetting( 'mpgs_gateway_data', {} ),
         },
     };
 window.wc.wcBlocksRegistry.registerPaymentMethod( Mastercard_Block_Gateway );
+
+document.addEventListener( 'DOMContentLoaded', function () {
+    if ( typeof wp !== 'undefined' && wp.data && wp.data.subscribe ) {
+
+        let previousPaymentMethod = null;
+
+        // Subscribe to WooCommerce checkout store changes
+        wp.data.subscribe(function () {
+            const selectedPaymentMethod = wp.data.select( 'wc/store/payment' ).getActivePaymentMethod() || null;
+
+            if ( selectedPaymentMethod && selectedPaymentMethod !== previousPaymentMethod ) {
+                previousPaymentMethod = selectedPaymentMethod;
+
+                jQuery.ajax({
+                    type: 'POST',
+                    url: woocommerce_params.ajax_url,
+                    data: {
+                        action: 'update_selected_payment_method',
+                        payment_method: selectedPaymentMethod,
+                    },
+                    success: function ( response ) {}
+                });
+            }
+        });
+    } else {
+        console.warn( "WooCommerce Blocks not detected." );
+    }
+});
+
+jQuery( function( $ ) {
+    if ( 'undefined' !== typeof wc &&  wc?.blocksCheckout ) {
+        const { extensionCartUpdate } = wc.blocksCheckout;
+        const element = `.wc-block-components-totals-fees__${handlingText}`;
+
+        $( document ).on( 'click', 'input[name="radio-control-wc-payment-method-options"]', function() {
+            selectPaymentMethod();
+        });
+
+        function selectPaymentMethod() { 
+            const selectedPaymentMethod = wp.data.select( 'wc/store/payment' ).getActivePaymentMethod() || null; 
+            if( 'mpgs_gateway' === selectedPaymentMethod ) {
+                if( $( element ).length < 0 ) {
+                    $( '.wp-block-woocommerce-checkout-order-summary-fee-block' ).html( handlingFeeWrapper );
+                }
+                $( element ).show();
+            } else {
+                $( element ).hide();
+            }
+
+            $( '.wc-block-components-order-summary__content' ).block({
+                message: null,
+                overlayCSS: {
+                    background: '#fff',
+                    opacity: 0.6
+                }
+            });
+
+            extensionCartUpdate( {
+                namespace: 'mpgs_gateway_handling_fee',
+            } )
+            .then( () => {
+            } )
+            .finally(() => {
+                $( '.wc-block-components-order-summary__content' ).unblock();
+            });
+        }
+
+        // Run on page load
+        selectPaymentMethod();
+
+        // Run after WooCommerce updates checkout (e.g., shipping method changes)
+        $( document.body ).on( 'updated_checkout', function() {           
+            selectPaymentMethod();
+        });
+
+        return;
+    }
+});

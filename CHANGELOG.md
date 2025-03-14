@@ -1,5 +1,9 @@
 # Changelog
 All notable changes to this project will be documented in this file.
+## [1.4.9] - 2025-03-13
+### Fixed
+- Rectified PSR Log version inconsistencies for PHP 7.4 compatibility.
+- Addressed an issue where Handling Fees were incorrectly applied to other payment modules.
 
 ## [1.4.8] - 2024-12-18
 ### Added

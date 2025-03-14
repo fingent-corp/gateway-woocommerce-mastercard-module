@@ -6,18 +6,18 @@
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api, woocommerce-blocks
- * Version: 1.4.8
+ * Version: 1.4.9
  * Requires Plugins: woocommerce
  * Requires at least: 6.0
- * Tested up to: 6.7.1
+ * Tested up to: 6.7.2
  * Requires PHP: 8.1
  * php version 8.1
  *
  * WC requires at least: 8.5
- * WC tested up to: 9.4.2
+ * WC tested up to: 9.7.1
  *
  * @package  Mastercard
- * @version  GIT: @1.4.8@
+ * @version  GIT: @1.4.9@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -48,7 +48,7 @@ use Automattic\WooCommerce\Internal\Features\FeaturesController;
  * Main class of the Mastercard Payment Gateway Services Module
  *
  * @package  Mastercard
- * @version  Release: @1.4.8@
+ * @version  Release: @1.4.9@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class WC_Mastercard {
@@ -516,6 +516,15 @@ class WC_Mastercard {
 			function ( Automattic\WooCommerce\Blocks\Payments\PaymentMethodRegistry $payment_method_registry ) {
 				$payment_method_registry->register( new Mastercard_Gateway_Blocks_Support() );
 			}
+		);
+
+		woocommerce_store_api_register_update_callback(
+			array(
+				'namespace' => 'mpgs_gateway_handling_fee',
+				'callback'  => function( $data ) {
+					Mastercard_Gateway::refresh_handling_fees_on_checkout_block();
+				},
+			)
 		);
 	}
 
