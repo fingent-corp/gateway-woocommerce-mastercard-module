@@ -159,7 +159,7 @@ class Mastercard_GatewayService {
 		);
 
 		if( ! is_admin() ) {
-			// set_exception_handler( array( $this, 'exception_handler' ) );
+			set_exception_handler( array( $this, 'exception_handler' ) );
 		}
 	}
 
