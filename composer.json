@@ -7,7 +7,7 @@
             "email": "mastercard_support_team@fingent.com"
         }
     ],
-    "version": "1.4.8",
+    "version": "1.4.9",
     "type": "woocommerce-plugin",
     "prefer-stable": true,
     "minimum-stability": "stable",
