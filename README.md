@@ -1,4 +1,4 @@
-# Mastercard Payment Gateway Services module for WooCommerce
+# Mastercard Gateway module for WooCommerce
 
 <p align="center" style="margin-top: 25px;">
 <a href="https://www.fingent.com/"><img alt="Fingent logo" height="50px" src="https://www.fingent.com/wp-content/uploads/Fingent-Logo-01.png"/></a>&nbsp;&nbsp;<img alt="MC logo" height="50px" src="https://www.mastercard.co.in/content/dam/public/mastercardcom/in/en/logos/mc-logo-52.svg"/>
@@ -7,7 +7,7 @@
 ## Overview Section
 <a href="https://www.mastercard.co.in/en-in.html" target="_blank">Mastercard Inc.</a> is the second-largest payment-processing corporation worldwide. It offers a range of payment transaction processing and other related payment services. By connecting individuals, businesses, and organizations in more than 210 countries and territories today, we're unlocking opportunities for more people in more places for generations. This WooCommerce module adds different payment methods to the WooCommerce checkout, enabling credit and debit card payments to be accepted securely on your WooCommerce-powered website. 
 
-Payments through this module are processed securely via the Mastercard Payment Gateway. This ensures that card data is managed in compliance with all legal requirements. The gateway monitors every transaction and handles sensitive payment data on PCI Level 1 certified servers, simplifying PCI compliance for your business.
+Payments through this module are processed securely via the Mastercard Gateway. This ensures that card data is managed in compliance with all legal requirements. The gateway monitors every transaction and handles sensitive payment data on PCI Level 1 certified servers, simplifying PCI compliance for your business.
 
 ## Installation
 
@@ -83,14 +83,14 @@ Follow the below steps:
 ![](images/1.png)
 4. Click **Install Now** and **Activate**.
 ![](images/2.png)
-5. Once the installation is complete, we need to configure the WooCommerce as per the steps in https://docs.woocommerce.com/document/woocommerce-setup-wizard/
+5. Once the installation is complete, we need to configure WooCommerce as per the steps in https://docs.woocommerce.com/document/woocommerce-setup-wizard/
 ### Steps to install MasterCard Payment Gateway Services for WordPress
 Follow the below steps:
 1. There are two ways to install the plugin into WordPress, either:
 1.1 Download the gateway-woocommerce-module plugin zip file from https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/releases and extract to the /wp-content/plugins/ directory,
 **or**
 1.2. Connect to Backoffice of your shop with the available admin credentials and install the plugin through the WordPress plugins screen directly.
-Goto: Admin => Plugins => Installed Plugins => Click on 'Add New' => Then in the Top click on "Upload Plugin" button.
+Goto: Admin => Plugins => Installed Plugins => Click on 'Add New' => Then in the Top click on the "Upload Plugin" button.
 ![](images/3.png)
 1.2.1 Then choose the module zip and click on the 'Install Now' button.
 ![](images/4.png)
@@ -111,9 +111,9 @@ Once you have installed the MasterCard Payment Gateway Services module, you can 
 3. The gateway configuration fields will be displayed. Configure according to your requirements and then click on the "Save Changes" button.
     - **Enable/Disable** - Tick the checkbox to make this Payment option available in the frontend. Un-tick it to Disable it, so it will not display in the frontend.
     - **Title** - Short payment method name displayed to the payer on the checkout page. Example, "Credit Card / Debit Card".
-    - **Description** - Description of this Payment Method displayed when a payer selects this payment method. Example, "Pay with your card via Mastercard".
+    - **Description** - Description of this Payment Method displayed when a payer selects this payment method. For example, "Pay with your card via Mastercard".
     - **Gateway** - The payment gateway region, use Custom Gateway Host if one has been provided to you. Four options are available: Europe, Asia Pacific. North America, and Custom URL.
-    - **Custom Gateway Host** - This option is available when the "Gateway" option is set to "Custom Gateway Host" . Your Account Manager will tell you if this is needed or not.
+    - **Custom Gateway Host** - This option is available when the "Gateway" option is set to "Custom Gateway Host". Your Account Manager will tell you if this is needed or not.
     - **Transaction Mode** - In "Purchase" mode, the customer is charged immediately. In Authorize mode, the transaction is only authorized, and the capturing of funds is a manual process performed by you using the Woocommerce admin panel. The Manual capture process is explained in the next section.
     - **Integration Model** - In "Hosted Checkout", the payer will type their details into the gateway"s payment page. In "Hosted Session", the payer will remain on the woocommerce payment page.
     - **Checkout Interaction** - This option is available when the "Payment Model" option is set to "Hosted Checkout" or "Legacy Hosted Checkout" and allows to set redirection behavior to the payment gateway. Either "Embedded" or "Redirect to Payment Page" for contemporary version Hosted Checkout or Either "Lightbox" or "Redirect to Payment Page" for Legacy Hosted Checkout.
@@ -129,5 +129,5 @@ Once you have installed the MasterCard Payment Gateway Services module, you can 
 1. Edit the order in the admin. Path: Admin >  WooCommerce > Orders > Edit Order 
 2. On the right side of the order, you can open a dropdown menu and select "Capture Payment". Ensure the order is authorized, (see Order Notes, right side of the order page), otherwise an already captured order will not have the "capture" option.
 ![](images/8.png)
-3. After selecting "Capture Payment" as option, click the "Update" button to capture funds for this order.
+3. After selecting "Capture Payment" as an option, click the "Update" button to capture funds for this order.
 ---
