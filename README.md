@@ -1,133 +1,83 @@
-# Mastercard Gateway module for WooCommerce
+# Mastercard Gateway Module for WooCommerce 
 
 <p align="center" style="margin-top: 25px;">
-<a href="https://www.fingent.com/"><img alt="Fingent logo" height="50px" src="https://www.fingent.com/wp-content/uploads/Fingent-Logo-01.png"/></a>&nbsp;&nbsp;<img alt="MC logo" height="50px" src="https://www.mastercard.co.in/content/dam/public/mastercardcom/in/en/logos/mc-logo-52.svg"/>
+<a href="https://www.fingent.com/"><img alt="Fingent logo" height="50px" src="https://www.fingent.com/wp-content/uploads/Fingent-Logo-01.png"/></a>&nbsp;&nbsp;<img alt="MC logo" height="50px" src="https://mpgs.fingent.wiki/wp-content/uploads/2025/04/mastercard-logo.png"/>
 </p>
 
 ## Overview Section
-<a href="https://www.mastercard.co.in/en-in.html" target="_blank">Mastercard Inc.</a> is the second-largest payment-processing corporation worldwide. It offers a range of payment transaction processing and other related payment services. By connecting individuals, businesses, and organizations in more than 210 countries and territories today, we're unlocking opportunities for more people in more places for generations. This WooCommerce module adds different payment methods to the WooCommerce checkout, enabling credit and debit card payments to be accepted securely on your WooCommerce-powered website. 
 
-Payments through this module are processed securely via the Mastercard Gateway. This ensures that card data is managed in compliance with all legal requirements. The gateway monitors every transaction and handles sensitive payment data on PCI Level 1 certified servers, simplifying PCI compliance for your business.
+[Mastercard Inc.](https://www.mastercard.co.in/en-in.html) is the [world’s second-largest payment processing corporation](https://www.investopedia.com/terms/m/mastercard-card.asp), providing a variety of payment solutions and services. We connect people, businesses, and organizations across over 210 countries and territories, creating opportunities for more people in more places, now and for the future. This module lets you add multiple payment options to your checkout, enabling secure credit, debit and account payments on your WooCommerce-powered website.
 
-## Installation
+Payments made through this module are processed using the trusted Mastercard Gateway. MasterCard Gateway securely handles card/account details, following strict legal and regulatory requirements, ensuring a safe experience for both businesses and customers.
 
-**Minimum Requirements**
+We carefully monitor every transaction to catch and stop fraud, making sure your payments are safe and secure. Your sensitive payment details, like card/account information, are handled and stored on servers with the highest level of security certification, that is Payment Card Industry (PCI) Level 1.
 
-* WooCommerce 8.5 or greater
-* PHP version 7.4 or greater
-* cURL
+With this gateway, you don’t have to handle or store customer card/account details yourself. This makes meeting PCI compliance easier for your business. You can focus on running your store while the gateway securely processes payments for you.
+
 
 ## Compatibility
-The module has been tested with the WooCommerce versions:
 
-- 8.5.2
-- 8.7.1
-- 8.8.0
-- 9.0.2
-- 9.1.4
-- 9.3.1
-- 9.4.2
-- 9.5.1
-- 9.7.1
+- WooCommerce 8.5 or greater
+- PHP version 7.4 or greater
+- cURL
 
-## Customer Information Shared with Gateway
+## Mastercard Payment Module Features
 
-### This module shares the following customer information with the gateway:
+The Mastercard Payment Module is packed with tools to make payment processing easier and safer for your business. Here's a quick look at its main features:
 
-- Customer Billing and Shipping Address
-- Customer Name
-- Customer Phone Number
-- Customer Email Address
-- Cart Line Items (optional)
 
-## Feature Support
+**1. Payment Methods -** Defines the types of payment options supported, which are:
 
-WooCommerce Mastercard Payment Gateway Service module supports following list of features:
-1. **Card Payments**
-Ability to process credit & debit card Payments.
-2. **Hosted Checkout**
-Allows you to collect payment details from your payer through an interaction hosted and displayed.
-3. **Google Pay (only supported in Hosted Checkout)**
-    Users will have the capability to make payments utilizing the Google Pay option within the Hosted checkout. Please ensure that the MID has Google Pay enabled for this payment option to appear on the checkout page.
-4. **Hosted Session**
-Allows you to take control over the layout and styling of your payment page while reducing PCI compliance
-5. **Address Verification Service (AVS)**
-Address Verification Services is a fraud deterrent service that protects against fraudulent use of cards in non-face-to-face transactions by verifying the cardholders’ billing address. This must first be enabled on a merchant account.
-6. **3D Secure v1**
-Ability to authenticate cardholders using 3DS -1. This must first be enabled on a merchant account.
-7. **3D Secure v2**
-Ability to authenticate cardholders using 3DS2. This must first be enabled on a merchant account.
-8. **Capture Payments**
-The manual process of capturing funds for the authorized orders can be done via the Backend.
-9. **Full Refunds**
-Ability to refund the full transaction amount into the cardholder’s account.
-10. **Partial Refunds**
-Ability to refund the partial transaction amount into the cardholder’s account.
-11. **Tokenization**
-Tokenization makes the card payment experience secure by converting your 16-digit card numbers to encrypted tokens.
+   - **Card Payments**<br/>
+Easily and securely accept both credit and debit card payments. This feature works with major card brands, making it simple and reliable for your customers to pay.
+
+   - **Google Pay (Supported in Hosted Checkout Only)**<br/>
+With Google Pay, customers can quickly and easily pay on the hosted checkout page. To enable this option, ensure your Merchant Identification Number (MID) is configured for Google Pay. This makes payments smooth and hassle-free, allowing customers to complete transactions with just a few taps.
+
+**2. Checkout and Payment Integration -** This feature focuses on the method of collecting payment details from customers:
+
+   - **Hosted Checkout**<br/>
+This feature lets your customers enter their payment details on a ready-made secure checkout page provided directly by Mastercard. It keeps sensitive information safe while giving your customers a smooth and hassle-free payment experience.
+
+   - **Hosted Session**<br/>
+This feature lets you customize the layout and design of your payment page to match your brand, while still meeting strict PCI security standards. It makes managing security easier without compromising the user experience.
+
+**3. Fraud Prevention and Security -** This feature enhances security and protects against fraud:
+
+   - **Address Verification Service (AVS)**<br/>
+AVS helps prevent fraud by checking the billing address provided during a payment to make sure it matches the one on file with the cardholder's bank. This helps confirm that the person making the payment is the actual cardholder. To use AVS, it must be activated on your MID.
+
+   - **EMV 3-D Secure v1**<br/>
+EMV 3D Secure (3DS1) adds an extra step to verify the cardholder during online transactions. This helps prevent unauthorized payments by asking the cardholder to confirm their identity. Before using this feature, make sure it's enabled on your MID.
+
+   - **EMV 3-D Secure v2**<br/>
+EMV 3DS2 in the Mastercard Gateway, is the latest version of the security protocol, designed to enhance security in online purchases while providing frictionless checkouts to payers who are considered low risk by the Access Control Server (ACS). The ACS determines the risk using information provided by the merchant, browser fingerprinting, and previous interactions with the payer. Please note that this needs to be activated on your MID before you can use it.
+
+   - **Tokenization**<br/>
+Tokenization improves security by replacing sensitive card or account details (like your 16-digit Card number or Bank Account Number or Routing Number) with a unique, encrypted token which is created by Mastercard Gateway and sent to the merchant. This token can be used for future transactions, keeping your card information safe and private. To use Tokenization, it must be activated on your MID.
+
+**4. Transaction Management -** These features support the processing and management of transactions:
+
+   - **Handling Fees**<br/>
+This feature allows you to add extra fees on the checkout page, with options for applying either a fixed amount or a percentage of the Subtotal amount.
+
+   - **Capture Payments**<br/>
+This feature lets you manually process payments for authorized orders directly from your system. It gives you more control over how payments are handled.
+
+   - **Void Transaction**<br/>
+The void transaction feature lets you cancel an order before it's invoiced or completed. This option is usually available for 'Authorize' transactions, where the funds are reserved but not yet charged or billed.
+
+   - **Full Refunds**<br/>
+You can refund the entire amount of the transaction back to the customer's account. This is helpful when a complete order needs to be cancelled or returned.
+
+   - **Partial Refunds**<br/>
+This feature lets you refund only part of an order, giving the customer the specific amount they are entitled to.
+
 ## Documentation
-The official documentation for this module is available on: [https://mpgs.fingent.wiki/target/woocommerce-mastercard-payment-gateway-services/installation](https://mpgs.fingent.wiki/enterprise/woocommerce-mastercard-payment-gateway-services/overview-and-feature-support)
+The official documentation for this module is available on the [Wiki site](https://mpgs.fingent.wiki/enterprise/woocommerce-mastercard-gateway/overview-and-feature-support).
+
+## Installation of Module
+For more information, please refer to the [Wiki documentation](https://mpgs.fingent.wiki/enterprise/woocommerce-mastercard-gateway/installation).
 
 ## Support
-For customer support: [https://mpgsfgs.atlassian.net/servicedesk/customer/portals](https://mpgsfgs.atlassian.net/servicedesk/customer/portals/)
-
-## Obtain the module
-You can obtain the module by downloading a release from: https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/releases
-## Installation of Module
-To use WooCommerce MPGS for WordPress, you need to install both the MasterCard Payment Gateway Services module and the WooCommerce module. 
-### Steps to install WooCommerce for WordPress:
-Follow the below steps:
-1. Connect to Backoffice of your shop with the available admin credentials.
-2. Go to **Plugins > Add New** on your WordPress site.
-3. Enter **WooCommerce** in the Search Plugins bar. 
-![](images/1.png)
-4. Click **Install Now** and **Activate**.
-![](images/2.png)
-5. Once the installation is complete, we need to configure WooCommerce as per the steps in https://docs.woocommerce.com/document/woocommerce-setup-wizard/
-### Steps to install MasterCard Payment Gateway Services for WordPress
-Follow the below steps:
-1. There are two ways to install the plugin into WordPress, either:
-1.1 Download the gateway-woocommerce-module plugin zip file from https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/releases and extract to the /wp-content/plugins/ directory,
-**or**
-1.2. Connect to Backoffice of your shop with the available admin credentials and install the plugin through the WordPress plugins screen directly.
-Goto: Admin => Plugins => Installed Plugins => Click on 'Add New' => Then in the Top click on the "Upload Plugin" button.
-![](images/3.png)
-1.2.1 Then choose the module zip and click on the 'Install Now' button.
-![](images/4.png)
-2. Activate the plugin through the 'Plugins' screen in WordPress.
- Goto: Admin => Plugins => Installed Plugins => MPGS => Click on "Activate Plugin"
-![](images/5.png)
-3. Go to the WooCommerce backend settings page.
-4. Navigate to Payments tab, enable MPGS module and save changes then you are ready.
----
-## Configuring the Module
-Once you have installed the MasterCard Payment Gateway Services module, you can then configure it. 
-### Steps to configure the module
-1. Log into your WordPress Admin Panel.  
-2. In the WordPress Admin Panel, select WooCommerce > Settings > Payments.
-![](images/6.png)
-3. Locate "MasterCard Payment Gateway Services" and then click the "Manage" button.
-![](images/7.png)
-3. The gateway configuration fields will be displayed. Configure according to your requirements and then click on the "Save Changes" button.
-    - **Enable/Disable** - Tick the checkbox to make this Payment option available in the frontend. Un-tick it to Disable it, so it will not display in the frontend.
-    - **Title** - Short payment method name displayed to the payer on the checkout page. Example, "Credit Card / Debit Card".
-    - **Description** - Description of this Payment Method displayed when a payer selects this payment method. For example, "Pay with your card via Mastercard".
-    - **Gateway** - The payment gateway region, use Custom Gateway Host if one has been provided to you. Four options are available: Europe, Asia Pacific. North America, and Custom URL.
-    - **Custom Gateway Host** - This option is available when the "Gateway" option is set to "Custom Gateway Host". Your Account Manager will tell you if this is needed or not.
-    - **Transaction Mode** - In "Purchase" mode, the customer is charged immediately. In Authorize mode, the transaction is only authorized, and the capturing of funds is a manual process performed by you using the Woocommerce admin panel. The Manual capture process is explained in the next section.
-    - **Integration Model** - In "Hosted Checkout", the payer will type their details into the gateway"s payment page. In "Hosted Session", the payer will remain on the woocommerce payment page.
-    - **Checkout Interaction** - This option is available when the "Payment Model" option is set to "Hosted Checkout" or "Legacy Hosted Checkout" and allows to set redirection behavior to the payment gateway. Either "Embedded" or "Redirect to Payment Page" for contemporary version Hosted Checkout or Either "Lightbox" or "Redirect to Payment Page" for Legacy Hosted Checkout.
-    - **3D-Secure** - This option is available when the "Payment Model" option is set to "Hosted Session". Tick the checkbox of "Use 3D-Secure" to Enable it. Be sure to Enable 3D-Secure in your Mastercard account. Un-tick it to Disable it. Hosted Checkout will present 3D-Secure authentication when configured by your payment service provider.
-    - **Saved Cards** - This option is available when the "Payment Model" option is set to "Hosted Session". Tick the checkbox of "Enable Payment via Saved Cards" to Enable it. If enabled, payer will be able to pay with a previously saved card during checkout. Card details are saved on payment gateway, not on your store. Un-tick it to Disable it.
-    - **Debug Logging** - When ticked, the file ./wp-content/mastercard.log will include additional logging including all communication with the gateway. Debug logging is only available in test sandbox mode.
-    - **Test Sandbox** - Tick the checkbox of "Enable Sandbox Mode" to Enable it. If enabled, it places the payment gateway in test mode using test API credentials (real payments will not be taken). Un-tick it to Disable it. If disabled, it will take the real payments.
-    - **Merchant ID** - Insert your account Merchant ID. Gateway Merchant Administrator: Admin > Integration Settings.
-    - **API Password** - Insert your API Password. Gateway Merchant Administrator: Admin > Integration Settings.
----
-## Capture an Order
-### Steps to process a capture transaction on an order
-1. Edit the order in the admin. Path: Admin >  WooCommerce > Orders > Edit Order 
-2. On the right side of the order, you can open a dropdown menu and select "Capture Payment". Ensure the order is authorized, (see Order Notes, right side of the order page), otherwise an already captured order will not have the "capture" option.
-![](images/8.png)
-3. After selecting "Capture Payment" as an option, click the "Update" button to capture funds for this order.
----
+For additional support, please visit the [Support Portal](https://mpgsfgs.atlassian.net/servicedesk/customer/user/login?destination=portals).
