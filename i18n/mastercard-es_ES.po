@@ -219,7 +219,7 @@ msgstr "Habilitar el Registro de Depuración"
 
 #: includes/class-gateway.php:850
 msgid ""
-"Logs all communication with Mastercard gateway to file ./wp-content/"
+"Logs all communication with Mastercard Gateway to file ./wp-content/"
 "mastercard.log. Debug logging only works in Sandbox mode."
 msgstr ""
 "Registra todas las comunicaciones con la plataforma de pagos de Mastercard "

@@ -1,23 +1,23 @@
 <?php
 /**
- * Plugin Name: Mastercard Payment Gateway Services
- * Description: Accept payments on your WooCommerce store using the Mastercard Payment Gateway Services. Requires PHP 8.1+ & WooCommerce 8.5+
+ * Plugin Name: Mastercard Gateway
+ * Description: Accept payments on your WooCommerce store using the Mastercard Gateway. Requires PHP 8.1+ & WooCommerce 8.7+
  * Plugin URI: https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api, woocommerce-blocks
- * Version: 1.4.9
+ * Version: 1.5.0
  * Requires Plugins: woocommerce
  * Requires at least: 6.0
- * Tested up to: 6.7.2
+ * Tested up to: 6.7.1
  * Requires PHP: 7.4
  * php version 7.4
  *
- * WC requires at least: 8.5
+ * WC requires at least: 8.7
  * WC tested up to: 9.7.1
  *
  * @package  Mastercard
- * @version  GIT: @1.4.9@
+ * @version  GIT: @1.5.0@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -48,7 +48,7 @@ use Automattic\WooCommerce\Internal\Features\FeaturesController;
  * Main class of the Mastercard Payment Gateway Services Module
  *
  * @package  Mastercard
- * @version  Release: @1.4.9@
+ * @version  Release: @1.5.0@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 class WC_Mastercard {
@@ -80,6 +80,7 @@ class WC_Mastercard {
 	 */
 	public function clean_output_buffer() {
 		ob_start();
+		load_plugin_textdomain( 'mastercard', false, trailingslashit( dirname( plugin_basename( __FILE__ ) ) ) . 'i18n/' );
 	}
 
 	/**
@@ -100,7 +101,6 @@ class WC_Mastercard {
 		require_once plugin_basename( '/vendor/autoload.php' );
 		require_once plugin_basename( '/includes/class-gateway.php' );
 		require_once plugin_basename( '/includes/class-gateway-notification.php' );
-		load_plugin_textdomain( 'mastercard', false, trailingslashit( dirname( plugin_basename( __FILE__ ) ) ) . 'i18n/' );
 
 		// phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped, WordPress.Security.NonceVerification.Recommended
 		add_filter(

@@ -15,13 +15,15 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.9@
+ * @version  GIT: @1.5.0@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
+
+use Automattic\WooCommerce\Utilities\NumberUtil;
 
 /**
  * Main class of the Mastercard Checkout Builder
@@ -175,12 +177,16 @@ class Mastercard_CheckoutBuilder {
 	 * @return array
 	 */
 	public function getHostedCheckoutOrder() { // phpcs:ignore
+		$handling_fee  = 0;
 		$order_summary = array();
-		if ( isset( $this->gateway->hf_enabled ) && 'yes' === $this->gateway->hf_enabled ) {
-			$handling_fee = $this->order->get_meta( '_mpgs_handling_fee' );
-		} else {
-			$handling_fee = 0;
+		$fees          = $this->order->get_fees(); 
+
+		if ( ! empty( $fees ) ) {
+		    foreach ( $fees as $fee ) {
+		        $handling_fee += $fee->get_total();
+		    }
 		}
+
 		$shipping_fee = (float)( $handling_fee ) + (float) $this->order->get_shipping_total();
 
 		if( 'yes' === $this->gateway->send_line_items ) {
@@ -203,7 +209,7 @@ class Mastercard_CheckoutBuilder {
 				'id'          => (string) $this->gateway->add_order_prefix( $this->order->get_id() ),
 				'description' => 'Customer Order Summary',
 				'item'        => $line_items,
-				'itemAmount'  => $this->formattedPrice( $this->order->get_subtotal() ),
+				'itemAmount'  => $this->getOrderItemAmount(),
 			);
 
 			if( $shipping_fee ) {
@@ -211,7 +217,7 @@ class Mastercard_CheckoutBuilder {
 			}
 
 			if( $this->order->get_total_tax() ) {
-				$order_summary['taxAmount'] = $this->formattedPrice( $this->order->get_total_tax() );
+				$order_summary['taxAmount'] = $this->getOrderTax();
 			}
 
 			if( $this->order->get_total_discount() ) {
@@ -226,7 +232,7 @@ class Mastercard_CheckoutBuilder {
 			$order_summary = array(
 				'id'          => (string) $this->gateway->add_order_prefix( $this->order->get_id() ),
 				'description' => 'Customer Order Summary',
-				'itemAmount'  => $this->formattedPrice( $this->order->get_subtotal() ),
+				'itemAmount'  => $this->getOrderItemAmount(),
 			);
 
 			if( $shipping_fee ) {
@@ -234,7 +240,7 @@ class Mastercard_CheckoutBuilder {
 			}
 
 			if( $this->order->get_total_tax() ) {
-				$order_summary['taxAmount'] = $this->formattedPrice( $this->order->get_total_tax() );
+				$order_summary['taxAmount'] = $this->getOrderTax();
 			}
 
 			if( $this->order->get_total_discount() ) {
@@ -262,22 +268,64 @@ class Mastercard_CheckoutBuilder {
 	}
 
 	/**
+	 * Get order item amount.
+	 *
+	 * @return array
+	 */
+	public function getOrderTax() { // phpcs:ignore
+		$tax = $this->order->get_total_tax(); 
+
+		if ( 'yes' !== get_option( 'woocommerce_tax_round_at_subtotal' ) ) {
+			$tax = wc_round_tax_total( $tax );
+		}
+
+		return $this->formattedPrice( $tax );
+	}
+
+	/**
+	 * Get order item amount.
+	 *
+	 * @return array
+	 */
+	public function getOrderItemAmount() { // phpcs:ignore
+		if ( wc_prices_include_tax() ) {
+			$item_amount = (float) wc_round_tax_total( $this->order->get_subtotal() );
+		} else {
+			$item_amount = (float) $this->order->get_subtotal();
+		}
+
+		return $this->formattedPrice( $item_amount );
+	}
+
+	/**
+	 * Retrieves the surcharge information.
+	 *
+	 * @return array
+	 */
+	public function getSurcharge() { // phpcs:ignore
+		$surcharge_fee = $this->order->get_meta( '_mpgs_surcharge_fee' );
+
+		if( $surcharge_fee > 0 ) {
+			return array(
+				'amount' => $this->formattedPrice( $surcharge_fee ),
+				'type'   => 'SURCHARGE'
+			);
+		} else {
+			return array(
+				'amount' => 0,
+				'type'   => 'SURCHARGE'
+			);
+		}
+	}
+
+	/**
 	 * Formatted price.
 	 *
 	 * @param float $price Unformatted price.
 	 * @return string
 	 */
 	public function formattedPrice( $price ) { // phpcs:ignore
-		$original_price = $price;
-		$args           = array(
-			'currency'          => '',
-			'decimal_separator' => wc_get_price_decimal_separator(),
-			'decimals'          => wc_get_price_decimals(),
-			'price_format'      => get_woocommerce_price_format(),
-		);
-		$price          = apply_filters( 'formatted_mastercard_price', number_format( $price, $args['decimals'], $args['decimal_separator'], '' ), $price, $args['decimals'], $args['decimal_separator'], '', $original_price );
-
-		return $price;
+		return NumberUtil::round( $price, wc_get_price_decimals() );
 	}
 
 	/**

@@ -13,10 +13,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * @package  Mastercard
- * @version  GIT: @1.4.9@
- * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
 /**
@@ -30,80 +26,14 @@ if ( $gateway->use_embedded() ) { ?>
 	<div id="embed-target"></div>
 <?php } else { ?>
 	<input type="button" id="mpgs_pay" style="display: none;" value="<?php esc_html_e( 'Pay', 'mastercard' ); ?>" onclick="Checkout.showPaymentPage();" />
-<?php } ?><script type="text/javascript">
-	function errorCallback( error ) { 
-		var err = JSON.stringify( error ),
-			errorWrapper = jQuery( '.woocommerce-notices-wrapper' );
-		if( errorWrapper.length > 0 ) {
-			errorWrapper.html( error.responseText );
-		}
-	}
-	function cancelCallback() {
-		window.location.href = '<?php echo esc_attr( $order->get_cancel_order_url() ); ?>';
-	}
-	( function ( $ ) {
-		var sessionKeysToClear = [];
-		function cleanupBrowserSession() {
-			var sessionKey, i;
-			for ( i = 0; i < sessionKeysToClear.length; i++ ) {
-				sessionKey = sessionKeysToClear[i];
-				if ( sessionStorage.key( sessionKey ) ) {
-					sessionStorage.removeItem( sessionKey );
-				}
-			}
-		}
-		<?php if ( $gateway->use_embedded() ) { ?>
-			sessionKeysToClear.push( 'HostedCheckout_sessionId' );
-		<?php } else { ?>
-			sessionKeysToClear.push( 'HostedCheckout_embedContainer' );
-		function togglePay() {
-			$( '#mpgs_pay' ).prop( 'disabled', function ( i, v ) {
-				return !v;
-			});
-			var url = window.location.href,
-				hash = url.split( '#' )[1]; 
-    
-		    if ( hash == '__hc-action-cancel' ) {
-		        window.location.href = '<?php echo wc_get_checkout_url(); ?>';
-		    } 
-			$('#mpgs_pay').trigger( 'click' );
-		}
-		<?php } ?>
-		function waitFor( name, callback ) {
-			if ( typeof window[name] === "undefined" ) {
-				setTimeout(function () {
-					waitFor( name, callback );
-				}, 200 );
-			} else {
-				callback();
-			}
-		}
-		function configureHostedCheckout( sessionData ) {
-			var config = {
-				session: {
-					id: sessionData.session.id,
-				}
-			};
-			waitFor( 'Checkout', function () {
-				cleanupBrowserSession();
-				Checkout.configure( config );
-				<?php if ( $gateway->use_embedded() ) { ?>
-					Checkout.showEmbeddedPage( '#embed-target' );
-				<?php } else { ?> 
-					togglePay();
-				<?php } ?>
-			});
-		}
-		var xhr = $.ajax({
-			method: 'GET',
-			url: '<?php echo esc_attr( $gateway->get_create_checkout_session_url( $order->get_id() ) ); ?>',
-			dataType: 'json'
-		});
-		<?php if ( ! $gateway->use_embedded() ) { ?>
-			togglePay();			
-		<?php } ?>
-		$.when( xhr )
-			.done( $.proxy( configureHostedCheckout, this ) )
-			.fail( $.proxy( errorCallback, this ) );
-	})( jQuery );
-</script>
+<?php } 
+
+$params = array( 
+	'orderCancelUrl'     => esc_url( $order->get_cancel_order_url() ),
+	'isEmbedded'         => $gateway->use_embedded(),
+	'checkoutUrl'        => esc_url( wc_get_checkout_url() ),
+	'checkoutSessionUrl' => esc_url( $gateway->get_create_checkout_session_url( $order->get_id() ) )
+);
+wp_enqueue_script( 'mpgs-hosted-checkout', plugins_url( 'assets/js/hosted-checkout.js', MPGS_INCLUDE_FILE ), array(), MPGS_TARGET_MODULE_VERSION, true );
+wp_localize_script( 'mpgs-hosted-checkout', 'mpgsHCParams', $params );
+?>

@@ -27,7 +27,8 @@ jQuery(function ($) {
                 hc_interaction   = $('#woocommerce_mpgs_gateway_hc_interaction').parents('tr').eq(0),
                 hc_type          = $('#woocommerce_mpgs_gateway_hc_type').parents('tr').eq(0),
                 saved_cards      = $('#woocommerce_mpgs_gateway_saved_cards').parents('tr').eq(0),
-                merchant_info    = $('#woocommerce_mpgs_gateway_merchant_info');
+                merchant_info    = $('#woocommerce_mpgs_gateway_merchant_info'),
+                surcharge_info   = $('#woocommerce_mpgs_gateway_surcharge');
 
             $('#woocommerce_mpgs_gateway_sandbox').on('change', function () {
                 if ($(this).is(':checked')) {
@@ -50,12 +51,18 @@ jQuery(function ($) {
                     hc_interaction.show();
                     hc_type.hide();
                     saved_cards.hide();
+                    surcharge_info.hide();
+                    surcharge_info.next().hide();
+                    surcharge_info.next().next().hide();
                 } else {
                     // Hosted Session
                     threedsecure.show();
                     hc_interaction.hide();
                     hc_type.hide();
                     saved_cards.show();
+                    surcharge_info.show();
+                    surcharge_info.next().show();
+                    surcharge_info.next().next().show();
                 }
             }).change();
 
@@ -73,9 +80,11 @@ jQuery(function ($) {
                     merchant_info.next().show();
                     merchant_info.next().next().show();
                 } else {
-                    merchant_info.hide();
-                    merchant_info.next().hide();
-                    merchant_info.next().next().hide();
+                    Promise.resolve().then(function () {
+                        merchant_info.hide();
+                        merchant_info.next().hide();
+                        merchant_info.next().next().hide();
+                    });
                 }
             }).change();
 
@@ -94,20 +103,40 @@ jQuery(function ($) {
             $( '#woocommerce_mpgs_gateway_handling_fee_amount' ).before( '<span id="handling_fee_amount_label"></span>' );
             $( '#handling_fee_amount_label' ).css({ "width": "35px", "height": "31px", "line-height": "30px", "background-color": "#eaeaea", "text-align": "center", "position": "absolute", "left": "1px", "top": "1px", "border-radius": "3px 0 0 3px" }).parent().css( "position", "relative" );
             $( '#woocommerce_mpgs_gateway_handling_fee_amount' ).css( "padding-left", "45px" );
+
             if( $( '#woocommerce_mpgs_gateway_hf_amount_type' ).val() === 'fixed' ) {
                 $( '#handling_fee_amount_label' ).html( wcSettings.currency.symbol );
             } else {
                 $( '#handling_fee_amount_label' ).html( '%' );
             }
 
-            $('#woocommerce_mpgs_gateway_hf_amount_type').on('change', function () {
+            $( '#woocommerce_mpgs_gateway_hf_amount_type' ).on( 'change', function () {
                 if( $( this ).val() === 'fixed' ) {
                     $( '#handling_fee_amount_label' ).html( wcSettings.currency.symbol );
                 } else {
                     $( '#handling_fee_amount_label' ).html( '%' );
                 }
             }).change(); 
-            $( '#woocommerce_mpgs_gateway_handling_fee_amount' ).on( 'keypress', function(e) {
+
+            $( '#woocommerce_mpgs_gateway_surcharge_amount' ).before( '<span id="surcharge_fee_amount_label"></span>' );
+            $( '#surcharge_fee_amount_label' ).css({ "width": "35px", "height": "31px", "line-height": "30px", "background-color": "#eaeaea", "text-align": "center", "position": "absolute", "left": "1px", "top": "1px", "border-radius": "3px 0 0 3px" }).parent().css( "position", "relative" );
+            $( '#woocommerce_mpgs_gateway_surcharge_amount' ).css( "padding-left", "45px" );
+            
+            if( $( '#woocommerce_mpgs_gateway_surcharge_amount_type' ).val() === 'fixed' ) {
+                $( '#surcharge_fee_amount_label' ).html( wcSettings.currency.symbol );
+            } else {
+                $( '#surcharge_fee_amount_label' ).html( '%' );
+            }
+
+            $('#woocommerce_mpgs_gateway_surcharge_amount_type').on('change', function () {
+                if( $( this ).val() === 'fixed' ) {
+                    $( '#surcharge_fee_amount_label' ).html( wcSettings.currency.symbol );
+                } else {
+                    $( '#surcharge_fee_amount_label' ).html( '%' );
+                }
+            }).change();
+
+            $( '#woocommerce_mpgs_gateway_handling_fee_amount, #woocommerce_mpgs_gateway_surcharge_amount' ).on( 'keypress', function(e) {
                 var charCode = ( e.which ) ? e.which : e.keyCode;
                 if ( charCode === 46 || charCode === 8 || charCode === 9 || charCode === 27 || charCode === 13 ||
                     ( charCode === 65 && ( e.ctrlKey === true || e.metaKey === true ) ) ||
@@ -127,7 +156,8 @@ jQuery(function ($) {
                     e.preventDefault();
                 }
             });
-            $( '#woocommerce_mpgs_gateway_handling_fee_amount' ).on( 'input', function() {
+
+            $( '#woocommerce_mpgs_gateway_handling_fee_amount, #woocommerce_mpgs_gateway_surcharge_amount' ).on( 'input', function() {
                 var value = this.value;
                 if ( !/^\d*\.?\d*$/.test( value ) ) {
                     this.value = value.substring( 0, value.length - 1 );

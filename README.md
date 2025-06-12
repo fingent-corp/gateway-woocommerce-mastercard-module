@@ -15,6 +15,7 @@ We carefully monitor every transaction to catch and stop fraud, making sure your
 With this gateway, you don’t have to handle or store customer card/account details yourself. This makes meeting PCI compliance easier for your business. You can focus on running your store while the gateway securely processes payments for you.
 
 
+
 ## Compatibility
 
 - WooCommerce 8.5 or greater
@@ -34,7 +35,10 @@ Easily and securely accept both credit and debit card payments. This feature wor
    - **Google Pay (Supported in Hosted Checkout Only)**<br/>
 With Google Pay, customers can quickly and easily pay on the hosted checkout page. To enable this option, ensure your Merchant Identification Number (MID) is configured for Google Pay. This makes payments smooth and hassle-free, allowing customers to complete transactions with just a few taps.
 
-**2. Checkout and Payment Integration -** This feature focuses on the method of collecting payment details from customers:
+   - **PayPal (Supported in Hosted Checkout Only)**<br/>
+With PayPal, customers can make payments quickly and effortlessly through the hosted checkout page. To use this option, ensure that your MID is set up for PayPal transactions. Once enabled, this feature provides a seamless and hassle-free payment experience, allowing customers to complete their purchases with just a few simple taps.
+
+**2. Checkout and Payment Integration -** These features focus on methods of collecting payment details from customers:
 
    - **Hosted Checkout**<br/>
 This feature lets your customers enter their payment details on a ready-made secure checkout page provided directly by Mastercard. It keeps sensitive information safe while giving your customers a smooth and hassle-free payment experience.
@@ -42,7 +46,7 @@ This feature lets your customers enter their payment details on a ready-made sec
    - **Hosted Session**<br/>
 This feature lets you customize the layout and design of your payment page to match your brand, while still meeting strict PCI security standards. It makes managing security easier without compromising the user experience.
 
-**3. Fraud Prevention and Security -** This feature enhances security and protects against fraud:
+**3. Fraud Prevention and Security -** These features enhance security and protect against fraud:
 
    - **Address Verification Service (AVS)**<br/>
 AVS helps prevent fraud by checking the billing address provided during a payment to make sure it matches the one on file with the cardholder's bank. This helps confirm that the person making the payment is the actual cardholder. To use AVS, it must be activated on your MID.
@@ -61,6 +65,9 @@ Tokenization improves security by replacing sensitive card or account details (l
    - **Handling Fees**<br/>
 This feature allows you to add extra fees on the checkout page, with options for applying either a fixed amount or a percentage of the Subtotal amount.
 
+   - **Surcharge**<br/>
+This feature allows you to add a surcharge on the order pay page in Hosted Session, either as a fixed amount or as a percentage of the total payable amount.
+
    - **Capture Payments**<br/>
 This feature lets you manually process payments for authorized orders directly from your system. It gives you more control over how payments are handled.
 
@@ -72,6 +79,9 @@ You can refund the entire amount of the transaction back to the customer's accou
 
    - **Partial Refunds**<br/>
 This feature lets you refund only part of an order, giving the customer the specific amount they are entitled to.
+
+### Disclaimer!
+Starting from version 1.5.0, the plugin will collect analytics data, including the plugin download count from GitHub and the active installation count. The Active count, Store Name, Store URL, and the Country configured in the WooCommerce Admin page will be captured once the Test Sandbox is disabled and the Merchant ID and API Password are saved in the configuration page.
 
 ## Documentation
 The official documentation for this module is available on the [Wiki site](https://mpgs.fingent.wiki/enterprise/woocommerce-mastercard-gateway/overview-and-feature-support).

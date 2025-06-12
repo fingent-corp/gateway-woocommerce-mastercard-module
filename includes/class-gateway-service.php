@@ -13,10 +13,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * @package  Mastercard
- * @version  GIT: @1.4.9@
- * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -459,7 +455,7 @@ class Mastercard_GatewayService {
 		);
 
 		$this->validateCheckoutSessionResponse( $response );
-
+		
 		return $response;
 	}
 
@@ -648,6 +644,7 @@ class Mastercard_GatewayService {
 	 * @param string      $txn_id Transaction ID.
 	 * @param string      $order_id WC_Order ID.
 	 * @param array       $order WC_Order items.
+	 * @param array       $surcharge WC_Order Surcharge items.
 	 * @param array       $authentication Authentication params.
 	 * @param string|null $tds_id 3D Secure Id.
 	 * @param array       $session Transaction session details.
@@ -662,6 +659,7 @@ class Mastercard_GatewayService {
 		$txn_id,
 		$order_id,
 		$order,
+		$surcharge,
 		$authentication,
 		$tds_id = null,
 		$session = array(),
@@ -691,6 +689,10 @@ class Mastercard_GatewayService {
 				'source'    => 'INTERNET',
 			),
 		);
+
+		if( $surcharge[ 'amount' ] > 0 ) {
+			$request_data['order']['merchantCharge'] = $surcharge;
+		}
 
 		if ( ! empty( $authentication ) ) {
 			$request_data['authentication'] = $authentication;
@@ -729,9 +731,11 @@ class Mastercard_GatewayService {
 	 * @param string      $txn_id Transaction ID.
 	 * @param string      $order_id WC_Order ID.
 	 * @param array       $order WC_Order items.
+	 * @param array       $surcharge WC_Order Surcharge items.
 	 * @param array       $authentication Authentication params.
 	 * @param string|null $tds_id 3D Secure Id.
 	 * @param array       $session Transaction session details.
+	 * @param string|null $funding_method Card Type.
 	 * @param array       $customer Customer details.
 	 * @param array       $billing Customer billing details.
 	 * @param array       $shipping Customer shipping details.
@@ -743,15 +747,17 @@ class Mastercard_GatewayService {
 		$txn_id,
 		$order_id,
 		$order,
+		$surcharge,
 		$authentication,
 		$tds_id = null,
 		$session = array(),
+		$funding_method,
 		$customer = array(),
 		$billing = array(),
 		$shipping = array()
 	) {
-		$uri = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
-
+		$uri           = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
+		
 		$request_data = array(
 			'apiOperation'      => 'PAY',
 			'3DSecureId'        => $tds_id,
@@ -772,6 +778,10 @@ class Mastercard_GatewayService {
 				'source'    => 'INTERNET',
 			),
 		);
+
+		if( $surcharge[ 'amount' ] > 0 ) {
+			$request_data['order']['merchantCharge'] = $surcharge;
+		}
 
 		if ( ! empty( $authentication ) ) {
 			$request_data['authentication'] = $authentication;
@@ -1068,6 +1078,47 @@ class Mastercard_GatewayService {
 	}
 
 	/**
+	 * Request to capture the status of the installed plugin from client server.
+	 * https://dev-wiki.fingent.net/wp-json/mpgs/v2/update-repo-status.
+	 *
+	 * @return array $response Shop Details.
+	 * @throws Exception An exception is thrown when null is returned.
+	 */
+	public function sendCaptureRequest( $repoName, $pluginType, $tagName, $latestRelease, $country_code, $country_name, $shop_name, $shop_url, $api_token, $apiUrl ) {
+        try {
+            $payload = [
+                'repo_name'      => $repoName,
+                'plugin_type'    => $pluginType,
+                'tag_name'       => $tagName,
+                'latest_release' => $latestRelease,
+                'country_code'   => $country_code,
+                'country'        => $country_name,
+                'shop_name'      => $shop_name,
+                'shop_url'       => $shop_url,
+            ];
+            $headers = [
+                'Authorization' => 'Bearer ' . $api_token, 
+                'Content-Type'  => 'application/json',
+            ];
+            $response = wp_remote_post( $apiUrl, [
+                'body'    => json_encode( $payload ), 
+                'headers' => $headers,
+            ] );
+
+			
+            if ( is_wp_error( $response ) ) {
+                return ['error' => 'Request failed: ' . $response->get_error_message()];
+            }
+            $body = wp_remote_retrieve_body( $response );
+
+            return json_decode( $body, true ); 
+    
+        } catch ( Exception $e ) {
+            return ['error' => 'Failed to send capture request'];
+        }
+    }
+	
+	/**
 	 * Request for the gateway to store payment instrument (e.g. credit or debit cards, gift cards,
 	 * ACH bank account details) against a token, where the system generates the token id.
 	 * https://eu-gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/token
@@ -1098,6 +1149,17 @@ class Mastercard_GatewayService {
 
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
+		$response     = json_decode( $response->getBody(), true );
+		return $response;
+	}
+
+	public function getCardType( $token_id ) { // phpcs:ignore
+		$uri     = $this->api_url . 'token/' . $token_id ;
+		$request = $this->message_factory->createRequest(
+			'GET',
+			$uri
+		);
+		$response     = $this->client->sendRequest( $request );
 		$response     = json_decode( $response->getBody(), true );
 
 		return $response;
