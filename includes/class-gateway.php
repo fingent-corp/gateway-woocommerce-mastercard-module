@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.9@
+ * @version  GIT: @1.5.0@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -23,11 +23,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MPGS_TARGET_MODULE_VERSION', '1.4.9' );
+define( 'MPGS_TARGET_MODULE_VERSION', '1.5.0' );
+define( 'MPGS_INCLUDE_FILE', __FILE__ );
+define( 'MPGS_CAPTURE_URL', 'https://dev-wiki.fingent.net/wp-json/mpgs/v2/update-repo-status' );
 
 require_once dirname( __DIR__ ) . '/includes/class-checkout-builder.php';
 require_once dirname( __DIR__ ) . '/includes/class-gateway-service.php';
 require_once dirname( __DIR__ ) . '/includes/class-payment-gateway-cc.php';
+require_once dirname( __DIR__ ) . '/includes/class-payment-token-cc.php';
+
 
 /**
  * Main class of the Mastercard Payment Gateway Module
@@ -37,7 +41,7 @@ require_once dirname( __DIR__ ) . '/includes/class-payment-gateway-cc.php';
 class Mastercard_Gateway extends WC_Payment_Gateway {
 
 	const ID            = 'mpgs_gateway';
-	const GATEWAY_TITLE = 'Mastercard Payment Gateway Services';
+	const GATEWAY_TITLE = 'Mastercard Gateway';
 
 	const MPGS_API_VERSION     = 'version/100';
 	const MPGS_API_VERSION_NUM = '100';
@@ -59,10 +63,24 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 
 	const HF_FIXED      = 'fixed';
 	const HF_PERCENTAGE = 'percentage';
+	const HF_FEE_OPTION = 'mpgs_handling_fee';
+	const HF_FEE_VAR    = '_mpgs_handling_fee';
+
+	const SUR_ENABLED     = 'surcharge_enabled';
+	const SUR_TEXT        = 'surcharge_text';
+	const SUR_AMT_TYPE    = 'surcharge_amount_type';
+	const SUR_AMT         = 'surcharge_amount';
+	const SUR_CARD_TYPE   = 'surcharge_card_type';
+	const SUR_MSG         = 'surcharge_message';
+	const SUR_DEBIT       = 'Debit';
+	const SUR_CREDIT      = 'Credit';
+	const SUR_DEFAULT_MSG = 'When using a {{MG_CARD_TYPE}} an additional surcharge of <b>{{MG_SUR_AMT}} ({{MG_SUR_PCT}})</b> will be applied, bringing the total payable amount to <b>{{MG_TOTAL_AMT}}</b>.';
+
 
 	const THREED_DISABLED = 'no';
 	const THREED_V1       = 'yes'; // Backward compatibility with checkbox value.
 	const THREED_V2       = '2';
+	const STATUS_TOKEN    = '3958a5f32a0439ac8e09bbc44ca6d9d66bd8fb785f10145f4a446ec0b4f00639';
 
 	/**
 	 * Order prefix
@@ -172,6 +190,13 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	public $mif_enabled = null;
 
 	/**
+	 * Surcharge
+	 *
+	 * @var bool
+	 */
+	public $surcharge_enabled = null;
+
+	/**
 	 * Saved Cards
 	 *
 	 * @var bool
@@ -189,33 +214,34 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		$this->method_title       = __( self::GATEWAY_TITLE, 'mastercard' );
 		$this->has_fields         = true;
 		$this->method_description = __(
-			'Accept payments on your WooCommerce store using Mastercard Payment Gateway Services.',
+			'Accept payments on your WooCommerce store using Mastercard Gateway.',
 			'mastercard'
 		);
 
 		$this->init_form_fields();
 		$this->init_settings();
 
-		$this->order_prefix    = $this->get_option( 'order_prefix' );
-		$this->title           = $this->get_option( 'title' );
-		$this->description     = $this->get_option( 'description' );
-		$this->enabled         = $this->get_option( 'enabled', false );
-		$this->hc_type         = $this->get_option( 'hc_type', self::HC_TYPE_MODAL );
-		$this->hc_interaction  = $this->get_option( 'hc_interaction', self::HC_TYPE_EMBEDDED );
-		$this->capture         = $this->get_option( 'txn_mode', self::TXN_MODE_PURCHASE ) === self::TXN_MODE_PURCHASE;
-		$this->threedsecure_v1 = $this->get_option( 'threedsecure', self::THREED_DISABLED ) === self::THREED_V1;
-		$this->threedsecure_v2 = $this->get_option( 'threedsecure', self::THREED_DISABLED ) === self::THREED_V2;
-		$this->method          = $this->get_option( 'method', self::HOSTED_CHECKOUT );
-		$this->saved_cards     = $this->get_option( 'saved_cards', 'yes' ) === 'yes';
-		$this->supports        = array(
+		$this->order_prefix      = $this->get_option( 'order_prefix' );
+		$this->title             = $this->get_option( 'title' );
+		$this->description       = $this->get_option( 'description' );
+		$this->enabled           = $this->get_option( 'enabled', false );
+		$this->hc_type           = $this->get_option( 'hc_type', self::HC_TYPE_MODAL );
+		$this->hc_interaction    = $this->get_option( 'hc_interaction', self::HC_TYPE_EMBEDDED );
+		$this->capture           = $this->get_option( 'txn_mode', self::TXN_MODE_PURCHASE ) === self::TXN_MODE_PURCHASE;
+		$this->threedsecure_v1   = $this->get_option( 'threedsecure', self::THREED_DISABLED ) === self::THREED_V1;
+		$this->threedsecure_v2   = $this->get_option( 'threedsecure', self::THREED_DISABLED ) === self::THREED_V2;
+		$this->method            = $this->get_option( 'method', self::HOSTED_CHECKOUT );
+		$this->saved_cards       = $this->get_option( 'saved_cards', 'yes' ) === 'yes';
+		$this->supports          = array(
 			'products',
 			'refunds',
 			'tokenization',
 		);
-		$this->hf_enabled      = $this->get_option( 'hf_enabled', false );
-		$this->send_line_items = $this->get_option( 'send_line_items', false );
-		$this->mif_enabled     = $this->get_option( 'mif_enabled', false );
-		$this->service         = $this->init_service();
+		$this->hf_enabled        = $this->get_option( 'hf_enabled', false );
+		$this->send_line_items   = $this->get_option( 'send_line_items', false );
+		$this->mif_enabled       = $this->get_option( 'mif_enabled', false );
+		$this->surcharge_enabled = $this->get_option( self::SUR_ENABLED, false );
+		$this->service           = $this->init_service();
 
 		add_action(
 			'woocommerce_update_options_payment_gateways_' . $this->id,
@@ -231,15 +257,90 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		add_action( 'woocommerce_order_action_mpgs_void_payment', array( $this, 'void_authorized_order' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'receipt_page' ) );
 		add_action( 'woocommerce_api_mastercard_gateway', array( $this, 'return_handler' ) );
-		add_action( 'admin_notices', array( $this, 'admin_notices' ) );
+		add_action( 'admin_notices', array( $this, 'admin_notices' ), 99 );
 		add_filter( 'script_loader_tag', array( $this, 'add_js_extra_attribute' ), 10 );
 		add_action( 'woocommerce_cart_calculate_fees', array( $this, 'add_handling_fee' ), 10, 1 );
-		add_action( 'woocommerce_checkout_update_order_meta', array( $this, 'save_mpgs_handling_fee_on_place_order' ), 10, 2 );
-		add_action( 'woocommerce_store_api_checkout_update_order_meta', array( $this, 'save_mpgs_handling_fee_api_on_place_order' ), 10, 1 );
 		add_action( 'wp_footer', array( $this, 'refresh_handling_fees_on_checkout' ) );
 		add_action( 'wp_ajax_update_selected_payment_method', array( $this, 'update_selected_payment_method' ) );
 		add_action( 'wp_ajax_nopriv_update_selected_payment_method', array( $this, 'update_selected_payment_method' ) );
 		add_action( 'template_redirect', array( $this, 'define_default_payment_gateway' ) );
+		add_action( 'wp_ajax_nopriv_get_surcharge_amount', array( $this, 'get_surcharge_amount' ), 99 );
+		add_action( 'wp_ajax_get_surcharge_amount', array( $this, 'get_surcharge_amount' ), 99 );
+		add_action( 'woocommerce_thankyou', array( $this, 'clear_session_storage' ), 10 );
+		add_filter( 'woocommerce_saved_payment_methods_list', array( $this, 'remove_saved_mastercard_methods' ), 10, 2 );
+		add_filter( 'woocommerce_payment_gateway_get_saved_payment_method_option_html', array( $this, 'mastercard_saved_payment_method_option_html' ), 10, 3 );
+	}
+
+	/**
+	 * Removes saved Mastercard (MPGS) payment methods from the WooCommerce saved payment methods list.
+	 *
+	 * This function loops through the saved payment methods, filters out any method
+	 * associated with the 'mpgs_gateway', and removes empty categories if no methods remain.
+	 *
+	 * @param array $saved_methods An array of saved payment methods categorized by type.
+	 * @param int   $customer_id   The ID of the current customer.
+	 *
+	 * @return array The filtered list of saved payment methods without Mastercard (MPGS).
+	 */
+	public function remove_saved_mastercard_methods( $saved_methods, $customer_id ) {
+		if ( empty( $saved_methods ) || ! is_array( $saved_methods ) ) {
+			return $saved_methods;
+		}
+	
+		foreach ( $saved_methods as $key => $methods ) {
+			$saved_methods[$key] = array_filter( $methods, function ( $method ) {
+				return empty( $method['method']['gateway'] ) || $method['method']['gateway'] !== 'mpgs_gateway';
+			});
+	
+			if ( empty( $saved_methods[$key] ) ) {
+				unset( $saved_methods[$key] );
+			}
+		}
+	
+		return $saved_methods;
+	}
+
+	/**
+	 * This function clears the session storage after orders placed by mastercard payment gateway plugin.
+	 *
+	 * @return void
+	 */
+
+	public function clear_session_storage( $order_id ) {
+		if ( ! $order_id ) {
+			return;
+		}
+	
+		$order = wc_get_order( $order_id );
+	
+		if ( $order instanceof WC_Order && $order->get_payment_method() === 'mpgs_gateway' ) {
+			wp_enqueue_script(
+				'clear-session-storage',
+				plugins_url( 'assets/js/clear-session.js', __FILE__ ),
+				array(),
+				MPGS_TARGET_MODULE_VERSION,
+				true
+			);
+		}
+	}
+
+	/**
+	 * This function displays admin notices.
+	 *
+	 * @return void
+	 */
+	public function admin_notices() {
+		if ( ! $this->enabled ) {
+			return;
+		}
+
+		if ( ! $this->username || ! $this->password ) {
+			$class         = 'notice notice-error';
+			$error_message = __( 'Mastercard Gateway payment methods cannot be activated without valid API credentials. Update them now via this <a href="' . admin_url( 'admin.php?page=wc-settings&tab=checkout&section=mpgs_gateway' ) . '">link</a>', 'mastercard' );
+			printf( '<div class="%1$s"><p>%2$s</p></div>', esc_attr( $class ), $error_message );
+		}
+
+		$this->display_errors();
 	}
 
 	/**
@@ -288,6 +389,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 */
 	public function get_gateway_url() {
 		$gateway_url = $this->get_option( 'gateway_url', self::API_EU );
+		
 		if ( self::API_CUSTOM === $gateway_url ) {
 			$gateway_url = $this->get_option( 'custom_gateway_url' );
 		}
@@ -303,30 +405,68 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	public function process_admin_options() {
 		$saved = parent::process_admin_options();
 		try {
-			if( 'mpgs_gateway' === $this->id ) {
-				static $error_added = false;
-				if( isset( $this->settings['hf_amount_type'] ) && 'percentage' === $this->settings['hf_amount_type'] ) {
+			if ( 'mpgs_gateway' === $this->id ) {
+				static $error_added = false, $surcharge_error_added = false;
+	
+				if ( isset( $this->settings['hf_amount_type'] ) && 'percentage' === $this->settings['hf_amount_type'] ) {
 					if ( absint( $this->settings['handling_fee_amount'] ) > 100 ) {
 						if ( ! $error_added ) {
-							WC_Admin_Settings::add_error( __( 'The maximum allowable percentage is 100.', 'mastercard' ) );
+							WC_Admin_Settings::add_error( __( 'The handling fee percentage is restricted to a maximum of 100.', 'mastercard' ) );
 							$error_added = true;
 						}
 						$this->update_option( 'handling_fee_amount', 100 );
 					}
-				}   
+				}
+	
+				if ( isset( $this->settings[self::SUR_AMT_TYPE] ) && 'percentage' === $this->settings[self::SUR_AMT_TYPE] ) {
+					if ( absint( $this->settings[self::SUR_AMT] ) > 99.9 ) {
+						if ( ! $surcharge_error_added ) {
+							WC_Admin_Settings::add_error( __( 'The surcharge fee percentage is restricted to a maximum of 99.9.', 'mastercard' ) );
+							$surcharge_error_added = true;
+						}
+						$this->update_option( self::SUR_AMT, 99.9 );
+					}
+				}
+				$current_version = get_option( 'mpgs_current_version', '' );
+
+				if ( MPGS_TARGET_MODULE_VERSION !== $current_version ) { 
+					if ( !empty( $this->settings['username'] ) && !empty( $this->settings['password'] ) ) {
+						$repoName        = 'gateway-woocommerce-mastercard-module';
+						$pluginType      = 'enterprise';
+						$latestRelease   = '1';
+						$default_country = get_option( 'woocommerce_default_country' );
+						$country_code    = $default_country ? explode( ':', $default_country )[0] : '';
+						$countries       = WC()->countries->get_countries();
+						$country_name    = isset( $countries[$country_code] ) ? $countries[$country_code] : '';
+						$shop_name       = get_bloginfo( 'name' );
+						$shop_url        = get_home_url();
+						$api_token       = self::STATUS_TOKEN;
+						$service         = $this->init_service();
+
+						$response = $service->sendCaptureRequest(
+							$repoName, $pluginType, MPGS_TARGET_MODULE_VERSION, $latestRelease, $country_code,
+							$country_name, $shop_name, $shop_url, $api_token, MPGS_CAPTURE_URL
+						);
+	
+						if ( !empty( $response ) && isset( $response['status'] ) && $response['status'] === 'success' ) {
+							update_option( 'mpgs_current_version', MPGS_TARGET_MODULE_VERSION ); 
+						}
+					}
+				}
 			}
+	
 			$service = $this->init_service();
 			$service->paymentOptionsInquiry();
 		} catch ( Exception $e ) {
 			$this->add_error(
-				/* translators: %s: error message */
-				sprintf( __( 'Error communicating with payment gateway API: "%s"', 'mastercard' ), $e->getMessage() )
+				sprintf( __( 'Error communicating with payment gateway API: "%s"', 'mastercard'), $e->getMessage() )
 			);
 		}
-
+	
 		return $saved;
 	}
-
+	
+	
 	/**
 	 * This function is responsible for including the necessary admin scripts.
 	 *
@@ -386,6 +526,15 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					false
 				);
 			}
+
+			wp_localize_script( 'woocommerce_mastercard_hosted_session', 'mpgsParams',
+				array( 
+					'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
+					'isSurchargeEnabled' => $this->get_option( self::SUR_ENABLED ) === 'yes' ? true : false,
+					'surchargeFee'       => (float) $this->get_option( self::SUR_AMT ),
+					'cardType'           => strtoupper( $this->get_option( self::SUR_CARD_TYPE ) )
+				)
+			);
 		}
 	}
 
@@ -400,14 +549,18 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		$scripts = array( $this->get_hosted_checkout_js() );
 		if ( $scripts ) {
 			foreach ( $scripts as $script ) {
-				if ( true === strpos( $tag, $script ) ) {
-					return str_replace( ' src', ' async data-error="errorCallback" data-cancel="cancelCallback" src', $tag );
+				if ( false !== strpos( $tag, $script ) ) {
+					return str_replace( 
+						' src', 
+						' async data-error="errorCallback" data-beforeRedirect="befroreRedirctCallback" data-afterRedirect="afterRedirectCallback" data-complete="completeCallback" src', 
+						$tag 
+					);
 				}
 			}
 		}
-
 		return $tag;
 	}
+	
 
 	/**
 	 * Process the capture.
@@ -528,23 +681,6 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
     }
 
 	/**
-	 * This function displays admin notices.
-	 *
-	 * @return void
-	 */
-	public function admin_notices() {
-		if ( ! $this->enabled ) {
-			return;
-		}
-
-		if ( ! $this->username || ! $this->password ) {
-			echo '<div class="notice notice-error"><p>' . esc_html__( 'API credentials are not valid. To activate the payment methods please your details to the forms below.' ) . '</p></div>';
-		}
-
-		$this->display_errors();
-	}
-
-	/**
 	 * Process a refund for an order.
 	 *
 	 * @param int        $order_id The ID of the order being refunded.
@@ -644,8 +780,8 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		}
 
 		$order             = new WC_Order( $order_id );
-		$success_indicator = $order->get_meta( '_mpgs_success_indicator' );
-
+		$success_indicator = $order->get_meta( '_mpgs_success_indicator_initial' );
+		
 		try {
 			if ( $success_indicator !== $result_indicator ) {
 				throw new Exception( 'Result indicator mismatch' );
@@ -679,10 +815,13 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	protected function get_token_from_request() {
 		$token_key = $this->get_token_key();
 		$token_id  = null;
+
 		if ( isset( $_REQUEST[ $token_key ] ) ) { // phpcs:ignore
 			$token_id = sanitize_text_field( wp_unslash( $_REQUEST[ $token_key ] ) ); // phpcs:ignore
 		}
+
 		$tokens = $this->get_tokens();
+
 		if ( $token_id && isset( $tokens[ $token_id ] ) ) {
 			return array(
 				'token' => $tokens[ $token_id ]->get_token(),
@@ -708,8 +847,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 *
 	 * @return void
 	 */
-	protected function process_hosted_session_payment( $three_ds_txn_id = null ) { 
-
+	protected function process_hosted_session_payment( $three_ds_txn_id = null ) { 	
 		$order_id        = isset( $_REQUEST['order_id'] ) ? $this->remove_order_prefix( sanitize_text_field( wp_unslash( $_REQUEST['order_id'] ) ) ) : null; // phpcs:ignore
 		$session_id      = isset( $_REQUEST['session_id'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['session_id'] ) ) : null; // phpcs:ignore
 		$session_version = isset( $_REQUEST['session_version'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['session_version'] ) ) : null; // phpcs:ignore
@@ -726,6 +864,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		$check_3ds          = isset( $_REQUEST['check_3ds_enrollment'] ) ? '1' === $_REQUEST['check_3ds_enrollment'] : false; // phpcs:ignore
 		$process_acl_result = isset( $_REQUEST['process_acs_result'] ) ? '1' === $_REQUEST['process_acs_result'] : false; // phpcs:ignore
 		$mgps_3ds_nonce 	= isset( $_REQUEST['mgps_3ds_nonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['mgps_3ds_nonce'] ) ) : null; // phpcs:ignore
+		$funding_method 	= isset( $_REQUEST['funding_method'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['funding_method'] ) ) : null; // phpcs:ignore
 		$tds_id             = null;
 
 		if ( $check_3ds ) {
@@ -760,6 +899,8 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			if ( isset( $response['3DSecure']['authenticationRedirect'] ) ) {
 				$tds_auth  = $response['3DSecure']['authenticationRedirect']['customized'];
 				$token_key = $this->get_token_key();
+				$token_3ds = bin2hex( random_bytes( 16 ) );
+				update_post_meta( $order_id, '_mastercard_3ds_token', $token_3ds );
 
 				set_query_var( 'authenticationRedirect', $tds_auth );
 				set_query_var(
@@ -771,7 +912,8 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 							'process_acs_result' => '1',
 							'session_id'         => $session_id,
 							'session_version'    => $session_version,
-							'mgps_3ds_nonce'     => wp_create_nonce( 'mastercard_3ds_nonce' ),
+							'mg_3ds_nonce'       => $token_3ds,
+							'funding_method'     => $funding_method,
 							$token_key           => isset( $_REQUEST[ $token_key ] ) ? sanitize_text_field( wp_unslash( $_REQUEST[ $token_key ] ) ) : null, // phpcs:ignore
 						)
 					)
@@ -784,10 +926,10 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				exit();
 			}
 
-			$this->pay( $session, $order, null );
+			$this->pay( $session, $order, null, $funding_method );
 		}
 
-		if ( $process_acl_result && wp_verify_nonce( $mgps_3ds_nonce, 'mastercard_3ds_nonce' ) ) {
+		if ( $process_acl_result && $mg_3ds_nonce === $mastercard_3ds_nonce ) {
 			$pa_res   = isset( $_POST['PaRes'] ) ? sanitize_text_field( wp_unslash( $_POST['PaRes'] ) ) : null;
 			$tds_id   = isset( $_REQUEST['3DSecureId'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['3DSecureId'] ) ) : null;
 			$response = $this->service->process3dsResult( $tds_id, $pa_res );
@@ -799,15 +941,15 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				exit();
 			}
 
-			$this->pay( $session, $order, $tds_id );
+			$this->pay( $session, $order, $tds_id, $funding_method );
 		}
 
 		if ( null !== $three_ds_txn_id ) {
-			$this->pay( $session, $order, $three_ds_txn_id );
+			$this->pay( $session, $order, $three_ds_txn_id, $funding_method );
 		}
 
 		if ( ! $check_3ds && ! $process_acl_result && ! $this->threedsecure_v1 ) {
-			$this->pay( $session, $order, null );
+			$this->pay( $session, $order, null, $funding_method );
 		}
 
 		$order->update_status( 'failed', __( 'Unexpected payment condition error.', 'mastercard' ) );
@@ -822,11 +964,13 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * @param string      $session The session ID.
 	 * @param string      $order The order ID.
 	 * @param string|null $tds_id The TDS ID, if available.
+	 * @param string 	  $funding_method Used by the payer to provide the funds for the payment.
 	 *
 	 * @return void
 	 * @throws Exception If the payment was declined.
 	 */
-	protected function pay( $session, $order, $tds_id = null ) {
+	protected function pay( $session, $order, $tds_id = null, $funding_method ) {
+
 		if ( $this->is_order_paid( $order ) ) {
 			wp_safe_redirect( $this->get_return_url( $order ) );
 			exit();
@@ -835,6 +979,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		try {
 			$txn_id = $this->generate_txn_id_for_order( $order );
 			$auth   = null;
+
 			if ( $this->threedsecure_v2 ) {
 				$auth   = array(
 					'transactionId' => $tds_id,
@@ -843,14 +988,21 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			}
 
 			$order_builder = new Mastercard_CheckoutBuilder( $order );
+			$surcharge     = ( isset( $this->surcharge_enabled ) && 'yes' === $this->surcharge_enabled ) ? $order_builder->getSurcharge() : array(
+				'amount' => 0,
+				'type'   => 'SURCHARGE'
+			);
+
 			if ( $this->capture ) {
 				$mpgs_txn = $this->service->pay(
 					$txn_id,
 					$this->add_order_prefix( $order->get_id() ),
 					$order_builder->getOrder(),
+					$surcharge,
 					$auth,
 					$tds_id,
 					$session,
+					$funding_method,
 					$order_builder->getCustomer(),
 					$order_builder->getBilling(),
 					$order_builder->getShipping()
@@ -860,6 +1012,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					$txn_id,
 					$this->add_order_prefix( $order->get_id() ),
 					$order_builder->getOrder(),
+					$surcharge,
 					$auth,
 					$tds_id,
 					$session,
@@ -917,31 +1070,33 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 */
 	protected function process_saved_cards( $session, $user_id ) {
 		$response = $this->service->createCardToken( $session['id'] );
-
+	
 		if ( ! isset( $response['token'] ) || empty( $response['token'] ) ) {
-			throw new Exception( 'Token not present in reponse' );
+			throw new Exception( 'Token not present in response' );
 		}
-
-		$token = new WC_Payment_Token_CC();
+	
+		$token = new Mastercard_Payment_Token_CC() ;
 		$token->set_token( $response['token'] );
 		$token->set_gateway_id( $this->id );
 		$token->set_card_type( $response['sourceOfFunds']['provided']['card']['brand'] );
-
-		$last4 = substr(
-			$response['sourceOfFunds']['provided']['card']['number'],
-			- 4
-		);
+	
+		$last4 = substr( $response['sourceOfFunds']['provided']['card']['number'], -4 );
 		$token->set_last4( $last4 );
-
+	
 		$m = array(); // phpcs:ignore
 		preg_match( '/^(\d{2})(\d{2})$/', $response['sourceOfFunds']['provided']['card']['expiry'], $m );
-
+	
 		$token->set_expiry_month( $m[1] );
 		$token->set_expiry_year( '20' . $m[2] );
 		$token->set_user_id( $user_id );
-
+	
+		if ( isset( $response['sourceOfFunds']['provided']['card']['fundingMethod'] ) ) {
+			$token->set_funding_method( $response['sourceOfFunds']['provided']['card']['fundingMethod'] );
+		}
+	
 		$token->save();
 	}
+	
 
 	/**
 	 * This function processes a WooCommerce order.
@@ -954,7 +1109,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 */
 	protected function process_wc_order( $order, $order_data, $txn_data ) {
 		$this->validate_order( $order, $order_data );
-		$captured = 'CAPTURED' === $order_data['status'];
+		$captured         = 'CAPTURED' === $order_data['status'];
 		$transaction_mode = ( $this->capture ) ? self::TXN_MODE_PURCHASE : self::TXN_MODE_AUTH_CAPTURE;
 		$order->add_meta_data( '_mpgs_order_captured', $captured );
 		$order->add_meta_data( '_mpgs_transaction_mode', $transaction_mode );
@@ -1174,6 +1329,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				$order         = new WC_Order( $request->get_param( 'id' ) );
 				$return_url    = $this->get_payment_return_url( $order->get_id() );
 				$order_builder = new Mastercard_CheckoutBuilder( $order );
+
 				$result        = $this->service->initiateCheckout(
 					$order_builder->getHostedCheckoutOrder(),
 					$order_builder->getInteraction(
@@ -1185,23 +1341,26 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					$order_builder->getShipping()
 				);
 
-				if ( $result && $result['successIndicator'] ) {
-					$order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
+				// Check the current success indicator value
+				$current_updated_meta = $order->get_meta('_mpgs_success_indicator');
 
-					if ( ! $order->meta_exists( '_mpgs_success_indicator' ) ) {
-						global $wpdb, $table_prefix;
-						$wpdb->query( 
-							$wpdb->prepare(
-								"INSERT INTO " . $table_prefix . "wc_orders_meta 
-								(order_id, meta_key, meta_value) 
-								VALUES (%d, %s, %s)",
-								$order->get_id(),
-								'_mpgs_success_indicator',
-								$result['successIndicator']
-							)
-						);
-					}
-				}
+				// Proceed if the result has a successIndicator
+				if ( $result && isset( $result['successIndicator'] ) ) {
+                    $current_success_indicator  = $order->get_meta( '_mpgs_success_indicator' );
+        
+                    // If the current value is different from the incoming value, update it
+                    $previous_success_indicator = $order->get_meta( '_mpgs_success_indicator_first_update' );
+
+                    if ( $current_success_indicator !== $result['successIndicator'] ) {
+                        // Update the meta data only if the successIndicator is different
+                        $order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
+
+                        if ( empty( $previous_success_indicator ) || absint( $previous_success_indicator ) !== 1 ) {                        
+                            $order->update_meta_data( '_mpgs_success_indicator_initial', $result['successIndicator'] );
+                            $order->update_meta_data( '_mpgs_success_indicator_first_update', '1' );
+                        }                        
+                    }
+                }
 				$order->save_meta_data();
 				break;
 
@@ -1227,7 +1386,6 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 						'purpose' => 'PAYMENT_TRANSACTION',
 					);
 				}
-
 				$session_id    = $order->get_meta( '_mpgs_session_id' );
 				$order_builder = new Mastercard_CheckoutBuilder( $order );
 				$result        = $this->service->update_session(
@@ -1247,6 +1405,16 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 						$order->add_meta_data( '_mpgs_success_indicator', $result['successIndicator'], true  );
 					}	
 				}
+				if ( isset( $result['sourceOfFunds']['token'] ) ) {
+					$token = $result['sourceOfFunds']['token'];
+					
+				
+					if ( $order->meta_exists( '_mpgs_current_token' ) ) {
+						$order->update_meta_data( '_mpgs_current_token', $token );
+					} else {
+						$order->add_meta_data( '_mpgs_current_token', $token, true );
+					}
+				}
 				$order->save_meta_data();
 				break;
 
@@ -1261,6 +1429,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				}
 				$order->save_meta_data();
 				break;
+
 			case '/mastercard/v1/webhook':
 				$this->mgps_webhook_handler( $request );
 				break;
@@ -1272,6 +1441,15 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		return $result;
 	}
 
+	/**
+	 * Handles incoming webhook requests for MGPS.
+	 *
+	 * This function processes the webhook payload received via HTTP POST
+	 * and performs the necessary actions based on the request data.
+	 * 
+	 * @param WP_REST_Request $request The request object containing webhook data.
+	 * @return WP_REST_Response A response object indicating the status of the webhook processing.
+	 */
 	public function mgps_webhook_handler( $request ) {
 		$body                = $request->get_body();
     	$headers             = $request->get_headers();
@@ -1299,7 +1477,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 						if ( in_array( $order->get_status(), $order_status ) ) {
 							$this->process_wc_order( $order, $response['order'], $response );
 						}
-					} 
+					}
 					break;
 
 	    		default:
@@ -1539,6 +1717,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
         if ( ! empty( $chosen_gateway ) ) {
 			if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled && self::ID === $chosen_gateway ){
 				$handling_text = $this->get_option( 'handling_text' );
+				$handling_text = !empty( $handling_text ) ? $handling_text : 'Handling Fee';
 				$amount_type   = $this->get_option( 'hf_amount_type' );
 				$handling_fee  = $this->get_option( 'handling_fee_amount' ) ? $this->get_option( 'handling_fee_amount' ) : 0;
 
@@ -1548,63 +1727,8 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					$surcharge = $handling_fee;
 				}
 
-				if ( WC()->session ) {
-					WC()->session->set( 'mpgs_handling_fee', $surcharge );
-				}
-
 			    WC()->cart->add_fee( $handling_text, $surcharge, true, '' );
 			}
-		}
-	}
-
-	/**
-	 * Save MasterCard Payment Gateway Services (MPGS) handling fee to the order.
-	 *
-	 * This function is triggered during the WooCommerce checkout process, right after the 
-	 * "Place Order" button is clicked and the order is being created. It adds the handling 
-	 * fee related to MPGS to the order metadata, which can later be used for calculations, 
-	 * displaying fees in the backend, or other custom logic.
-	 *
-	 * @param WC_Order $order_id The order id.
-	 * @param array    $data  The posted data during checkout process (billing, shipping, etc.).
-	 */
-	public function save_mpgs_handling_fee_on_place_order( $order_id, $data ) {
-		$chosen_gateway = WC()->session->get( 'chosen_payment_method' );
-
-		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled && self::ID === $chosen_gateway ) {
-		    if ( $order_id ) {
-		    	$order = wc_get_order( $order_id ); 
-		        $handling_fee = WC()->session->get( 'mpgs_handling_fee' );
-		        $order->update_meta_data( '_mpgs_handling_fee', $handling_fee );
-		        $order->save();
-		        WC()->session->__unset( '_mpgs_handling_fee' );
-		    }
-		} else {
-			WC()->session->__unset( '_mpgs_handling_fee' );
-		}
-	}
-
-	/**
-	 * Save MasterCard Payment Gateway Services (MPGS) handling fee to the order through WooCommerce checkout block.
-	 *
-	 * This function is triggered during the WooCommerce checkout process, right after the 
-	 * "Place Order" button is clicked and the order is being created. It adds the handling 
-	 * fee related to MPGS to the order metadata, which can later be used for calculations, 
-	 * displaying fees in the backend, or other custom logic.
-	 *
-	 * @param WC_Order $order_id The order id.
-	 */
-	public function save_mpgs_handling_fee_api_on_place_order( $order ) {
-		$chosen_gateway = WC()->session->get( 'chosen_payment_method' );
-
-		if ( isset( $this->hf_enabled ) && 'yes' === $this->hf_enabled && self::ID === $chosen_gateway ) {
-			if ( $order ) {
-		        $handling_fee = WC()->session->get( 'mpgs_handling_fee' );
-		        $order->update_meta_data( '_mpgs_handling_fee', $handling_fee );
-		        WC()->session->__unset( '_mpgs_handling_fee' );
-		    }
-	    } else {
-			WC()->session->__unset( '_mpgs_handling_fee' );
 		}
 	}
 
@@ -1634,15 +1758,16 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			}
 	        ?>
 	        <script type="text/javascript">
-	        	const handlingText = '<?php echo sanitize_title( $this->get_option( 'handling_text' ) ); ?>';
-	        	const handlingFeeWrapper = '<div class="wc-block-components-totals-item wc-block-components-totals-fees wc-block-components-totals-fees__<?php echo sanitize_title( $this->get_option( 'handling_text' ) ); ?>"><span class="wc-block-components-totals-item__label"><?php echo $this->get_option( 'handling_text' ); ?></span><span class="wc-block-formatted-money-amount wc-block-components-formatted-money-amount wc-block-components-totals-item__value"><?php echo wc_price( $surcharge ); ?></span><div class="wc-block-components-totals-item__description"></div></div>';
-		        jQuery(function($) {
-		            // Detect when payment method is changed
-		            $( document ).on( 'change', 'input[name="payment_method"]', function() { 
-	                    $( document.body ).trigger( "update_checkout" );
-		            });
-		        });
-	        </script>
+				const handlingText = '<?php echo sanitize_title( !empty( $this->get_option( 'handling_text' ) ) ? $this->get_option( 'handling_text' ) : 'Handling Fee' ); ?>';
+				const handlingFeeWrapper = '<div class="wc-block-components-totals-item wc-block-components-totals-fees wc-block-components-totals-fees__<?php echo sanitize_title( !empty( $this->get_option( 'handling_text' ) ) ? $this->get_option( 'handling_text' ) : 'Handling Fee' ); ?>"><span class="wc-block-components-totals-item__label"><?php echo !empty( $this->get_option( 'handling_text' ) ) ? $this->get_option( 'handling_text' ) : 'Handling Fee'; ?></span><span class="wc-block-formatted-money-amount wc-block-components-formatted-money-amount wc-block-components-totals-item__value"><?php echo wc_price( $surcharge ); ?></span><div class="wc-block-components-totals-item__description"></div></div>';
+
+				jQuery(function($) {
+					// Detect when payment method is changed
+					$( document ).on( 'change', 'input[name="payment_method"]', function() { 
+						$( document.body ).trigger( "update_checkout" );
+					});
+				});
+			</script>
 	        <?php
 		}
 	}
@@ -1667,7 +1792,6 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	    	$payment_method = sanitize_text_field( $_POST['payment_method'] ); 
 	        WC()->session->set( 'chosen_payment_method', $payment_method );
 	        WC()->cart->calculate_totals();
-
 	        wp_send_json_success();
 	    } else {
 	        wp_send_json_error();
@@ -1694,11 +1818,249 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * the checkout page. It ensures the preferred gateway (e.g., Simplify Payments)
 	 * is pre-selected to streamline the checkout experience.
 	 */
-	public function define_default_payment_gateway() {
+	public function define_default_payment_gateway() {	
 	    if( is_checkout() && ! is_wc_endpoint_url() ) {
 	        $payment_gateways = WC()->payment_gateways->get_available_payment_gateways();
 	        $first_gateway = reset( $payment_gateways );
 	        WC()->session->set( 'chosen_payment_method', $first_gateway->id );
 	    }
 	}
+
+	/**
+	 * Displays a surcharge message on the order summary or confirmation page.
+	 *
+	 * This function is typically used to notify users of any additional
+	 * surcharge applied to their order. The surcharge amount can be retrieved
+	 * from the `$order` object, which represents the current order details.
+	 *
+	 * @param WC_Order $order The WooCommerce order object containing order details.
+	 */
+	public function display_surcharge_message( $order ) {
+		$message             = '';
+		$surcharge_enabled   = $this->get_option( self::SUR_ENABLED );
+		$surcharge_fee = (float) $this->get_option( self::SUR_AMT );
+
+		if( 'yes' === $surcharge_enabled && $surcharge_fee > 0 ) {
+			$message = sprintf(
+				/* translators: 1. Surcharge message. */
+				__( '<div class="wc-block-components-shipping-rates-control"><div class="wc-block-components-shipping-rates-control__package"><div class="wc-block-components-shipping-rates-control__no-results-notice wc-block-components-notice-banner is-warning"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path d="M12 3.2c-4.8 0-8.8 3.9-8.8 8.8 0 4.8 3.9 8.8 8.8 8.8 4.8 0 8.8-3.9 8.8-8.8 0-4.8-4-8.8-8.8-8.8zm0 16c-4 0-7.2-3.3-7.2-7.2C4.8 8 8 4.8 12 4.8s7.2 3.3 7.2 7.2c0 4-3.2 7.2-7.2 7.2zM11 17h2v-6h-2v6zm0-8h2V7h-2v2z"></path></svg><div class="wc-block-components-notice-banner__content">%1$s</div></div></div></div>', 'mastercard' ),
+				$this->get_surcharge_message( $order )
+			);
+		}
+
+		return $message;
+	}
+
+	/**
+	 * Generates and returns a surcharge message for the provided order.
+	 *
+	 * @param WC_Order $order The WooCommerce order object.
+	 * @return string The surcharge message, typically displayed to inform
+	 *                the customer about additional charges applied to their order.
+	 *
+	 * This method is commonly used to calculate and communicate surcharges
+	 * (e.g., credit card fees, payment gateway fees) applied during checkout.
+	 * Ensure proper handling of order data and formatting for customer clarity.
+	 */
+	public function get_surcharge_message( $order ) {
+		$order_builder       = new Mastercard_CheckoutBuilder( $order );
+		$amount_type         = $this->get_option( self::SUR_AMT_TYPE );
+		$surcharge_fee       = $this->get_option( self::SUR_AMT ) ? $this->get_option( self::SUR_AMT ) : 0;
+		$surcharge_card_type = $this->get_option( self::SUR_CARD_TYPE ) . " Card";
+	
+		if ( self::HF_FIXED === $amount_type ) {
+			$default_msg = 'When using a {{MG_CARD_TYPE}} an additional surcharge of <b>{{MG_SUR_AMT}}</b> will be applied, bringing the total payable amount to <b>{{MG_TOTAL_AMT}}</b>.';
+		} else {
+			$default_msg = self::SUR_DEFAULT_MSG;
+		}
+	
+		// Use saved message if set, otherwise use dynamic default
+		$surcharge_message = $this->get_option( self::SUR_MSG ) ? $this->get_option( self::SUR_MSG ) : $default_msg;
+	
+		// Calculate surcharge
+		if ( self::HF_PERCENTAGE === $amount_type ) {
+			$surcharge = (float) ( $order->get_total() ) * ( (float) $surcharge_fee / ( 100 - (float) $surcharge_fee ) );
+		} else {
+			$surcharge = $surcharge_fee;
+		}
+	
+		$surcharge           = $order_builder->formattedPrice( $surcharge );
+		$total_total         = (float) $order->get_total() + (float) $surcharge;
+		$surcharge_fee_label = ( self::HF_PERCENTAGE === $amount_type ) ? $surcharge_fee . '%' : '';
+	
+		return str_replace(
+			array( '{{MG_SUR_AMT}}', '{{MG_SUR_PCT}}', '{{MG_CARD_TYPE}}', '{{MG_TOTAL_AMT}}' ),
+			array( wc_price( $surcharge ), $surcharge_fee_label, $surcharge_card_type, wc_price( $total_total ) ),
+			$surcharge_message
+		);
+	}
+	
+
+	/**
+	 * Calculates and returns the surcharge amount for a transaction.
+	 *
+	 * This method determines the surcharge based on predefined rules,
+	 * such as a fixed percentage or flat fee. It is typically used
+	 * to add additional costs to a payment transaction.
+	 *
+	 * @return float The calculated surcharge amount.
+	 */
+	public function get_surcharge_amount() {
+		$order_id          = isset( $_POST['order_id'] ) ? sanitize_text_field( wp_unslash( $_POST['order_id'] ) ) : null;
+		$order             = wc_get_order( $order_id );
+		$order_builder     = new Mastercard_CheckoutBuilder( $order );
+		$surcharge_enabled = $this->get_option( self::SUR_ENABLED );
+		$card_type 		   = strtoupper( $this->get_option( self::SUR_CARD_TYPE ) );
+		$funding_method    = isset( $_POST['funding_method'] ) ? sanitize_text_field( wp_unslash( $_POST['funding_method'] ) ) : null;
+		$token             = isset( $_POST['token'] ) ? sanitize_text_field( wp_unslash( $_POST['token'] ) ) : null;
+		$source_type       = isset( $_POST['source_type'] ) ? sanitize_text_field( wp_unslash( $_POST['source_type'] ) ) : null;
+
+		if ( ! $order_id || $card_type !== $funding_method ) {
+			if ( empty( $token ) && empty( $source_type ) ) {
+				$return = array(
+					'message' => 'Unfortunately, we couldn’t update the total order at this time.',
+					'code'    => 400
+				);
+				wp_send_json( $return );
+			}
+		}
+		
+		$order = wc_get_order( $order_id );
+
+		if( $order && 'yes' === $surcharge_enabled ) {
+
+			$amount_type    = $this->get_option( self::SUR_AMT_TYPE );
+			$surcharge_fee  = $this->get_option( self::SUR_AMT ) ? $this->get_option( self::SUR_AMT ) : 0;
+			$surcharge_text = $this->get_option( self::SUR_TEXT );
+			$surcharge_text = !empty( $surcharge_text ) ? $surcharge_text : 'Surcharge';
+
+			if ( self::HF_PERCENTAGE === $amount_type ) {
+				$surcharge = (float) ( $order->get_total() ) * ( (float) $surcharge_fee / ( 100 - (float) $surcharge_fee) );
+			} else {
+				$surcharge = (float) $surcharge_fee;
+			}
+
+			$surcharge = $order_builder->formattedPrice( $surcharge );
+	        $fee       = new WC_Order_Item_Fee();
+		    $fee->set_name( $surcharge_text );
+		    $fee->set_amount( $surcharge );
+		    $fee->set_total( $surcharge );
+
+		    // Add the fee to the order
+		    $order->add_item( $fee );
+
+		    // Save the order
+		    $order->calculate_totals( false );
+		    $order->update_meta_data( '_mpgs_surcharge_fee', $surcharge );
+		    $order->save();
+
+		    $return = array(
+			    'code'        => 200,
+			    'order_total' => wc_price( $order->get_total() )
+			);
+
+			wp_send_json( $return );
+		}
+	}
+
+	/**
+	 * Displays a surcharge confirmation box in the order details page.
+	 *
+	 * This method outputs a confirmation box related to any surcharges applied 
+	 * to the order. It is typically used in the admin area or order review screens 
+	 * to inform the user/admin of additional charges and potentially allow 
+	 * confirmation or review of these charges.
+	 *
+	 * @param WC_Order $order The WooCommerce order object containing the order details.
+	 * @return string The surcharge confirmation html, typically displayed to inform
+	 *                the customer about additional charges applied to their order.
+	 */
+	public function display_surcharge_confirmation_box( $order ) {
+		$surcharge_text      = $this->get_option( self::SUR_TEXT );
+		$surcharge_text      = !empty( $surcharge_text ) ? $surcharge_text : 'Surcharge';
+		$amount_type         = $this->get_option( self::SUR_AMT_TYPE );
+		$surcharge_fee       = $this->get_option( self::SUR_AMT ) ? $this->get_option( self::SUR_AMT ) : 0;
+		$surcharge_card_type = $this->get_option( self::SUR_CARD_TYPE ) . " Card";
+
+		if ( self::HF_FIXED === $amount_type ) {
+			$default_msg = 'When using a {{MG_CARD_TYPE}} an additional surcharge of <b>{{MG_SUR_AMT}}</b> will be applied, bringing the total payable amount to <b>{{MG_TOTAL_AMT}}</b>.';
+		} else {
+			$default_msg = self::SUR_DEFAULT_MSG;
+		}
+
+		$surcharge_message = $this->get_option( self::SUR_MSG ) ? $this->get_option( self::SUR_MSG ) : $default_msg;
+
+		if ( self::HF_PERCENTAGE === $amount_type ) {
+			$surcharge = (float) ( $order->get_total() ) * ( (float) $surcharge_fee / (100 - (float) $surcharge_fee) );
+		} else {
+			$surcharge = $surcharge_fee;
+		}
+
+		$total_total         = (float) $order->get_total() + (float) $surcharge;
+		$surcharge_fee_label = ( self::HF_PERCENTAGE === $amount_type ) ? $surcharge_fee . '%' : '';
+		$message             =  str_replace(
+			array( '{{MG_SUR_AMT}}', '{{MG_SUR_PCT}}', '{{MG_CARD_TYPE}}', '{{MG_TOTAL_AMT}}' ),
+			array( wc_price( $surcharge ), $surcharge_fee_label, $surcharge_card_type, wc_price( $total_total ) ),
+			$surcharge_message
+		);
+
+		$order_html = sprintf(
+			/* translators: 1. Order total text, 2. Order total amount, 3. Surcharge text, 4. Surcharge amount, 5. Grand total text, 6. Grant total. */
+			__( '<ul><li><label>%1$s:</label> %2$s</li><li><label>%3$s:</label> %4$s</li><li><label>%5$s:</label> %6$s</li></ul>', 'mastercard' ),
+			apply_filters( 'mastercard_order_pay_order_total_text', __( 'Order Total', 'mastercard' ) ),
+			wc_price( $order->get_total() ),
+			$surcharge_text,
+			wc_price( $surcharge ),
+			apply_filters( 'mastercard_order_pay_grand_total_text', __( 'Grand Total', 'mastercard' ) ),
+			wc_price( $total_total )
+		);	
+
+		return sprintf(
+			/* translators: 1. Surcharge message, 2. Order total text, 3. Order total amount, 4. Surcharge text, 5. Surcharge amount, 6. Grand total text, 7. Grant total, 8. Confirm button text, 9. Cancel button text. */
+			__( '<p>%1$s</p>%2$s<div class="mpgs_button_wrapper"><button type="button"class="wp-element-button wp-element-confirm-button">%3$s</button><a type="button"class="wp-element-button wp-element-cancel-button" href="%4$s">%5$s</a></div>', 'mastercard' ),
+			$message,
+			$order_html,
+			apply_filters( 'mastercard_order_pay_confirm_button_text', __( 'Confirm', 'mastercard' ) ),
+			esc_url( wc_get_checkout_url() ),
+			apply_filters( 'mastercard_order_pay_cancel_button_text', __( 'Cancel', 'mastercard' ) )
+		);
+	}
+
+	/**
+	 * Customize the HTML output for a saved Mastercard payment method.
+	 *
+	 * This function modifies how each saved Mastercard payment method is displayed
+	 * on the WooCommerce checkout page. It builds a radio input and label for each
+	 * saved token, allowing users to select one of their stored payment methods.
+	 *
+	 * @param string                        $html    The original HTML output.
+	 * @param WC_Payment_Token              $token   The saved payment method token.
+	 * @param WC_Payment_Gateway            $gateway The payment gateway instance.
+	 *
+	 * @return string Modified HTML output for the saved payment method option.
+	 */
+	public function mastercard_saved_payment_method_option_html( $html, $token, $gateway ) {
+		$card_type = $token->get_meta( 'funding_method' ); 
+		$html = sprintf(
+			'<li class="woocommerce-SavedPaymentMethods-token">
+				<input
+					id="wc-%1$s-payment-token-%2$s"
+					type="radio"
+					name="wc-%1$s-payment-token"
+					value="%2$s"
+					style="width:auto;"
+					class="woocommerce-SavedPaymentMethods-tokenInput"
+					data-card="%5$s"
+					%4$s />
+				<label for="wc-%1$s-payment-token-%2$s">%3$s</label>
+			</li>',
+			esc_attr( $this->id ),
+			esc_attr( $token->get_id() ),
+			esc_html( $token->get_display_name() ),
+			checked( $token->is_default(), true, false ),
+			esc_attr( $card_type ) 
+		);
+	
+		return $html;
+	}	
 }

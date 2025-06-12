@@ -30,7 +30,7 @@ return array(
 		'title'       => __( 'Title', 'mastercard' ),
 		'type'        => 'text',
 		'description' => __( 'This controls the title which the user sees during checkout.', 'mastercard' ),
-		'default'     => __( 'Mastercard Payment Gateway Services', 'mastercard' ),
+		'default'     => __( 'Mastercard Gateway', 'mastercard' ),
 		'css'         => 'min-height: 33px;'
 	),
 	'description'        => array(
@@ -50,6 +50,7 @@ return array(
 			self::API_CUSTOM => __( 'Custom URL', 'mastercard' ),
 		),
 		'default' => self::API_EU,
+		'css'         => 'max-width: 500px; width: 500px;'
 	),
 	'custom_gateway_url' => array(
 		'title'       => __( 'Custom Gateway Host', 'mastercard' ),
@@ -66,6 +67,7 @@ return array(
 		),
 		'default'     => self::TXN_MODE_PURCHASE,
 		'description' => __( 'In “Purchase” mode, the customer is charged immediately. In Authorize mode, the transaction is only authorized and the capturing of funds is a manual process that you do using the Woocommerce admin panel.', 'mastercard' ),
+		'css'         => 'max-width: 500px; width: 500px;'
 	),
 	'method'             => array(
 		'title'   => __( 'Integration Model', 'mastercard' ),
@@ -75,6 +77,7 @@ return array(
 			self::HOSTED_SESSION  => __( 'Hosted Session', 'mastercard' ),
 		),
 		'default' => self::HOSTED_CHECKOUT,
+		'css'         => 'max-width: 500px; width: 500px;'
 	),
 	'threedsecure'       => array(
 		'title'       => __( '3D-Secure', 'mastercard' ),
@@ -87,6 +90,7 @@ return array(
 		),
 		'default'     => self::THREED_DISABLED,
 		'description' => __( 'For more information please contact your payment service provider.', 'mastercard' ),
+		'css'         => 'max-width: 500px; width: 500px;'
 	),
 	'hc_interaction'     => array(
 		'title'   => __( 'Checkout Interaction', 'mastercard' ),
@@ -97,6 +101,7 @@ return array(
 		),
 		'default' => self::HC_TYPE_EMBEDDED,
 		'description' => __( 'Selecting "Redirect to Payment Page" will also allow you to configure your business logo and related information in the Merchant Information section below.', 'mastercard' ),
+		'css'         => 'max-width: 500px; width: 500px;'
 	),
 	'hc_type'            => array(
 		'title'   => __( 'Checkout Interaction', 'mastercard' ),
@@ -106,6 +111,7 @@ return array(
 			self::HC_TYPE_MODAL    => __( 'Lightbox', 'mastercard' ),
 		),
 		'default' => self::HC_TYPE_MODAL,
+		'css'         => 'max-width: 500px; width: 500px;'
 	),
 	'saved_cards'        => array(
 		'title'       => __( 'Saved Cards', 'mastercard' ),
@@ -118,7 +124,7 @@ return array(
 		'title'       => __( 'Debug Logging', 'mastercard' ),
 		'label'       => __( 'Enable Debug Logging', 'mastercard' ),
 		'type'        => 'checkbox',
-		'description' => __( 'Logs all communication with Mastercard gateway to file ./wp-content/mastercard.log. Debug logging only works in Sandbox mode.', 'mastercard' ),
+		'description' => __( 'Logs all communication with Mastercard Gateway to file ./wp-content/mastercard.log. Debug logging only works in Sandbox mode.', 'mastercard' ),
 		'default'     => 'no',
 	),
 	'send_line_items'    => array(
@@ -134,7 +140,7 @@ return array(
 		'description' => sprintf(
 			/* translators: Gateway API Credentials */
 			__( 'Enter your API credentials to process payments via this payment gateway. Learn how to access your <a href="%s" target="_blank">Gateway API Credentials</a>.', 'mastercard' ),
-			'https://mpgs.fingent.wiki/enterprise/woocommerce-mastercard-payment-gateway-services/configuration/generate-api-password'
+			'https://mpgs.fingent.wiki/enterprise/woocommerce-mastercard-gateway/configuration/api-configuration'
 		),
 	),
 	'sandbox'            => array(
@@ -223,6 +229,7 @@ return array(
 			self::HF_PERCENTAGE => __( 'Percentage', 'mastercard' ),
 		),
 		'default' => self::HF_FIXED,
+		'css'         => 'max-width: 500px; width: 500px;'
 	),
 	'handling_fee_amount' => array(
 		'title'       => __( 'Amount', 'mastercard' ),
@@ -231,6 +238,65 @@ return array(
 		'default'     => '',
 		'css'         => 'min-height: 33px;',
 	),
+	'surcharge'      => array(
+		'title'       => __( 'Surcharge', 'mastercard' ),
+		'type'        => 'title',
+		'description' => __( 'Additional charges applied for Debit/Credit card transactions.', 'mastercard' ),
+	),
+	'surcharge_enabled'  => array(
+		'title'       => __( 'Enable/Disable', 'mastercard' ),
+		'label'       => __( 'Enable', 'mastercard' ),
+		'type'        => 'checkbox',
+		'description' => '',
+		'default'     => 'no',
+	),
+	'surcharge_card_type'     => array(
+		'title'   => __( 'Applicable Card Type', 'mastercard' ),
+		'type'    => 'select',
+		'options' => array(
+			self::SUR_DEBIT  => __( 'Debit Card', 'mastercard' ),
+			self::SUR_CREDIT => __( 'Credit Card', 'mastercard' ),
+		),
+		'default' => self::HF_FIXED,
+		'css'         => 'max-width: 500px; width: 500px;'
+	),
+	'surcharge_text'      => array(
+		'title'       => __( 'Surcharge Text', 'mastercard' ),
+		'type'        => 'text',
+		'description' => __( 'Set the text to display the surcharge breakdown on the \'Thank You\' page.', 'mastercard' ),
+		'default'     => 'Surcharge',
+		'css'         => 'min-height: 33px;'
+	),
+	'surcharge_amount_type'     => array(
+		'title'   => __( 'Applicable Amount Type', 'mastercard' ),
+		'type'    => 'select',
+		'options' => array(
+			self::HF_FIXED      => __( 'Fixed', 'mastercard' ),
+			self::HF_PERCENTAGE => __( 'Percentage', 'mastercard' ),
+		),
+		'default' => self::HF_FIXED,
+		'css'         => 'max-width: 500px; width: 500px;'
+	),
+	'surcharge_amount' => array(
+		'title'       => __( 'Amount', 'mastercard' ),
+		'type'        => 'text',
+		'description' => __( 'The total amount for surcharge; Eg: 10.00 or 10%.', 'mastercard' ),
+		'default'     => '',
+		'css'         => 'min-height: 33px;',
+	),
+	'surcharge_message'      => array(
+		'title'       => __( 'Surcharge Message', 'mastercard' ),
+		'type'        => 'textarea',
+		'description' => __( 'Configure a message to display the surcharge on the \'Order Pay\' page. You can use the following variables for dynamic content:<br><br>
+			<b>{{MG_CARD_TYPE}}</b> – Displays the card type (Credit Card/Debit Card).<br>
+			<b>{{MG_SUR_AMT}}</b> – Shows the surcharge amount applied.<br>
+			<b>{{MG_SUR_PCT}}</b> – Displays the surcharge percentage.<br>
+			<b>{{MG_TOTAL_AMT}}</b> – Indicates the total amount payable by the customer, including the surcharge.<br><br>
+			Example Message: When using a <b>{{MG_CARD_TYPE}}</b>, an additional surcharge of <b>{{MG_SUR_AMT}} ({{MG_SUR_PCT}})</b> will be applied, bringing the total payable amount to <b>{{MG_TOTAL_AMT}}</b>.', 'mastercard' ),
+		'default'     => self::SUR_DEFAULT_MSG,
+		'css'         => 'max-width: 500px; height: 120px;'
+	),
+
 	'merchant_info'      => array(
 		'title'       => __( 'Merchant Information', 'mastercard' ),
 		'type'        => 'title',
@@ -280,7 +346,7 @@ return array(
 	),
 	'merchant_email'      => array(
 		'title'       => __( 'Email', 'mastercard' ),
-		'type'        => 'text',
+		'type'        => 'email',
 		'description' => __( 'The email address of your business to be shown to the payer during the payment interaction. (e.g. an email address for customer service).', 'mastercard' ),
 		'default'     => '',
 		'css'         => 'min-height: 33px;'

@@ -1,5 +1,12 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2025-06-12 - version 1.5.0
+* Enhancement - WordPress 6.7 & WooCommerce 9.7.
+* Add - PayPal payment support in Hosted Checkout.
+* Add - Option to apply surcharge on the order pay page (fixed or percentage) in Hosted Session.
+* Add - Captures active plugin installation status after live credentials are saved.
+* Fix - Minor bug fixes.
+
 2025-03-03 - version 1.4.9
 * Fix - Rectified PSR Log version inconsistencies for PHP 7.4 compatibility.
 * Fix - Addressed an issue where Handling Fees were incorrectly applied to other payment modules.

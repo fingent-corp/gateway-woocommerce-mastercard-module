@@ -1,5 +1,17 @@
 # Changelog
 All notable changes to this project will be documented in this file.
+## [1.5.0] - 2025-06-12
+### Enhancement
+- Compatibility with WordPress 6.7 and WooCommerce 9.7.
+
+### Added
+- Added the ability to apply a surcharge on the order pay page in Hosted Session, configurable as either a fixed amount or a percentage of the total payable amount.
+- Integrated PayPal as a supported payment method within the hosted checkout flow, provided it is enabled at the payment gateway level.
+- Introduced a feature to track active installations upon saving valid live API credentials in the admin panel.
+
+### Fixed
+- Minor bug fixes.
+
 ## [1.4.9] - 2025-03-13
 ### Fixed
 - Rectified PSR Log version inconsistencies for PHP 7.4 compatibility.
@@ -17,7 +29,7 @@ All notable changes to this project will be documented in this file.
 
 ## [1.4.7] - 2024-11-26
 ### Added
-- Introduced a new 'Merchant Information' section in the plugin settings for admins to easily update merchant information.
+- Introduced a new 'Merchant Information' section in the plugin settings for admins to easily update merchant information in hosted checkout.
 - Eliminated the intermediate page in the 'Redirect to Payment Page' process for Hosted Checkout.
 
 ### Enhancement
