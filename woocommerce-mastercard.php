@@ -259,11 +259,10 @@ class WC_Mastercard {
 	 * @return bool Updated value of $render_refunds indicating whether refunds should be rendered.
 	 */
 	public function admin_order_should_render_refunds( $render_refunds, $order_id, $order ) { 
-		if( 
-			( 'mpgs_gateway' === $order->get_payment_method() && 'refunded' === $order->get_status() ) || 
-			( 'mpgs_gateway' === $order->get_payment_method() && empty( get_post_meta( $order_id, '_mpgs_order_captured', true ) ) ) 
-		) {
-			return false;
+		if ( 'mpgs_gateway' === $order->get_payment_method() ) {
+			if ( 'refunded' === $order->get_status() || 'cancelled' === $order->get_status() || empty( $order->get_meta( '_mpgs_order_captured' ) ) ) {
+				return false;
+			}
 		}
 
 		return $render_refunds;
