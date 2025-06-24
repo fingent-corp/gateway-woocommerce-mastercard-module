@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.5.0@
+ * @version  GIT: @1.5.0.1@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MPGS_TARGET_MODULE_VERSION', '1.5.0' );
+define( 'MPGS_TARGET_MODULE_VERSION', '1.5.0.1' );
 define( 'MPGS_INCLUDE_FILE', __FILE__ );
 define( 'MPGS_CAPTURE_URL', 'https://dev-wiki.fingent.net/wp-json/mpgs/v2/update-repo-status' );
 

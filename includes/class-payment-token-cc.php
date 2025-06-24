@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
  * Representation of a payment token for credit cards.
  *
  * @class       Mastercard_Payment_Token_CC
- * @since       1.5.0
+ * @since       1.5.0.1
  */
 class Mastercard_Payment_Token_CC extends WC_Payment_Token_CC {
 
@@ -40,7 +40,7 @@ class Mastercard_Payment_Token_CC extends WC_Payment_Token_CC {
     /**
      * Define additional fields
      * 
-     * @since  1.5.0
+     * @since  1.5.0.1
      */
     protected function populate_defaults() {
         parent::populate_defaults();
@@ -51,7 +51,7 @@ class Mastercard_Payment_Token_CC extends WC_Payment_Token_CC {
     /**
      * Returns the card funding type (CREDIT or DEBIT).
      *
-     * @since  1.5.0
+     * @since  1.5.0.1
      * @param  string $context What the value is for. Valid values are view and edit.
      * @return string Funding Method
      */
@@ -62,7 +62,7 @@ class Mastercard_Payment_Token_CC extends WC_Payment_Token_CC {
     /**
      * Set the card funding type (CREDIT or DEBIT).
      *
-     * @since 1.5.0
+     * @since 1.5.0.1
      * @param string $type Credit card funding type (CREDIT or DEBIT).
      */
     public function set_funding_method( $value ) {

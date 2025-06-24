@@ -1,5 +1,8 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2025-06-24 - version 1.5.0.1
+* Fix - Rectified the tax rounding issue.
+
 2025-06-12 - version 1.5.0
 * Enhancement - WordPress 6.7 & WooCommerce 9.7.
 * Add - PayPal payment support in Hosted Checkout.

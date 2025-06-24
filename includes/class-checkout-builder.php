@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.5.0@
+ * @version  GIT: @1.5.0.1@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -325,7 +325,7 @@ class Mastercard_CheckoutBuilder {
 	 * @return string
 	 */
 	public function formattedPrice( $price ) { // phpcs:ignore
-		return NumberUtil::round( $price, wc_get_price_decimals() );
+		return number_format( NumberUtil::round( $price, wc_get_price_decimals() ), wc_get_price_decimals(), wc_get_price_decimal_separator(), '' );
 	}
 
 	/**

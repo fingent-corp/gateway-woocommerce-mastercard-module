@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.4.9@
+ * @version  GIT: @1.5.0.1@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 

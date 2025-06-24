@@ -1,5 +1,9 @@
 # Changelog
 All notable changes to this project will be documented in this file.
+## [1.5.0.1] - 2025-06-24
+### Fixed
+- Rectified the tax rounding issue.
+
 ## [1.5.0] - 2025-06-12
 ### Enhancement
 - Compatibility with WordPress 6.7 and WooCommerce 9.7.
