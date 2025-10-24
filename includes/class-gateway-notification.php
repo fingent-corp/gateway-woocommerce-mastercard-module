@@ -124,7 +124,7 @@ class Mastercard_Gateway_Notification {
 		$this->plugin_slug      = 'woocommerce-mastercard';
 		$this->base_url         = 'github.com';
 		$this->owner            = 'fingent-corp';
-		$this->doc_url          = 'https://uat-wiki.fingent.net/';
+		$this->doc_url          = 'https://mpgs.fingent.wiki/';
 		$this->current_version  = get_option( '_mgps_target_module_version' );
 		$this->changelog        = get_option( '_mgps_target_current_version_changelog' );
 		$this->repo             = 'gateway-woocommerce-mastercard-module';

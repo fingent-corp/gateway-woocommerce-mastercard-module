@@ -12,14 +12,18 @@ function cancelCallback() {
 
 ( function ( $ ) {
     var sessionKeysToClear = [];
-    function cleanupBrowserSession() {
-        var sessionKey, i;
-        for ( i = 0; i < sessionKeysToClear.length; i++ ) {
-            sessionKey = sessionKeysToClear[i];
-            if ( sessionStorage.key( sessionKey ) ) {
-                sessionStorage.removeItem( sessionKey );
-            }
+    function cleanupBrowserSession() {  
+        // Remove sessionId only if merchantState is null and sessionId exists
+        if (sessionStorage.getItem('HostedCheckout_merchantState') === null &&
+            sessionStorage.getItem('HostedCheckout_sessionId') !== null) {
+            sessionStorage.removeItem('HostedCheckout_sessionId');
         }
+
+        // Remove embedContainer if it exists
+        if (sessionStorage.getItem('HostedCheckout_embedContainer') !== null) {
+            sessionStorage.removeItem('HostedCheckout_embedContainer');
+        }
+
     }
     if ( ! mpgsHCParams.isEmbedded ) {            
         function togglePay() {

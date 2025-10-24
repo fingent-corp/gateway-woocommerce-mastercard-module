@@ -32,33 +32,35 @@ const settings = window.wc.wcSettings.getSetting( 'mpgs_gateway_data', {} ),
     };
 window.wc.wcBlocksRegistry.registerPaymentMethod( Mastercard_Block_Gateway );
 
-document.addEventListener( 'DOMContentLoaded', function () {
-    if ( typeof wp !== 'undefined' && wp.data && wp.data.subscribe ) {
+if( typeof woocommerce_params !== 'undefined' ) {
+    document.addEventListener( 'DOMContentLoaded', function () {
+        if ( typeof wp !== 'undefined' && wp.data && wp.data.subscribe ) {
 
-        let previousPaymentMethod = null;
+            let previousPaymentMethod = null;
 
-        // Subscribe to WooCommerce checkout store changes
-        wp.data.subscribe(function () {
-            const selectedPaymentMethod = wp.data.select( 'wc/store/payment' ).getActivePaymentMethod() || null;
+            // Subscribe to WooCommerce checkout store changes
+            wp.data.subscribe(function () {
+                const selectedPaymentMethod = wp.data.select( 'wc/store/payment' ).getActivePaymentMethod() || null;
 
-            if ( selectedPaymentMethod && selectedPaymentMethod !== previousPaymentMethod ) {
-                previousPaymentMethod = selectedPaymentMethod;
+                if ( selectedPaymentMethod && selectedPaymentMethod !== previousPaymentMethod ) {
+                    previousPaymentMethod = selectedPaymentMethod;
 
-                jQuery.ajax({
-                    type: 'POST',
-                    url: woocommerce_params.ajax_url,
-                    data: {
-                        action: 'update_selected_payment_method',
-                        payment_method: selectedPaymentMethod,
-                    },
-                    success: function ( response ) {}
-                });
-            }
-        });
-    } else {
-        console.warn( "WooCommerce Blocks not detected." );
-    }
-});
+                    jQuery.ajax({
+                        type: 'POST',
+                        url: woocommerce_params.ajax_url,
+                        data: {
+                            action: 'update_selected_payment_method',
+                            payment_method: selectedPaymentMethod,
+                        },
+                        success: function ( response ) {}
+                    });
+                }
+            });
+        } else {
+            console.warn( "WooCommerce Blocks not detected." );
+        }
+    });
+}
 
 jQuery( function( $ ) {
     if ( 'undefined' !== typeof wc &&  wc?.blocksCheckout ) {

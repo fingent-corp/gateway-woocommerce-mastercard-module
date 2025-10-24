@@ -23,9 +23,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MPGS_TARGET_MODULE_VERSION', '1.5.0.1' );
+define( 'MPGS_TARGET_MODULE_VERSION', '1.5.1' );
 define( 'MPGS_INCLUDE_FILE', __FILE__ );
-define( 'MPGS_CAPTURE_URL', 'https://dev-wiki.fingent.net/wp-json/mpgs/v2/update-repo-status' );
+define( 'MPGS_CAPTURE_URL', 'https://mpgs.fingent.wiki/wp-json/mpgs/v2/update-repo-status' );
 
 require_once dirname( __DIR__ ) . '/includes/class-checkout-builder.php';
 require_once dirname( __DIR__ ) . '/includes/class-gateway-service.php';
@@ -447,7 +447,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 							$repoName, $pluginType, MPGS_TARGET_MODULE_VERSION, $latestRelease, $country_code,
 							$country_name, $shop_name, $shop_url, $api_token, MPGS_CAPTURE_URL
 						);
-	
+
 						if ( !empty( $response ) && isset( $response['status'] ) && $response['status'] === 'success' ) {
 							update_option( 'mpgs_current_version', MPGS_TARGET_MODULE_VERSION ); 
 						}
@@ -690,24 +690,36 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * @return bool True if the refund was processed successfully, false otherwise.
 	 */
 	public function process_refund( $order_id, $amount = null, $reason = '' ) {
-		$order  = new WC_Order( $order_id );
+		$order = new WC_Order( $order_id );
+
 		$result = $this->service->refund(
 			$this->add_order_prefix( $order_id ),
 			(string) time(),
 			$amount,
 			$order->get_currency()
 		);
-		$order->update_meta_data( '_mpgs_transaction_mode', 'refund' );
-		$order->add_order_note(
-			sprintf(
-				/* translators: 1. Transaction amount, 2. Transaction currency, 3. Transaction id. */
-				__( 'Mastercard registered refund %1$s (ID: %2$s)', 'mastercard' ),
-				wc_price( $result['transaction']['amount'] ),
-				$result['transaction']['id']
-			)
-		);
 
-		return true;
+		$order->update_meta_data( '_mpgs_transaction_mode', 'refund' );
+
+		if ( isset( $result['result'] ) && $result['result'] === 'ERROR' ) {
+			$explanation = isset( $result['error']['explanation'] ) ? $result['error']['explanation'] : 'Unknown error';
+			$order->add_order_note( 'Refund Failed: ' . $explanation );
+			$order->save();
+			return new WP_Error( 'refund_failed', __( 'Refund failed: ' . $explanation, 'mastercard' ) );
+		}
+		if ( isset( $result['transaction'] ) ) {
+			$order->add_order_note(
+				sprintf(
+					__( 'Mastercard registered refund %1$s (ID: %2$s)', 'mastercard' ),
+					wc_price( $result['transaction']['amount'] ),
+					$result['transaction']['id']
+				)
+			);
+			$order->save();
+			return true;
+		}
+		$order->add_order_note( 'Refund Failed.' );
+		return new WP_Error( 'refund_failed', __( 'Refund Failed.', 'mastercard' ) );
 	}
 
 	/**
@@ -783,18 +795,43 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		$success_indicator = $order->get_meta( '_mpgs_success_indicator_initial' );
 		
 		try {
-			if ( $success_indicator !== $result_indicator ) {
-				throw new Exception( 'Result indicator mismatch' );
+
+			$mpgs_order  	= $this->service->retrieveOrder( $this->add_order_prefix( $order_id ) );
+		
+			$txns	     	= $mpgs_order['transaction'] ?? [];
+			$latest_txn  	= end( $txns );
+			$auth_txn_id 	= $latest_txn['authentication']['transactionId'] ?? null;
+			$result_status 	= strtoupper( $latest_txn['result'] ?? '' );
+			if ( isset( $latest_txn['browserPayment'] ) ) {
+				if ( 'SUCCESS' !== $result_status ) {
+					throw new GatewayResponseException( 'Transaction failed.' );
+				}
+			} else {
+				
+				if ( 'SUCCESS' !== strtoupper( $mpgs_order['result'] ?? '' ) ) {
+					throw new GatewayResponseException( 'Payment was declined by issuer.' );
+				}
+
+				if ( $success_indicator !== $result_indicator ) {
+					$txn_response = $service->retrieveTransaction( $this->add_order_prefix( $order_id ), $auth_txn_id );
+					if ( empty( $txn_response['result'] ) || strtoupper( $txn_response['result'] ) !== 'SUCCESS' ) {
+						throw new GatewayResponseException( 'Result indicator mismatch.' );
+					}
+				}
 			}
 
-			$mpgs_order = $this->service->retrieveOrder( $this->add_order_prefix( $order_id ) );
-			if ( 'SUCCESS' !== $mpgs_order['result'] ) {
-				throw new Exception( 'Payment was declined' );
+			$transaction = [];
+			foreach ( $txns as $txn ) {
+				if ( isset( $txn['transaction']['authorizationCode'] ) ) {
+					$transaction['transaction']['authorizationCode'] = sanitize_text_field( $txn['transaction']['authorizationCode'] );
+				}
+				$transaction['transaction']['id']        = sanitize_text_field( $txn['transaction']['id'] ?? '' );
+				$transaction['transaction']['reference'] = sanitize_text_field( $txn['transaction']['reference'] ?? '' );
 			}
 
-			$txn = $mpgs_order['transaction'][0];
-			$this->process_wc_order( $order, $mpgs_order, $txn );
-
+			$type_of_payment = $this->detect_payment_type( $mpgs_order );
+			$order->update_meta_data( '_type_of_payment', $type_of_payment );
+			$this->process_wc_order( $order, $mpgs_order, $transaction );
 			wp_safe_redirect( $this->get_return_url( $order ) );
 			exit();
 		} catch ( Exception $e ) {
@@ -804,6 +841,27 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			exit();
 		}
 	}
+
+	protected function detect_payment_type ( array $mpgs_order ): string {
+		
+		if (!empty($mpgs_order['walletProvider'])) { 
+			return strtoupper(sanitize_text_field($mpgs_order['walletProvider'])); 
+		}
+
+		$type = $mpgs_order['sourceOfFunds']['browserPayment']['type'] ?? $mpgs_order['sourceOfFunds']['type'] ?? 'OTHERS';
+		$type = strtoupper( sanitize_text_field( $type ) );
+
+		// If it's a card, use the scheme instead
+		if ( $type === 'CARD' ) {
+			$type = $mpgs_order['sourceOfFunds']['provided']['card']['brand'] 
+					?? $mpgs_order['sourceOfFunds']['scheme'] 
+					?? 'CARD';
+			$type = strtoupper( sanitize_text_field( $type ) );
+		}
+
+		return $type;
+	}
+
 
 	/**
 	 * Get token from request.
@@ -1108,32 +1166,54 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * @return void
 	 */
 	protected function process_wc_order( $order, $order_data, $txn_data ) {
+
 		$this->validate_order( $order, $order_data );
-		$captured         = 'CAPTURED' === $order_data['status'];
-		$transaction_mode = ( $this->capture ) ? self::TXN_MODE_PURCHASE : self::TXN_MODE_AUTH_CAPTURE;
-		$order->add_meta_data( '_mpgs_order_captured', $captured );
-		$order->add_meta_data( '_mpgs_transaction_mode', $transaction_mode );
-		$order->add_meta_data( '_mpgs_order_paid', 1 );
-		$order->add_meta_data( '_mpgs_transaction_id', $txn_data['transaction']['id'] );
-		$order->add_meta_data( '_mpgs_transaction_reference', $txn_data['transaction']['reference'] );
+
+		$captured = ( isset( $order_data['status'] ) && 'CAPTURED' === strtoupper( $order_data['status'] ) );
+		if ( $captured ) {
+            $transaction_mode = self::TXN_MODE_PURCHASE; // Purchase mode
+            $status = 'CAPTURED';
+        } else {
+            $transaction_mode = self::TXN_MODE_AUTH_CAPTURE; // Authorize mode
+            $status = 'AUTHORIZED';
+        }
+		$transaction_id     = $txn_data['transaction']['id'];
+		$auth_code          = isset( $txn_data['transaction']['authorizationCode'] ) ? $txn_data['transaction']['authorizationCode'] : null;
+		if ( $order->get_payment_method() !== 'mpgs_gateway' ) {
+			$order->set_payment_method( 'mpgs_gateway' );
+			$order->set_payment_method_title( __(  self::GATEWAY_TITLE , 'mastercard' ) );
+		}
+		$meta_data          = array(
+		    '_mpgs_order_captured'       => $captured,
+		    '_mpgs_transaction_mode'     => $transaction_mode,
+		    '_mpgs_order_paid'           => 1,
+		    '_mpgs_transaction_id'       => $txn_data['transaction']['id'] ? $txn_data['transaction']['id'] : '',
+		    '_mpgs_transaction_reference'=> $txn_data['transaction']['reference'] ? $txn_data['transaction']['reference'] : '',
+		);
+
+		foreach ( $meta_data as $key => $value ) {
+		    $order->add_meta_data( $key, $value );
+		}
+		
 		$order->payment_complete( $txn_data['transaction']['id'] );
 
-		if ( $captured ) {
+		if ( $auth_code ) {
 			$order->add_order_note(
 				sprintf(
-					/* translators: 1. Transaction id, 2. Authorization Code. */
-					__( 'Mastercard payment CAPTURED (ID: %1$s, Auth Code: %2$s)', 'mastercard' ),
-					$txn_data['transaction']['id'],
-					$txn_data['transaction']['authorizationCode']
+					/* translators: 1. Transaction ID, 2. Authorization Code. */
+					__( 'Mastercard payment %1$s (ID: %2$s, Auth Code: %3$s)', 'mastercard' ),
+					$status,
+					$transaction_id,
+					$auth_code
 				)
 			);
 		} else {
 			$order->add_order_note(
 				sprintf(
-					/* translators: 1. Transaction id, 2. Authorization Code. */
-					__( 'Mastercard payment AUTHORIZED (ID: %1$s, Auth Code: %2$s)', 'mastercard' ),
-					$txn_data['transaction']['id'],
-					$txn_data['transaction']['authorizationCode']
+					/* translators: 1. Transaction ID. */
+					__( 'Mastercard payment %1$s (ID: %2$s)', 'mastercard' ),
+					$status,
+					$transaction_id
 				)
 			);
 		}
@@ -1340,26 +1420,9 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 					$order_builder->getBilling(),
 					$order_builder->getShipping()
 				);
-
-				// Check the current success indicator value
-				$current_updated_meta = $order->get_meta('_mpgs_success_indicator');
-
 				// Proceed if the result has a successIndicator
 				if ( $result && isset( $result['successIndicator'] ) ) {
-                    $current_success_indicator  = $order->get_meta( '_mpgs_success_indicator' );
-        
-                    // If the current value is different from the incoming value, update it
-                    $previous_success_indicator = $order->get_meta( '_mpgs_success_indicator_first_update' );
-
-                    if ( $current_success_indicator !== $result['successIndicator'] ) {
-                        // Update the meta data only if the successIndicator is different
-                        $order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
-
-                        if ( empty( $previous_success_indicator ) || absint( $previous_success_indicator ) !== 1 ) {                        
-                            $order->update_meta_data( '_mpgs_success_indicator_initial', $result['successIndicator'] );
-                            $order->update_meta_data( '_mpgs_success_indicator_first_update', '1' );
-                        }                        
-                    }
+                    $order->update_meta_data( '_mpgs_success_indicator_initial', $result['successIndicator'] );
                 }
 				$order->save_meta_data();
 				break;
@@ -1456,7 +1519,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
     	$secret              = $headers['x_notification_secret'][0];
     	$notification_secret = $this->get_option( 'webhook_secret' );
     	$response            = json_decode( $body, true );
-    	$order_status        = array( 'cancelled', 'failed', 'on-hold' );
+    	$order_status        = array( 'cancelled', 'failed', 'on-hold' ,'pending' );
 
     	if ( $secret !== $notification_secret ) {
 	        return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
@@ -1478,6 +1541,11 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 							$this->process_wc_order( $order, $response['order'], $response );
 						}
 					}
+					elseif ( in_array( strtoupper( $response['result'] ), [ 'FAILED', 'DECLINED' ] ) ) {
+                        if ( 'failed' !== $order->get_status() ) {
+                            $order->update_status( 'failed', __( 'Payment status updated via webhook.', 'mastercard' ) );
+                        }
+                    }
 					break;
 
 	    		default:
