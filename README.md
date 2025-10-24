@@ -38,6 +38,9 @@ With Google Pay, customers can quickly and easily pay on the hosted checkout pag
    - **PayPal (Supported in Hosted Checkout Only)**<br/>
 With PayPal, customers can make payments quickly and effortlessly through the hosted checkout page. To use this option, ensure that your MID is set up for PayPal transactions. Once enabled, this feature provides a seamless and hassle-free payment experience, allowing customers to complete their purchases with just a few simple taps.
 
+   - **KNET (Supported in Hosted Checkout Only)**<br/>
+With KNET, customers can make payments quickly and effortlessly through the hosted checkout page. To use this option, ensure that your MID is set up for KNET transactions. Once enabled, this feature provides a seamless and hassle-free payment experience, allowing customers to complete their purchases with just a few simple taps.
+
 **2. Checkout and Payment Integration -** These features focus on methods of collecting payment details from customers:
 
    - **Hosted Checkout**<br/>

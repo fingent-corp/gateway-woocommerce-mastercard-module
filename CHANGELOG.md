@@ -1,5 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
+
+## [1.5.1] - 2025-10-24
+### Added
+- Users will have the capability to make payments utilizing the KNET option within the Hosted checkout. Please ensure that the MID has KNET enabled for this payment option to appear on the checkout page.
+
+### Enhancement
+- Compatibility with WordPress 6.8.3 and WooCommerce 10.2.2.
+
 ## [1.5.0.1] - 2025-06-24
 ### Fixed
 - Rectified the tax rounding issue.

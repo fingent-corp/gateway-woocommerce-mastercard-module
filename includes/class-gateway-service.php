@@ -1079,7 +1079,7 @@ class Mastercard_GatewayService {
 
 	/**
 	 * Request to capture the status of the installed plugin from client server.
-	 * https://dev-wiki.fingent.net/wp-json/mpgs/v2/update-repo-status.
+	 * https://mpgs.fingent.wiki/wp-json/mpgs/v2/update-repo-status.
 	 *
 	 * @return array $response Shop Details.
 	 * @throws Exception An exception is thrown when null is returned.

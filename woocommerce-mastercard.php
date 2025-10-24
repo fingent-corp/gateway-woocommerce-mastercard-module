@@ -6,7 +6,7 @@
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api, woocommerce-blocks
- * Version: 1.5.0.1
+ * Version: 1.5.1
  * Requires Plugins: woocommerce
  * Requires at least: 6.0
  * Tested up to: 6.7.1
@@ -67,9 +67,11 @@ class WC_Mastercard {
 		add_action( 'plugins_loaded', array( $this, 'init' ) );
 		add_action( 'init', array( $this, 'clean_output_buffer' ) );
 		add_action( 'before_woocommerce_init', array( $this, 'declare_cart_checkout_blocks_compatibility' ) );
+		add_action( 'template_redirect', array( $this, 'force_mastercard_gateway_on_order_pay' ), 5 );
 		if ( ! $this->is_order_pay_page() ) {
 			add_action( 'woocommerce_blocks_loaded', array( $this, 'woocommerce_gateway_mastercard_woocommerce_block_support' ), 99 );
 		}
+        
 	}
 
 	/**
@@ -259,11 +261,24 @@ class WC_Mastercard {
 	 * @return bool Updated value of $render_refunds indicating whether refunds should be rendered.
 	 */
 	public function admin_order_should_render_refunds( $render_refunds, $order_id, $order ) { 
-		if( 
-			( 'mpgs_gateway' === $order->get_payment_method() && 'refunded' === $order->get_status() ) || 
-			( 'mpgs_gateway' === $order->get_payment_method() && empty( get_post_meta( $order_id, '_mpgs_order_captured', true ) ) ) 
-		) {
-			return false;
+		if ( 'mpgs_gateway' === $order->get_payment_method() ) {
+			if ( 'refunded' === $order->get_status() || 'cancelled' === $order->get_status() || empty( $order->get_meta( '_mpgs_order_captured' ) ) ) {
+				return false;
+			}
+
+			$restricted_types = [ 'KNET', 'QPAY', 'BENEFIT', 'OMANNET' ];
+			$payment_type = strtoupper( $order->get_meta( '_type_of_payment' ) );
+			if ( in_array( $payment_type, $restricted_types, true ) ) {
+				$order_time = $order->get_date_created();
+				if ( $order_time ) {
+					$order_timestamp = $order_time->getTimestamp();
+					$current_timestamp = current_time( 'timestamp' );
+					if ( ( $current_timestamp - $order_timestamp ) > 90 * 24 * 60 * 60 ) {
+						return false;
+					}
+
+				}
+			}
 		}
 
 		return $render_refunds;
@@ -484,6 +499,23 @@ class WC_Mastercard {
 	 */
 	public function is_order_pay_page() {
 		return isset( $_GET['key'] ) && isset( $_SERVER['REQUEST_URI'] ) && strpos( wp_unslash( $_SERVER['REQUEST_URI'] ), 'order-pay' ) !== false; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+	}
+	
+	/**
+	 * Force the Mastercard gateway as the selected payment method on the order-pay page.
+	 *
+	 * This function checks if the current page is the WooCommerce "order-pay" page.
+	 * If it is, it sets the chosen payment method in the WooCommerce session
+	 * to 'mastercard_gateway', ensuring that this gateway is preselected even
+	 * if the page is reloaded or the user tries to change the payment method.
+	 *
+	 * @param array $available_gateways The array of available payment gateways.
+	 */
+	public function force_mastercard_gateway_on_order_pay( $available_gateways ) {
+		if (  $this->is_order_pay_page() ) {
+			WC()->session->set( 'chosen_payment_method', 'mastercard_gateway' );
+		}
+		
 	}
 
 	/**
