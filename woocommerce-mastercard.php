@@ -1,23 +1,23 @@
 <?php
 /**
  * Plugin Name: Mastercard Gateway
- * Description: Accept payments on your WooCommerce store using the Mastercard Gateway. Requires PHP 8.1+ & WooCommerce 8.7+
+ * Description: Accept payments on your WooCommerce store using the Mastercard Gateway. Requires PHP 7.4+ & WooCommerce 8.7+
  * Plugin URI: https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api, woocommerce-blocks
- * Version: 1.5.1
+ * Version: 1.5.1.1
  * Requires Plugins: woocommerce
  * Requires at least: 6.0
- * Tested up to: 6.7.1
+ * Tested up to: 6.9
  * Requires PHP: 7.4
  * php version 7.4
  *
  * WC requires at least: 8.7
- * WC tested up to: 9.7.1
+ * WC tested up to: 10.3.7
  *
  * @package  Mastercard
- * @version  GIT: @1.5.0.1@
+ * @version  GIT: @1.5.1.1@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -47,9 +47,7 @@ use Automattic\WooCommerce\Internal\Features\FeaturesController;
 /**
  * Main class of the Mastercard Payment Gateway Services Module
  *
- * @package  Mastercard
- * @version  Release: @1.5.0.1@
- * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
+ * @version  1.5.1.1
  */
 class WC_Mastercard {
 

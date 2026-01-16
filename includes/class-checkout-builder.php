@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.5.0.1@
+ * @version  GIT: @1.5.1.1@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -223,12 +223,7 @@ class Mastercard_CheckoutBuilder {
 			if( $this->order->get_total_discount() ) {
 				$order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
 			}
-		
-			return array_merge(
-				$order_summary,
-				$this->getOrder()
-			);
-		} else {
+		} elseif( 'yes' === $this->gateway->hf_enabled ) {
 			$order_summary = array(
 				'id'          => (string) $this->gateway->add_order_prefix( $this->order->get_id() ),
 				'description' => 'Customer Order Summary',
@@ -246,12 +241,17 @@ class Mastercard_CheckoutBuilder {
 			if( $this->order->get_total_discount() ) {
 				$order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
 			}
-
-			return array_merge(
-				$order_summary,
-				$this->getOrder()
+		} else {
+			$order_summary = array(
+				'id'          => (string) $this->gateway->add_order_prefix( $this->order->get_id() ),
+				'description' => 'Customer Order Summary'
 			);
 		}
+
+		return array_merge(
+			$order_summary,
+			$this->getOrder()
+		);
 	}
 
 	/**
@@ -260,9 +260,28 @@ class Mastercard_CheckoutBuilder {
 	 * @return array
 	 */
 	public function getOrder() { // phpcs:ignore
-		$order_total = $this->order->get_total();
+		$itemAmount  = (float) ( $this->getOrderItemAmount() ?: 0 );
+		$taxAmount   = (float) ( $this->getOrderTax() ?: 0 );
+		$discount    = (float) ( $this->formattedPrice( $this->order->get_total_discount() ) ?: 0 );
+
+		$handlingFee = 0;
+
+		// Fees safe loop
+		$fees = $this->order->get_fees();
+		if ( ! empty( $fees ) ) {
+			foreach ( $fees as $fee ) {
+				$handlingFee += (float) ( $fee->get_total() ?: 0 );
+			}
+		}
+
+		// Safe shipping total
+		$shippingTotal = (float) ( $this->order->get_shipping_total() ?: 0 ) + $handlingFee;
+
+		// Final total
+		$orderTotal = ( $itemAmount + $taxAmount + $shippingTotal ) - $discount;
+
 		return array(
-			'amount'   => $this->formattedPrice( $order_total ),
+			'amount'   => $this->formattedPrice( $orderTotal ),
 			'currency' => get_woocommerce_currency(),
 		);
 	}
