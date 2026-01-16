@@ -1,5 +1,8 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2026-01-16 - version 1.5.1.1
+* Fix - Minor bug fixes.
+
 2025-10-24 - version 1.5.1
 * Add - Users will have the capability to make payments utilizing the KNET option within the Hosted checkout. Please ensure that the MID has KNET enabled for this payment option to appear on the checkout page.
 * Enhancement - WordPress 6.8.3 & WooCommerce 10.2.2.

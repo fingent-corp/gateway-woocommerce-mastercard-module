@@ -2,7 +2,7 @@
     'root' => array(
         'name' => 'fingent/woocommerce-mastercard',
         'pretty_version' => '1.5.1',
-        'version' => '1.5.1',
+        'version' => '1.5.1.0',
         'reference' => null,
         'type' => 'woocommerce-plugin',
         'install_path' => __DIR__ . '/../../',
@@ -21,7 +21,7 @@
         ),
         'fingent/woocommerce-mastercard' => array(
             'pretty_version' => '1.5.1',
-            'version' => '1.5.1',
+            'version' => '1.5.1.0',
             'reference' => null,
             'type' => 'woocommerce-plugin',
             'install_path' => __DIR__ . '/../../',

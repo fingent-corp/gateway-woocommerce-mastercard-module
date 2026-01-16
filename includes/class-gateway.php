@@ -15,7 +15,7 @@
  * limitations under the License.
  *
  * @package  Mastercard
- * @version  GIT: @1.5.0.1@
+ * @version  GIT: @1.5.1.1@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MPGS_TARGET_MODULE_VERSION', '1.5.1' );
+define( 'MPGS_TARGET_MODULE_VERSION', '1.5.1.1' );
 define( 'MPGS_INCLUDE_FILE', __FILE__ );
 define( 'MPGS_CAPTURE_URL', 'https://mpgs.fingent.wiki/wp-json/mpgs/v2/update-repo-status' );
 
@@ -705,6 +705,7 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 			$explanation = isset( $result['error']['explanation'] ) ? $result['error']['explanation'] : 'Unknown error';
 			$order->add_order_note( 'Refund Failed: ' . $explanation );
 			$order->save();
+
 			return new WP_Error( 'refund_failed', __( 'Refund failed: ' . $explanation, 'mastercard' ) );
 		}
 		if ( isset( $result['transaction'] ) ) {
@@ -716,8 +717,10 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 				)
 			);
 			$order->save();
+
 			return true;
 		}
+		
 		$order->add_order_note( 'Refund Failed.' );
 		return new WP_Error( 'refund_failed', __( 'Refund Failed.', 'mastercard' ) );
 	}
@@ -797,25 +800,24 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 		try {
 
 			$mpgs_order  	= $this->service->retrieveOrder( $this->add_order_prefix( $order_id ) );
-		
 			$txns	     	= $mpgs_order['transaction'] ?? [];
 			$latest_txn  	= end( $txns );
 			$auth_txn_id 	= $latest_txn['authentication']['transactionId'] ?? null;
 			$result_status 	= strtoupper( $latest_txn['result'] ?? '' );
+
 			if ( isset( $latest_txn['browserPayment'] ) ) {
 				if ( 'SUCCESS' !== $result_status ) {
-					throw new GatewayResponseException( 'Transaction failed.' );
+					throw new Exception( 'Transaction failed.' );
 				}
-			} else {
-				
+			} else {				
 				if ( 'SUCCESS' !== strtoupper( $mpgs_order['result'] ?? '' ) ) {
-					throw new GatewayResponseException( 'Payment was declined by issuer.' );
+					throw new Exception( 'Payment was declined by issuer.' );
 				}
 
 				if ( $success_indicator !== $result_indicator ) {
-					$txn_response = $service->retrieveTransaction( $this->add_order_prefix( $order_id ), $auth_txn_id );
+					$txn_response = $this->service->retrieveTransaction( $this->add_order_prefix( $order_id ), $auth_txn_id );
 					if ( empty( $txn_response['result'] ) || strtoupper( $txn_response['result'] ) !== 'SUCCESS' ) {
-						throw new GatewayResponseException( 'Result indicator mismatch.' );
+						throw new Exception( 'Result indicator mismatch.' );
 					}
 				}
 			}
@@ -1886,12 +1888,25 @@ class Mastercard_Gateway extends WC_Payment_Gateway {
 	 * the checkout page. It ensures the preferred gateway (e.g., Simplify Payments)
 	 * is pre-selected to streamline the checkout experience.
 	 */
-	public function define_default_payment_gateway() {	
+	public function define_default_payment_gateway() {
 	    if( is_checkout() && ! is_wc_endpoint_url() ) {
-	        $payment_gateways = WC()->payment_gateways->get_available_payment_gateways();
-	        $first_gateway = reset( $payment_gateways );
-	        WC()->session->set( 'chosen_payment_method', $first_gateway->id );
-	    }
+            $payment_gateways = WC()->payment_gateways->get_available_payment_gateways(); 
+            $first_gateway    = reset( $payment_gateways );
+
+            WC()->session->set( 'chosen_payment_method', $first_gateway->id );
+        } elseif( is_wc_endpoint_url() && get_query_var( 'order-pay' ) ) { 
+            echo $order_id       = esc_attr( get_query_var( 'order-pay' ) );
+            $order          = wc_get_order( $order_id );
+            $payment_method = WC()->session->get( 'chosen_payment_method' );
+
+            if( $payment_method !== self::ID ) {
+                $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
+                $order->set_payment_method( self::ID );
+                $order->set_payment_method_title( $available_gateways[self::ID]->get_title() );
+                $order->save();
+                WC()->session->set( 'chosen_payment_method', self::ID );
+            }
+        }
 	}
 
 	/**
