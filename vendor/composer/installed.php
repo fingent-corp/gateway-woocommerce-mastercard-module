@@ -1,13 +1,13 @@
 <?php return array(
     'root' => array(
         'name' => 'fingent/woocommerce-mastercard',
-        'pretty_version' => '1.5.1',
-        'version' => '1.5.1.0',
-        'reference' => null,
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => '22c93c40501a5bc4151ea86e1076d41eb1424e6e',
         'type' => 'woocommerce-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'dev' => false,
+        'dev' => true,
     ),
     'versions' => array(
         'clue/stream-filter' => array(
@@ -20,18 +20,18 @@
             'dev_requirement' => false,
         ),
         'fingent/woocommerce-mastercard' => array(
-            'pretty_version' => '1.5.1',
-            'version' => '1.5.1.0',
-            'reference' => null,
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => '22c93c40501a5bc4151ea86e1076d41eb1424e6e',
             'type' => 'woocommerce-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
             'dev_requirement' => false,
         ),
         'guzzlehttp/psr7' => array(
-            'pretty_version' => '2.7.0',
-            'version' => '2.7.0.0',
-            'reference' => 'a70f5c95fb43bc83f07c9c948baa0dc1829bf201',
+            'pretty_version' => '2.7.1',
+            'version' => '2.7.1.0',
+            'reference' => 'c2270caaabe631b3b44c85f99e5a04bbb8060d16',
             'type' => 'library',
             'install_path' => __DIR__ . '/../guzzlehttp/psr7',
             'aliases' => array(),
@@ -58,8 +58,8 @@
         'php-http/async-client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'php-http/client-common' => array(
@@ -74,8 +74,8 @@
         'php-http/client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'php-http/curl-client' => array(
@@ -150,8 +150,8 @@
         'psr/http-client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'psr/http-factory' => array(
@@ -166,8 +166,8 @@
         'psr/http-factory-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'psr/http-message' => array(
@@ -182,8 +182,8 @@
         'psr/http-message-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'psr/log' => array(
@@ -229,8 +229,8 @@
             'dev_requirement' => false,
         ),
         'symfony/polyfill-php73' => array(
-            'pretty_version' => 'v1.31.0',
-            'version' => '1.31.0.0',
+            'pretty_version' => 'v1.32.0',
+            'version' => '1.32.0.0',
             'reference' => '0f68c03565dcaaf25a890667542e8bd75fe7e5bb',
             'type' => 'library',
             'install_path' => __DIR__ . '/../symfony/polyfill-php73',
@@ -238,9 +238,9 @@
             'dev_requirement' => false,
         ),
         'symfony/polyfill-php80' => array(
-            'pretty_version' => 'v1.31.0',
-            'version' => '1.31.0.0',
-            'reference' => '60328e362d4c2c802a54fcbf04f9d3fb892b4cf8',
+            'pretty_version' => 'v1.32.0',
+            'version' => '1.32.0.0',
+            'reference' => '0cc9dd0f17f61d8131e7df6b84bd344899fe2608',
             'type' => 'library',
             'install_path' => __DIR__ . '/../symfony/polyfill-php80',
             'aliases' => array(),

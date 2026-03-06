@@ -1,0 +1,479 @@
+.mg-transaction-mode {
+    display: inline-flex;
+    line-height: 2.5em;
+    color: #454545;
+    background: #e5e5e5;
+    border-radius: 5px;
+    border-bottom: 1px solid rgba(0, 0, 0, .05);
+    margin: -.25em 0;
+    cursor: inherit !important;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.mg-transaction-mode>span {
+    margin: 0 1em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mg-transaction-mode.mg-capture {
+    background: #d4edda;
+    color: #155724;
+}
+
+.mg-transaction-mode.mg-authorize {
+    background: #b8daff;
+    color: #004085;
+}
+
+.mg-transaction-mode.mg-captured {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.mg-transaction-mode.mg-partially_refunded {
+    color: #0c5460;
+    background-color: #d1ecf1;
+}
+
+.mg-transaction-mode.mg-refunded {
+    color: #1b1e21;
+    background-color: #d6d8d9;
+}
+
+.mg-transaction-mode.mg-void {
+    color: #721c24;
+    background-color: #f8d7da;
+}
+
+.woocommerce table.form-table input[type="text"],
+.woocommerce table.form-table input[type="password"] {
+    width: 500px;
+}
+
+.woocommerce table.form-table .webhook_wrap {
+    position: relative;
+    width: max-content;
+}
+
+.woocommerce table.form-table .webhook_wrap .dashicons-admin-page {
+    position: absolute;
+    top: 7px;
+    right: 6px;
+    color: #666;
+    cursor: pointer;
+}
+
+.woocommerce table.form-table tr td input.regular-input {
+    min-height: 33px;
+    width: 500px;
+}
+
+.woocommerce table.form-table tr td textarea {
+    max-width: 500px;
+    height: 120px;
+}
+
+.woocommerce table.form-table tr td select {
+    max-width: 500px;
+    width: 500px;
+}
+
+.error-container {
+    color: red;
+    margin-top: 5px;
+    font-weight: normal;
+}
+
+body.woocommerce-admin-page {
+    background: #f0f0f1 !important;
+}
+
+.woocommerce.wrap h2 {
+    font-size: 1.2em;
+    font-weight: 600;
+    margin: 1em 0;
+    display: flex;
+    align-items: center;
+}
+
+.woocommerce.wrap .notice a,
+.woocommerce.wrap p a {
+    color: #2271b1 !important;
+}
+
+#wp-admin-drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    z-index: 9998;
+}
+
+#wp-admin-drawer {
+    position: fixed;
+    top: 0;
+    right: -50%;
+    width: 50%;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -3px 0 10px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+    transition: right 0.3s ease-in-out;
+    display: flex;
+    flex-direction: column;
+    padding-top: 32px;
+}
+
+.wp-admin-drawer-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid #e1e1e1;
+    background-color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 8px 16px 0 rgba(85, 93, 102, .3);
+}
+
+.wp-admin-drawer-header h2 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.wp-admin-drawer-header button {
+    background: none;
+    border: none;
+    font-size: 34px;
+    cursor: pointer;
+    line-height: 34px;
+}
+
+#wp-admin-drawer-content {
+    padding: 30px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+#wp-admin-drawer.active {
+    right: 0;
+}
+
+#wp-admin-drawer-overlay.active {
+    display: block;
+}
+
+.woocommerce table.form-table th label {
+    font-weight: 700;
+}
+
+.woocommerce_page_wc-settings h3.wc-settings-sub-title {
+    font-weight: 600;
+}
+
+.mg-admin-surcharge-notice-wrapper {
+    align-content: flex-start;
+    align-items: stretch;
+    border: 1px solid;
+    border-radius: 4px;
+    box-sizing: border-box;
+    display: flex;
+    font-weight: 400;
+    gap: 12px;
+    line-height: 1.5;
+    margin: 0 0 16px 0;
+    padding: 16px !important;
+}
+
+.mg-admin-surcharge-notice-wrapper p {
+    margin-bottom: 0;
+    font-size: 1.1em;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.mg-admin-payment-form-wrapper {
+    border: 1px solid #9d9d9d;
+    padding-block: 25px;
+    padding-inline: 25px;
+    border-radius: 5px;
+}
+
+.mg-admin-payment-form-wrapper p label {
+    margin-bottom: .7em;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.mg-admin-preview-wrapper {
+    background-color: #f4f8ff;
+    padding: 20px;
+    border-radius: 5px;
+    border: 1px solid #007cba;
+    font-weight: 600;
+}
+
+.mg-admin-preview-wrapper p {
+    margin-top: 0;
+    font-size: 1em;
+    font-weight: 600;
+    color: #2f2f2f;
+}
+
+.mg-admin-preview-wrapper ul {
+    margin: 0 0 20px 0;
+    padding: 0;
+    list-style: none;
+}
+
+.mg-admin-preview-wrapper ul li {
+    display: grid;
+    grid-template-columns: 2fr 2fr;
+}
+
+.mg-admin-preview-wrapper ul li label {
+    font-weight: 400;
+}
+
+#wp-admin-drawer-content .mg-admin-button-wrapper .dark-button {
+    background-color: #111111;
+    border-color: #111111;
+    color: #fff;
+}
+
+#wp-admin-drawer-content .mg-admin-button-wrapper button.cancel-button {
+    background-color: #fff;
+    color: #111111;
+    border: 1px solid #ccc;
+}
+
+#wp-admin-drawer-content .mg-admin-payment-form-wrapper input[type='text'],
+#wp-admin-drawer-content .mg-admin-payment-form-wrapper input[type='tel'] {
+    min-height: 38px;
+}
+
+.mg-admin-controls-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.mg-admin-controls-wrapper h3 {
+    font-size: 18px;
+}
+
+.mg-admin-controls-wrapper label {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.mg-admin-controls-wrapper .input-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+
+.mg-admin-button-wrapper {
+    display: flex;
+}
+
+.wp-picker-container .wp-color-result.button {
+    margin-right: 0;
+}
+
+/* Base styles for all admin themes */
+#wp-admin-drawer-content .accordion-button:focus {
+    box-shadow: none;
+}
+
+#wp-admin-drawer-content .accordion-button {
+    color: inherit;
+    background-color: transparent;
+}
+
+#wp-admin-drawer-content .accordion-button:not(.collapsed) {
+    background: inherit;
+    color: inherit;
+}
+
+#wp-admin-drawer-content .accordion-button::after {
+    font-family: dashicons, sans-serif;
+    content: "\f347";
+    background: none;
+    font-size: 22px;
+    color: inherit;
+}
+
+#wp-admin-drawer-content .accordion-button.collapsed::after {
+    color: inherit;
+}
+
+#wp-admin-drawer-content .form-range::-webkit-slider-thumb,
+#wp-admin-drawer-content .submit-button {
+    border: none;
+    border-radius: 3px;
+    font-size: 15px;
+}
+
+#wp-admin-drawer-content .accordion-body {
+    height: 350px;
+    overflow-y: scroll;
+}
+
+/* Theme-specific overrides */
+.admin-color-fresh #wp-admin-drawer-content {
+    --bg: #1d2327;
+    --active-bg: #2271b1;
+    --text: #f0f0f1;
+    --accent: #2271b1;
+}
+
+.admin-color-light #wp-admin-drawer-content {
+    --bg: #e5e5e5;
+    --active-bg: #888;
+    --text: #333;
+    --accent: #04a4cc;
+}
+
+.admin-color-modern #wp-admin-drawer-content {
+    --bg: #1e1e1e;
+    --active-bg: #3858e9;
+    --text: #fff;
+    --accent: #3858e9;
+}
+
+.admin-color-blue #wp-admin-drawer-content {
+    --bg: #52accc;
+    --active-bg: #096484;
+    --text: #fff;
+    --accent: #e1a948;
+}
+
+.admin-color-coffee #wp-admin-drawer-content {
+    --bg: #59524c;
+    --active-bg: #c7a589;
+    --text: #fff;
+    --accent: #c7a589;
+}
+
+.admin-color-ectoplasm #wp-admin-drawer-content {
+    --bg: #523f6d;
+    --active-bg: #a3b745;
+    --text: #fff;
+    --accent: #a3b745;
+}
+
+.admin-color-midnight #wp-admin-drawer-content {
+    --bg: #363b3f;
+    --active-bg: #e14d43;
+    --text: #fff;
+    --accent: #e14d43;
+}
+
+.admin-color-ocean #wp-admin-drawer-content {
+    --bg: #738e96;
+    --active-bg: #9ebaa0;
+    --text: #fff;
+    --accent: #9ebaa0;
+}
+
+.admin-color-sunrise #wp-admin-drawer-content {
+    --bg: #cf4944;
+    --active-bg: #dd823b;
+    --text: #fff;
+    --accent: #dd823b;
+}
+
+/* Apply theme variables */
+#wp-admin-drawer-content .accordion-button {
+    background-color: var(--bg);
+    color: var(--text);
+}
+
+#wp-admin-drawer-content .accordion-button:not(.collapsed) {
+    background-color: var(--active-bg);
+    color: var(--text);
+}
+
+#wp-admin-drawer-content .accordion-button::after,
+#wp-admin-drawer-content .accordion-button.collapsed::after {
+    color: var(--text);
+}
+
+#wp-admin-drawer-content .form-range::-webkit-slider-thumb,
+#wp-admin-drawer-content .submit-button {
+    background-color: var(--accent);
+}
+
+#wp-admin-drawer-content .accordion-body h5 {
+    border-top: 1px solid #dee2e6;
+    padding-top: 18px;
+    font-size: 1rem;
+    font-weight: 700;
+}
+#wp-admin-drawer-content .accordion-body .preview-wrapper {
+    width: 100%;
+    height: 100%;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    max-width: 60px;
+    min-height: 30px;
+    display: flex;
+}
+
+#wp-admin-drawer-content .accordion-body .preview-wrapper span {
+    margin: 5px;
+    width: 100% !important;
+    height: 18px !important;
+}
+.mg-admin-controls-wrapper .input-wrapper .color-code-input {
+    font-size: 14px;
+    width: 80px;
+    border: 1px solid #dee2e6;
+}
+
+#wp-admin-drawer-content .accordion-body .color-picker-wrapper {
+    display: flex;
+    flex-direction: column;
+    max-width: 220px;
+    z-index: 10;
+}
+
+#wp-admin-drawer-content .accordion-body .react-colorful {
+    width: 100%;
+    height: 150px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+}
+.accordion-header {
+    margin: 0;
+}
+#payment-form-preview-root {
+    background: #2271b1;
+    color: #fff !important;
+    padding: 3px 8px;
+    text-decoration: none;
+    border-radius: 3px;
+    margin-left: 5px;
+    font-size: 14px;
+}
+.error-message{
+    font-weight: 400;
+    margin-top: 4px;
+}
+.req-input{
+    color: #FF0000;
+}
+@media (max-width: 1360px) {
+    .accordion-button {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 1199px) {
+    .accordion-button {
+        font-size: 0.9rem;
+    }
+}

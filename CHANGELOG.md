@@ -1,6 +1,19 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2026-03-06
+### Added
+- Updated Configuration Page for better user experience.
+- Introduced Retrieve Transaction API as an alternative mechanism to address the mismatch issue observed on the portal.
+- Apple pay support.
+- Hosted Session Card code rename to Security Code.
+
+### Enhancement
+- Compatibility with WordPress 6.9 and WooCommerce 10.5.0.
+- Fully tested and supported on PHP v8.3.
+
+> **Note:** We have restructured the MPGS plugin in accordance with the PSR-4 autoloading standard, which organizes PHP classes based on their namespaces and corresponding directory structure. As this version introduces a significantly different folder structure compared to the existing installation, we kindly recommend completely removing the current plugin version before installing the new one as a fresh installation to ensure a smooth and conflict-free setup.
+
 ## [1.5.1.1] - 2026-01-16
 ### Fixed
 - Minor bug fixes.
