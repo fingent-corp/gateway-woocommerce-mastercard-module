@@ -3,7 +3,7 @@
         'name' => 'fingent/woocommerce-mastercard',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '22c93c40501a5bc4151ea86e1076d41eb1424e6e',
+        'reference' => 'ad174e4415524cd5673f3a47c4497fdd8fa2e42a',
         'type' => 'woocommerce-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -22,7 +22,7 @@
         'fingent/woocommerce-mastercard' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '22c93c40501a5bc4151ea86e1076d41eb1424e6e',
+            'reference' => 'ad174e4415524cd5673f3a47c4497fdd8fa2e42a',
             'type' => 'woocommerce-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -58,8 +58,8 @@
         'php-http/async-client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '1.0',
-                1 => '*',
+                0 => '*',
+                1 => '1.0',
             ),
         ),
         'php-http/client-common' => array(
@@ -74,8 +74,8 @@
         'php-http/client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '1.0',
-                1 => '*',
+                0 => '*',
+                1 => '1.0',
             ),
         ),
         'php-http/curl-client' => array(
@@ -150,8 +150,8 @@
         'psr/http-client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '1.0',
-                1 => '*',
+                0 => '*',
+                1 => '1.0',
             ),
         ),
         'psr/http-factory' => array(
@@ -166,8 +166,8 @@
         'psr/http-factory-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '1.0',
-                1 => '*',
+                0 => '*',
+                1 => '1.0',
             ),
         ),
         'psr/http-message' => array(
@@ -182,8 +182,8 @@
         'psr/http-message-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '1.0',
-                1 => '*',
+                0 => '*',
+                1 => '1.0',
             ),
         ),
         'psr/log' => array(
