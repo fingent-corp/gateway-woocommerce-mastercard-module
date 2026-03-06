@@ -18,7 +18,7 @@ With this gateway, you don’t have to handle or store customer card/account det
 
 ## Compatibility
 
-- WooCommerce 8.5 or greater
+- WooCommerce 8.7 or greater
 - PHP version 7.4 or greater
 - cURL
 
