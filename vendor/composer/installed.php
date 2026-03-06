@@ -3,11 +3,11 @@
         'name' => 'fingent/woocommerce-mastercard',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'ad174e4415524cd5673f3a47c4497fdd8fa2e42a',
+        'reference' => '5544fc8d1ea848ef7d5c2279d2ef27b14f2718a0',
         'type' => 'woocommerce-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'dev' => true,
+        'dev' => false,
     ),
     'versions' => array(
         'clue/stream-filter' => array(
@@ -22,7 +22,7 @@
         'fingent/woocommerce-mastercard' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'ad174e4415524cd5673f3a47c4497fdd8fa2e42a',
+            'reference' => '5544fc8d1ea848ef7d5c2279d2ef27b14f2718a0',
             'type' => 'woocommerce-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
