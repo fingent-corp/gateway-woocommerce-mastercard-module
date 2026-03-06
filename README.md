@@ -14,8 +14,6 @@ We carefully monitor every transaction to catch and stop fraud, making sure your
 
 With this gateway, you don’t have to handle or store customer card/account details yourself. This makes meeting PCI compliance easier for your business. You can focus on running your store while the gateway securely processes payments for you.
 
-
-
 ## Compatibility
 
 - WooCommerce 8.7 or greater
@@ -35,13 +33,18 @@ Easily and securely accept both credit and debit card payments. This feature wor
    - **Google Pay (Supported in Hosted Checkout Only)**<br/>
 With Google Pay, customers can quickly and easily pay on the hosted checkout page. To enable this option, ensure your Merchant Identification Number (MID) is configured for Google Pay. This makes payments smooth and hassle-free, allowing customers to complete transactions with just a few taps.
 
+   - **Apple pay**<br/>
+Enables the customers a faster, more secure way to checkout. With our Apple Pay support, shoppers on iOS and macOS can complete their purchases with just a glance or a touch—reducing cart abandonment and boosting the sales.
+
+   **Note**: Apple Pay is only available for full page redirect in Hosted Checkout. 
+
    - **PayPal (Supported in Hosted Checkout Only)**<br/>
 With PayPal, customers can make payments quickly and effortlessly through the hosted checkout page. To use this option, ensure that your MID is set up for PayPal transactions. Once enabled, this feature provides a seamless and hassle-free payment experience, allowing customers to complete their purchases with just a few simple taps.
 
    - **KNET (Supported in Hosted Checkout Only)**<br/>
 With KNET, customers can make payments quickly and effortlessly through the hosted checkout page. To use this option, ensure that your MID is set up for KNET transactions. Once enabled, this feature provides a seamless and hassle-free payment experience, allowing customers to complete their purchases with just a few simple taps.
 
-**Note**: KNET payment feature relies on real-time data integration with an external partner service. While we have optimized the application for stability, occasional service interruptions from the provider may temporarily impact availability
+   **Note**: KNET payment feature relies on real-time data integration with an external partner service. While we have optimized the application for stability, occasional service interruptions from the provider may temporarily impact availability
 
 **2. Checkout and Payment Integration -** These features focus on methods of collecting payment details from customers:
 
@@ -95,4 +98,4 @@ The official documentation for this module is available on the [Wiki site](https
 For more information, please refer to the [Wiki documentation](https://mpgs.fingent.wiki/enterprise/woocommerce-mastercard-gateway/installation).
 
 ## Support
-For additional support, please visit the [Support Portal](https://mpgsfgs.atlassian.net/servicedesk/customer/user/login?destination=portals).
+For additional support, please visit the [Support Portal](https://mpgsfgs.atlassian.net/servicedesk/customer/user/login?destination=portals).
