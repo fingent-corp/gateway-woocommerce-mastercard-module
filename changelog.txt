@@ -1,5 +1,13 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2026-03-06 - version 1.5.2
+* Add - Updated Configuration Page for better user experience.
+* Add - Introduced Retrieve Transaction API as an alternative mechanism to address the mismatch issue observed on the portal.
+* Add - Apple pay support.
+* Add - Hosted Session Card code rename to Security Code.
+* Enhancement - Compatibility with WordPress 6.9 and WooCommerce 10.5.0.
+* Enhancement - Fully tested and supported on PHP v8.3.
+
 2026-01-16 - version 1.5.1.1
 * Fix - Minor bug fixes.
 

@@ -22,5 +22,7 @@ return array(
     'Http\\Client\\Common\\' => array($vendorDir . '/php-http/client-common/src'),
     'Http\\Client\\' => array($vendorDir . '/php-http/httplug/src'),
     'GuzzleHttp\\Psr7\\' => array($vendorDir . '/guzzlehttp/psr7/src'),
+    'Fingent\\Mastercard\\Logger\\' => array($baseDir . '/logger'),
+    'Fingent\\Mastercard\\' => array($baseDir . '/src'),
     'Clue\\StreamFilter\\' => array($vendorDir . '/clue/stream-filter/src'),
 );

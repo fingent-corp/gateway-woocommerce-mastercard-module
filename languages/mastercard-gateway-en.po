@@ -1,0 +1,155 @@
+# Copyright (C) 2025 Fingent Global Solutions Pvt. Ltd.
+# This file is distributed under the same license as the Mastercard Gateway plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: Mastercard Gateway 1.5.1\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/mastercard-gateway\n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2025-06-16T08:21:17+00:00\n"
+"PO-Revision-Date: 2025-06-23 14:27+0530\n"
+"X-Generator: Poedit 2.3\n"
+"X-Domain: mastercard-gateway\n"
+"Last-Translator: \n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: en\n"
+
+#. Plugin Name of the plugin
+#: woocommerce-mastercard.php:10
+msgid "Mastercard Gateway"
+msgstr "Mastercard Gateway"
+
+#. Plugin URI of the plugin
+#: woocommerce-mastercard.php:12
+msgid "https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/"
+msgstr ""
+
+#. Description of the plugin
+#: woocommerce-mastercard.php:14
+msgid "Accept payments on your WooCommerce store using the Mastercard Gateway. Requires PHP 7.4+ & WooCommerce 8.7+"
+msgstr "Accept payments on your WooCommerce store using the Mastercard Gateway. Requires PHP 7.4+ & WooCommerce 8.7+"
+
+#. Author of the plugin
+#: woocommerce-mastercard.php:16
+msgid "Fingent Global Solutions Pvt. Ltd."
+msgstr "Fingent Global Solutions Pvt. Ltd."
+
+#. Author URI of the plugin
+#: woocommerce-mastercard.php:18
+msgid "https://www.fingent.com/"
+msgstr ""
+
+#: src/Core/PaymentGatewayCC.php:42
+msgid "Security Code"
+msgstr "Security Code"
+
+#: src/Core/PaymentGatewayCC.php:47
+msgid "Card number"
+msgstr "Card number"
+
+#: src/Core/PaymentGatewayCC.php:50
+msgid "Expiry (MM)"
+msgstr "Expiry (MM)"
+
+#: src/Core/PaymentGatewayCC.php:53
+msgid "Expiry (YY)"
+msgstr "Expiry (YY)"
+
+#: templates/checkout/hosted-session.php:22
+msgid "Pay"
+msgstr "Pay"
+
+#: templates/checkout/hosted-session.php:41
+msgid "Please enter a valid card number."
+msgstr "Please enter a valid card number."
+
+#: templates/checkout/hosted-session.php:42
+msgid "Please enter a valid expiry month."
+msgstr "Please enter a valid expiry month."
+
+#: templates/checkout/hosted-session.php:43
+msgid "Please enter a valid expiry year."
+msgstr "Please enter a valid expiry year."
+
+#: src/Controller/FrontendController.php:355
+msgid "Surcharge"
+msgstr "Surcharge"
+
+#: src/Controller/FrontendController.php:472
+msgid "Card"
+msgstr "Card"
+
+#: src/Controller/FrontendController.php:518
+msgid "%s Card"
+msgstr "%s Card"
+
+#: src/Controller/FrontendController.php:520
+msgid "When using a {{MG_CARD_TYPE}} an additional surcharge of <b>{{MG_SUR_AMT}}</b> will be applied, bringing the total payable amount to <b>{{MG_TOTAL_AMT}}</b>."
+msgstr "When using a {{MG_CARD_TYPE}} an additional surcharge of <b>{{MG_SUR_AMT}}</b> will be applied, bringing the total payable amount to <b>{{MG_TOTAL_AMT}}</b>."
+
+#: src/Controller/FrontendController.php:545
+msgid "Order Total"
+msgstr "Order Total"
+
+#: src/Controller/FrontendController.php:549
+msgid "Grand Total"
+msgstr "Grand Total"
+
+#: src/Controller/FrontendController.php:558
+msgid "Confirm"
+msgstr "Confirm"
+
+#: src/Controller/FrontendController.php:560
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/Controller/FrontendController.php:780
+msgid "Save to account"
+msgstr "Save to account"
+
+#: src/Controller/FrontendController.php:795
+msgid "Use a new payment method"
+msgstr "Use a new payment method"
+
+#: src/Core/PaymentTokenCC.php:82
+msgid "%1$s ending in %2$s (expires %3$s/%4$s)"
+msgstr "%1$s ending in %2$s (expires %3$s/%4$s)"
+
+#: src/Controller/FrontendController.php:835
+msgid "MasterCard"
+msgstr "ΜasterCard"
+
+#: src/Controller/FrontendController.php:836
+msgid "Visa"
+msgstr "Visa"
+
+#: src/Controller/FrontendController.php:837
+msgid "Discover"
+msgstr "Discover"
+
+#: src/Controller/FrontendController.php:838
+msgid "American Express"
+msgstr "American Express"
+
+#: src/Controller/FrontendController.php:839
+msgid "Cartes Bancaires"
+msgstr "Cartes Bancaires"
+
+#: src/Controller/FrontendController.php:840
+msgid "Diners"
+msgstr "Diners"
+
+#: src/Controller/FrontendController.php:841
+msgid "JCB"
+msgstr "JCB"
+
+#: src/Helper/Constants.php:119
+msgid "Debit"
+msgstr "Debit"
+
+#: src/Helper/Constants.php:120
+msgid "Credit"
+msgstr "Credit"
+
