@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.2.1] - 2026-04-01
+### Fixed
+- Implemented security patches and bug fixes.
+
 ## [1.5.2] - 2026-03-06
 ### Added
 - Updated Configuration Page for better user experience.

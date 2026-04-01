@@ -301,11 +301,50 @@ class GatewayController {
 	/**
 	 * Permission check.
 	 *
-	 * @param boolean $request Request.
+	 * @param \WP_REST_Request $request Request.
 	 *
-	 * @return bool
+	 * @return bool|\WP_Error
 	 */
-	public function get_items_permissions_check( $request ) { // phpcs:ignore
+	public function get_items_permissions_check( $request ) {
+		$auth_header = $request->get_header( 'authorization' );
+
+		if ( empty( $auth_header ) ) {
+			return new \WP_Error(
+				'rest_forbidden',
+				__( 'Authorization header missing.', 'mastercard' ),
+				array( 'status' => 401 )
+			);
+		}
+
+		if ( ! preg_match( '/Basic\s+(.+)/i', $auth_header, $matches ) ) {
+			return new \WP_Error(
+				'rest_forbidden',
+				__( 'Invalid authorization scheme.', 'mastercard' ),
+				array( 'status' => 401 )
+			);
+		}
+
+		$provided_token = trim( $matches[1] );
+
+		if ( '' === $provided_token ) {
+			return new \WP_Error(
+				'rest_forbidden',
+				__( 'Empty basic token.', 'mastercard' ),
+				array( 'status' => 401 )
+			);
+		}
+
+		$gateway        = MastercardGateway::get_instance();
+		$expected_token = base64_encode( 'merchant.' . $gateway->username . ':' . $gateway->password );
+
+		if ( empty( $expected_token ) || ! hash_equals( $expected_token, $provided_token ) ) {
+			return new \WP_Error(
+				'rest_forbidden',
+				__( 'Invalid basic token.', 'mastercard' ),
+				array( 'status' => 401 )
+			);
+		}
+
 		return true;
 	}
 }

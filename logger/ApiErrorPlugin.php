@@ -108,13 +108,20 @@ class ApiErrorPlugin implements Plugin {
 	 * @throws ClientErrorException Throws an error with the transformed response.
 	 */
 	protected function transformResponseToException( RequestInterface $request, ResponseInterface $response ) {
-		if ( $response->getStatusCode() >= 400 && $response->getStatusCode() < 500 ) {
-			if ( json_last_error() !== JSON_ERROR_NONE ) {
-				throw new ServerErrorException( 'Response not valid JSON', esc_attr( $request ), esc_attr( $response ) );
-			}
-			if ( $response->getBody()->getContents() ) {
-				$response_data = json_decode( $response->getBody(), true );
-				$msg           = '';
+		$status_code = $response->getStatusCode();
+
+		// Handle 4xx client errors.
+		if ( $status_code >= 400 && $status_code < 500 ) {
+			$body = (string) $response->getBody();
+
+			if ( '' !== $body ) {
+				$response_data = json_decode( $body, true );
+
+				if ( json_last_error() !== JSON_ERROR_NONE ) {
+					throw new ServerErrorException( 'Response not valid JSON', $request, $response );
+				}
+
+				$msg = '';
 
 				if ( isset( $response_data['error']['cause'] ) ) {
 					$msg .= $response_data['error']['cause'] . ': ';
@@ -122,14 +129,19 @@ class ApiErrorPlugin implements Plugin {
 				if ( isset( $response_data['error']['explanation'] ) ) {
 					$msg .= $response_data['error']['explanation'];
 				}
-				$this->logger->error( $msg );
-				throw new ClientErrorException( esc_attr( $msg ), esc_attr( $request ), esc_attr( $response ) );
+
+				if ( '' !== $msg ) {
+					$this->logger->error( $msg );
+					throw new ClientErrorException( $msg, $request, $response );
+				}
 			}
 		}
 
-		if ( $response->getStatusCode() >= 500 && $response->getStatusCode() < 600 ) {
-			$this->logger->error( $response->getReasonPhrase() );
-			throw new ServerErrorException( esc_attr( $response->getReasonPhrase() ), esc_attr( $request ), esc_attr( $response ) );
+		// Handle 5xx server errors.
+		if ( $status_code >= 500 && $status_code < 600 ) {
+			$reason = $response->getReasonPhrase();
+			$this->logger->error( $reason );
+			throw new ServerErrorException( $reason, $request, $response );
 		}
 
 		return $response;
