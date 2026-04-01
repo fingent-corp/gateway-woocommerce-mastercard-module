@@ -39,6 +39,7 @@ $params = array(
 	'orderId'       => esc_attr( $order->get_id() ),
 	'paymentUrl'    => esc_url( $utility->get_save_payment_url( $order->get_id() ) ),
 	'sessionUrl'    => esc_url( $utility->get_create_session_url( $order->get_id() ) ),
+	'authorization' => 'Basic ' . base64_encode( 'merchant.' . $gateway->username . ':' . $gateway->password ),
 
 	'errorMessages' => array(
 		'cardNumber'   => esc_html__( 'Please enter a valid card number.', MG_ENTERPRISE_TEXTDOMAIN ),

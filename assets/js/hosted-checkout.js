@@ -60,7 +60,13 @@ function cancelCallback() {
     var xhr = $.ajax({
         method: 'GET',
         url: mgHCParams.checkoutSessionUrl,
-        dataType: 'json'
+        dataType: 'json',
+        beforeSend: function (xhr) {
+            if ( mgHCParams.authorization ) {
+                xhr.setRequestHeader( 'Authorization', mgHCParams.authorization );
+                xhr.setRequestHeader( 'X-MG-Access-Token', mgHCParams.authorization );
+            }
+        }
     });
 
     // When the AJAX call is successful, then call the configureHostedCheckout function

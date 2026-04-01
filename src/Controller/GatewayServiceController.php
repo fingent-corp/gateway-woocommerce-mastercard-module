@@ -565,19 +565,44 @@ class GatewayServiceController {
 	 *
 	 * @return array Session response array.
 	 * @throws Exception It throws an exception if checkout session is not created.
+	 * @throws GatewayResponseException It throws a GatewayResponseException if the checkout session is not created.
 	 */
 	public function create_session() {
 		$uri      = $this->api_url . 'session';
+		$request_data['authentication'] = $authentication;
+
 		$request  = $this->message_factory->createRequest(
 			'POST',
 			$uri
 		);
-		$response = $this->client->sendRequest( $request );
 
-		return json_decode(
+		$stream       = $this->message_factory->createStream(
+			wp_json_encode(
+				$request_data
+			)
+		);
+		$request_body = $request->withBody( $stream );
+		$response = $this->client->sendRequest( $request_body );
+
+		$response = json_decode(
 			$response->getBody(),
 			true
 		);
+
+		if( $response['result'] !== 'SUCCESS' ) {
+			$response = $this->client->sendRequest( $request );
+
+			$response = json_decode(
+				$response->getBody(),
+				true
+			);
+
+			if( $response['result'] !== 'SUCCESS' ) {
+				return null;
+			}
+		}
+
+		return $response;
 	}
 
 	/**

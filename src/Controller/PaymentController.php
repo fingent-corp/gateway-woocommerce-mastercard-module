@@ -70,6 +70,18 @@ class PaymentController {
 	}
 
 	/**
+	 * PaymentController constructor.
+	 */
+	public function __construct() {
+		$this->gateway  = MastercardGateway::get_instance();
+		$this->frontend = FrontendController::get_instance();
+		$this->utility  = UtilityController::get_instance();
+
+		add_action( 'woocommerce_receipt_' . MG_ENTERPRISE_ID, array( $this, 'receipt_page' ) );
+		add_action( 'woocommerce_api_mastercard_gateway', array( $this, 'return_handler' ) );
+	}
+
+	/**
 	 * Shortcut to get logger instance.
 	 *
 	 * @return \Psr\Log\LoggerInterface|null
@@ -97,18 +109,6 @@ class PaymentController {
 
 			$logger->{$level}( $message, $context );
 		}
-	}
-
-	/**
-	 * PaymentController constructor.
-	 */
-	public function __construct() {
-		$this->gateway  = MastercardGateway::get_instance();
-		$this->frontend = FrontendController::get_instance();
-		$this->utility  = UtilityController::get_instance();
-
-		add_action( 'woocommerce_receipt_' . MG_ENTERPRISE_ID, array( $this, 'receipt_page' ) );
-		add_action( 'woocommerce_api_mastercard_gateway', array( $this, 'return_handler' ) );
 	}
 
 	/**

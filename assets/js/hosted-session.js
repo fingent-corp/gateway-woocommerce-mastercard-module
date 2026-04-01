@@ -172,7 +172,13 @@ function mgPayWithSelectedInstrument() {
             url: mgSessionParams.paymentUrl,
             method: 'post',
             data: data,
-            dataType: 'json'
+            dataType: 'json',
+            beforeSend: function (xhr) {
+                if ( mgSessionParams.authorization ) {
+                    xhr.setRequestHeader( 'Authorization', mgSessionParams.authorization );
+                    xhr.setRequestHeader( 'X-MG-Access-Token', mgSessionParams.authorization );
+                }
+            }
         });
     }
 
@@ -272,7 +278,13 @@ function mgPayWithSelectedInstrument() {
         return $.ajax({
             url: mgSessionParams.sessionUrl,
             method: 'get',
-            dataType: 'json'
+            dataType: 'json',
+            beforeSend: function (xhr) {
+                if ( mgSessionParams.authorization ) {
+                    xhr.setRequestHeader( 'Authorization', mgSessionParams.authorization );
+                    xhr.setRequestHeader( 'X-MG-Access-Token', mgSessionParams.authorization );
+                }
+            }
         });
     }
 

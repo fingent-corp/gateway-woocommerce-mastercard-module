@@ -59,7 +59,7 @@ class Constants {
 
 		$this->define( 'MG_ENTERPRISE_ID',                        'mastercard_gateway' );
 		$this->define( 'MG_ENTERPRISE_GATEWAY_TITLE',             'Mastercard Gateway' );		
-		$this->define( 'MG_ENTERPRISE_MODULE_VERSION',            '1.5.2' );
+		$this->define( 'MG_ENTERPRISE_MODULE_VERSION',            '1.5.2.1' );
 		$this->define( 'MG_ENTERPRISE_CAPTURE_URL',               'https://mpgs.fingent.wiki/wp-json/mpgs/v2/update-repo-status/' );
 		$this->define( 'MG_ENTERPRISE_SUPPORT_URL',               'https://mpgsfgs.atlassian.net/servicedesk/customer/portals/' );
 		$this->define( 'MG_ENTERPRISE_WIKI_URL',                  $wiki_base_url . 'installation/' );

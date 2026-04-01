@@ -1,5 +1,8 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2026-04-01 - version 1.5.2.1
+* Fix - Implemented security patches and bug fixes.
+
 2026-03-06 - version 1.5.2
 * Add - Updated Configuration Page for better user experience.
 * Add - Introduced Retrieve Transaction API as an alternative mechanism to address the mismatch issue observed on the portal.
