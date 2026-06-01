@@ -450,15 +450,6 @@ body.woocommerce-admin-page {
 .accordion-header {
     margin: 0;
 }
-#payment-form-preview-root {
-    background: #2271b1;
-    color: #fff !important;
-    padding: 3px 8px;
-    text-decoration: none;
-    border-radius: 3px;
-    margin-left: 5px;
-    font-size: 14px;
-}
 .error-message{
     font-weight: 400;
     margin-top: 4px;

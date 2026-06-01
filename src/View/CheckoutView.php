@@ -80,13 +80,7 @@ class CheckoutView {
                     'utility' => $this->utility,
                 ) );
                 break;
-
-            // Case for Hosted Checkout (redirect to Mastercard payment page)
-            case 'admin':
-                View::render( 'admin/preview-form', array(
-                    'gateway' => $this->gateway,
-                ) );
-                break;    
+  
 
             // Default fallback (e.g., 3D Secure form)
             default:

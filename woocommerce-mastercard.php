@@ -6,20 +6,20 @@
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api, woocommerce-blocks
- * Version: 1.5.2.1
+ * Version: 1.5.3
  * Requires Plugins: woocommerce
  * Requires at least: 6.0
- * Tested up to: 6.9
+ * Tested up to: 6.9.1
  * Requires PHP: 7.4
  * php version 7.4
  * Text Domain: mastercard-gateway
  * Domain Path: /languages
  *
  * WC requires at least: 8.7
- * WC tested up to: 10.4.3
+ * WC tested up to: 10.7.0
  *
  * @package  Mastercard
- * @version  GIT: @1.5.2@
+ * @version  GIT: @1.5.3@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 

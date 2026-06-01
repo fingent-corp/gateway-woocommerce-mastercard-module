@@ -6,8 +6,7 @@
  * @var WC_Abstract_Order $order Order array
  */
 ?>
-<?php $rtl_class = ( $gateway->get_option( 'locale' ) === 'ar' ) ? ' rtl-text' : '';?>
-<div class="lang-wrapper<?php echo $rtl_class; ?>">
+<div class="lang-wrapper">
 	<style id="antiClickjack">body{ display:none !important; }</style>
 	<?php echo wp_kses_post( $frontend->display_surcharge_message( $order ) ); ?>
 	<div id="3DSUI"></div>

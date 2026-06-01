@@ -11,8 +11,8 @@ class Settings {
 	/**
 	 * The single instance of the class.
 	 *
-	 * @var mastercard
-	 * @since 1.5.2
+	 * @var WooCommerce
+	 * @since 2.1
 	 */
 	protected static $_instance = null;
 
@@ -209,17 +209,6 @@ class Settings {
 					MG_ENTERPRISE_WIKI_CONFIG_URL
 				)
 			),
-			// 'locale' => array(
-			// 	'title'       => __( 'Language', MG_ENTERPRISE_TEXTDOMAIN ),
-			// 	'type'        => 'select',
-			// 	'options'     => Countries::get_instance()->get_ietf_countries(),
-			// 	'default'     => 'en',
-			// 	'description' => __( 'By default, the Hosted Payment Page uses the payer’s browser language. To override this, specify a language. If the language is unsupported, the closest match will be used. This setting updates only the labels within the payment iframe. For other texts displayed in checkout, please enter the content in your preferred language directly into the respective input fields on this configuration page.', MG_ENTERPRISE_TEXTDOMAIN ),
-			// 	'custom_attributes' => array(
-			// 		'data-hc-langs' => wp_json_encode( Countries::get_instance()->get_ietf_countries() ),
-			// 		'data-hs-langs' => wp_json_encode( Countries::get_instance()->get_hs_countries() )
-			// 	)
-			// ),
 			'debug'              => array(
 				'title'       => __( 'Debug Logging', MG_ENTERPRISE_TEXTDOMAIN ),
 				'label'       => __( 'Enabled/Disabled', MG_ENTERPRISE_TEXTDOMAIN ),
@@ -389,6 +378,45 @@ class Settings {
 					Example Message: When using a <b>{{MG_CARD_TYPE}}</b>, an additional surcharge of <b>{{MG_SUR_AMT}} ({{MG_SUR_PCT}})</b> will be applied, bringing the total payable amount to <b>{{MG_TOTAL_AMT}}</b>.', MG_ENTERPRISE_TEXTDOMAIN ),
 				'default'     => SUR_DEFAULT_MSG
 			),
+			'paymentlink_info'      => array(
+				'title'       => __( 'Pay By Link', MG_ENTERPRISE_TEXTDOMAIN ) ,
+				'type'        => 'title',
+				'description' => __( 'Enable or disable the Pay by Link feature. Email templates can be customized at: <b>WooCommerce > Settings > Emails > Pay By Link (Request or Revoke Order).</b> The pay by link feature only works with redirect checkout interaction', MG_ENTERPRISE_TEXTDOMAIN )
+			),
+			'paymentlink_enabled'            => array(
+				'title'       => __( 'Enable/Disable', MG_ENTERPRISE_TEXTDOMAIN ),
+				'label'       => __( 'Enable', MG_ENTERPRISE_TEXTDOMAIN ),
+				'type'        => 'checkbox',
+				'description' => '',
+				'default'     => 'no'
+			),
+			'payment_expiry_unit' => array(
+				'title'       => __( 'Payment Expiry Unit', MG_ENTERPRISE_TEXTDOMAIN ),
+				'type'        => 'select',
+				'description' => __( 'Determines whether the payment expires in hours, days, or months.', MG_ENTERPRISE_TEXTDOMAIN ),
+				'default'     => 'days',
+				'options'     => array(
+					'months'  => __( 'Months', MG_ENTERPRISE_TEXTDOMAIN ),
+					'hours'   => __( 'Hours', MG_ENTERPRISE_TEXTDOMAIN ),
+					'days'    => __( 'Days', MG_ENTERPRISE_TEXTDOMAIN ),
+				),
+			),
+			'payment_expiry_value' => array(
+				'title'       => __( 'Payment Expiry Value', MG_ENTERPRISE_TEXTDOMAIN ) . ' <span class="req-input">*</span>',
+				'type'        => 'text',
+				'description' => __( 'Enter the amount of time allowed for the customer to complete the payment. Maximum allowed is 3 months.Please enter a whole number greater than zero; decimals, letters, and special characters are not permitted.', MG_ENTERPRISE_TEXTDOMAIN ),
+				'default'     => '90',
+				'custom_attributes' => array(
+					'min' => 1,
+				),
+			),
+			
+			'payment_allowed_attempts'      => array(
+				'title'       => __( 'Allowed Payment Attempts', MG_ENTERPRISE_TEXTDOMAIN ) . ' <span class="req-input">*</span>',
+				'type'        => 'text',
+				'description' => __( 'After this limit is reached, the payment link will be disabled.Please enter a whole number between 1 and 25; decimals, letters, and special characters are not permitted.  ', MG_ENTERPRISE_TEXTDOMAIN ),
+				'default'     => ''
+			)
 		);
 	}
 }

@@ -81,7 +81,7 @@ class FrontendController {
 		}
 
 		if( ! is_admin() ) {
-			// set_exception_handler( array( $this, 'exception_handler' ) );
+			set_exception_handler( array( $this, 'exception_handler' ) );
 		}
 	}
 
@@ -92,18 +92,11 @@ class FrontendController {
 	 * @package Helpfie
 	 */
 	public function load_textdomain() {
-		$locale =  $this->gateway->get_option( 'locale' );
-		$mofile = plugin_dir_path( MG_ENTERPRISE_MAIN_FILE ) . 'languages/mastercard-gateway-' . $locale . '.mo';
-		
-		if ( file_exists( $mofile ) ) {
-			load_textdomain( 'mastercard-gateway', $mofile );
-		} else {
-			load_plugin_textdomain(
-				MG_ENTERPRISE_TEXTDOMAIN,
-				false,
-				trailingslashit( dirname( plugin_basename( MG_ENTERPRISE_MAIN_FILE ) ) ) . 'i18n/'
-			);
-		}
+		load_plugin_textdomain(
+			MG_ENTERPRISE_TEXTDOMAIN,
+			false,
+			trailingslashit( dirname( plugin_basename( MG_ENTERPRISE_MAIN_FILE ) ) ) . 'i18n/'
+		);
 	}
 
 	/**
@@ -219,6 +212,7 @@ class FrontendController {
 					});
 				});
 			</script>
+			<style type="text/css">.woocommerce-checkout #payment ul.payment_methods li.payment_method_mastercard_gateway img { height: 24px; }</style>
 	        <?php
 		}
 	}
@@ -274,7 +268,7 @@ class FrontendController {
 	}
 
 	/**
-	 * Removes user-added Mastercard payment methods from the WooCommerce saved payment methods list.
+	 * Removes saved Mastercard payment methods from the WooCommerce saved payment methods list.
 	 *
 	 * This function loops through the saved payment methods, filters out any method
 	 * associated with the MG_ENTERPRISE_ID, and removes empty categories if no methods remain.
@@ -481,7 +475,7 @@ class FrontendController {
 		$order_builder       = new CheckoutBuilder( $order );
 		$amount_type         = $this->gateway->get_option( SUR_AMT_TYPE_TXT );
 		$surcharge_fee       = $this->gateway->get_option( SUR_AMT_TXT ) ? $this->gateway->get_option( SUR_AMT_TXT ) : 0;
-		$mg_card_type        = $this->gateway->get_option( SUR_CARD_TYPE );
+		$mg_card_type       = $this->gateway->get_option( SUR_CARD_TYPE );
 		$translated_card     = __( $mg_card_type, MG_ENTERPRISE_TEXTDOMAIN );
 		$surcharge_card_type = sprintf( __( '%s Card', MG_ENTERPRISE_TEXTDOMAIN ), $translated_card );
 	
@@ -532,7 +526,7 @@ class FrontendController {
 		$surcharge_text      = !empty( $surcharge_text ) ? $surcharge_text : 'Surcharge';
 		$amount_type         = $this->gateway->get_option( SUR_AMT_TYPE_TXT );
 		$surcharge_fee       = $this->gateway->get_option( SUR_AMT_TXT ) ? $this->gateway->get_option( SUR_AMT_TXT ) : 0;
-		$surcharge_card_type = __( $this->gateway->get_option( SUR_CARD_TYPE ), MG_ENTERPRISE_TEXTDOMAIN ) . ' ' . __( 'Card', MG_ENTERPRISE_TEXTDOMAIN );
+		$surcharge_card_type = $this->gateway->get_option( SUR_CARD_TYPE ) . ' ' . __( 'Card', MG_ENTERPRISE_TEXTDOMAIN );
 
 		if ( HF_FIXED === $amount_type ) {
 			 $default_msg = __( 'When using a {{MG_CARD_TYPE}} an additional surcharge of <b>{{MG_SUR_AMT}}</b> will be applied, bringing the total payable amount to <b>{{MG_TOTAL_AMT}}</b>.', MG_ENTERPRISE_TEXTDOMAIN );

@@ -193,7 +193,8 @@ class MastercardGateway extends WC_Payment_Gateway {
 		$this->password          = 'no' === $this->sandbox ? $this->get_option( 'password' ) : $this->get_option( 'sandbox_password' );
 		$this->icon              = esc_url( UtilityController::plugin_url() ) . '/assets/images/mastercard.gif';	
 
-		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );		
+		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );	
+		add_filter( 'woocommerce_settings_api_sanitized_fields_' . $this->id,   array( $this, 'sanitize_gateway_settings' ) );		
 	}
 
 	/**
@@ -256,10 +257,34 @@ class MastercardGateway extends WC_Payment_Gateway {
 		if ( empty( $gateway_url ) ) {
 			$gateway_url = $this->get_option( 'gateway_url', API_EU );
 		}
-
-		$gateway_url = preg_replace( '#^https?://#', '', rtrim( $gateway_url, '/' ) );
 	
-		return $gateway_url;
+		return $this->format_gateway_url($gateway_url);
+	}
+
+	/**
+	 * Sanitize and normalize a gateway URL by:
+	 * - Trimming whitespace
+	 * - Removing protocol (http/https)
+	 * - Removing leading/trailing slashes
+	 *
+	 * @param string $url Raw URL input.
+	 * @return string Cleaned URL.
+	 */
+	private function format_gateway_url($url) {
+		$url = trim($url);
+		$url = str_replace('\\', '/', $url);
+		if (preg_match('#^[a-z0-9.-]+$#i', $url)) {
+			return $url;
+		}
+		$url = preg_replace('#^[^a-z0-9.-]+#i', '', $url);
+		$url = preg_replace('#^[a-z]+[;:/]+#i', '', $url);
+		if (strpos($url, '/') !== false) {
+			$parts = explode('/', $url);
+			$url = $parts[0];
+		}
+		$url = rtrim($url, ':');
+
+		return $url;
 	}
 
 	/**
@@ -365,4 +390,65 @@ class MastercardGateway extends WC_Payment_Gateway {
 		
 		return true;
 	}
+
+	/**
+	 * Sanitize all gateway settings before saving them in the DB.
+	 * 
+	 * - Specifically checks if a custom gateway URL is provided,
+	 *   and passes it through `sanitize_gateway_url()` for normalization.
+	 * - Ensures consistent formatting so later requests do not fail due to malformed URLs.
+	 *
+	 * @param array $settings The gateway settings being saved.
+	 * @return array Sanitized settings.
+	 */
+	public function sanitize_gateway_settings( $settings ) {
+		if ( ! empty( $settings['custom_gateway_url'] ) ) {
+			$settings['custom_gateway_url'] = $this->sanitize_gateway_url( $settings['custom_gateway_url'] );
+		}
+		return $settings;
+	}
+
+	/**
+	 * Sanitize and normalize a gateway URL.
+	 *
+	 * Steps performed:
+	 * 1. Trim spaces around the URL.
+	 * 2. Replace backslashes "\" with forward slashes "/".
+	 * 3. Ensure URL starts with "https://". If "http://" is found, replace with "https://".
+	 * 4. Remove extra slashes after "https://".
+	 * 5. Always ensure the URL ends with a single trailing slash.
+	 *
+	 * This guarantees that no matter how the merchant enters the URL,
+	 * the final saved format will be consistent and valid.
+	 *
+	 * Example:
+	 *   Input:  " https:////test.gateway.spring.citi.com "
+	 *   Output: "https://test.gateway.spring.citi.com/"
+	 *
+	 * @param string $url The raw URL input from the merchant.
+	 * @return string Normalized and safe URL.
+	 */
+	
+	public function sanitize_gateway_url( $url ) {
+		$url = trim( $url );
+		$url = str_replace( '\\', '/', $url );
+		$url = preg_replace( '#^[a-z]+[:;/]+#i', '', $url );
+		$url = 'https://' . ltrim( $url, '/');
+		$url = preg_replace( '#^http://#i', 'https://', $url );
+		$parts = @parse_url( $url );
+		$host = '';
+		if ( ! empty( $parts['host'] ) ) {
+			$host = $parts['host'];
+		} else {
+			$path = isset($parts['path']) ? $parts['path'] : '';
+			if ( $path ) {
+				$segments = explode('/', $path);
+				$host = $segments[0];
+			}
+		}
+		$port = ! empty( $parts['port'] ) ? ':' . $parts['port'] : '';
+		$url = 'https://' . strtolower( $host ) . $port . '/';
+		return $url;
+	}
+
 }
