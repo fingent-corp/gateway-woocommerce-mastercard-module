@@ -42,7 +42,7 @@ class PaymentGatewayCC extends WC_Payment_Gateway_CC {
 		);
 
 		$cvc_field = '<p class="form-row form-row-wide">
-			<label for="' . esc_attr( MG_ENTERPRISE_ID ) . '-card-cvc">' . esc_html__( 'Security Code', MG_ENTERPRISE_TEXTDOMAIN ) . '&nbsp;<span class="required">*</span></label>
+			<label for="' . esc_attr( MG_ENTERPRISE_ID ) . '-card-cvc">' . esc_html__( 'Security code', MG_ENTERPRISE_TEXTDOMAIN ) . '&nbsp;<span class="required">*</span></label>
 			<input id="' . esc_attr( MG_ENTERPRISE_ID ) . '-card-cvc" class="input-text wc-credit-card-form-card-cvc" readonly="readonly" inputmode="numeric" autocomplete="off" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" maxlength="4" ' . $this->field_name( 'card-cvc' ) . ' style="width:100px" /></p>';
 
 		$default_fields = array(
@@ -78,7 +78,7 @@ class PaymentGatewayCC extends WC_Payment_Gateway_CC {
 			foreach ( $this->get_tokens() as $token ) {
 				echo '<fieldset class="token-cvc" id="token-cvc-' . esc_attr( $token->get_id() ) . '">
 					<p class="form-row form-row-wide">
-						<label for="' . esc_attr( MG_ENTERPRISE_ID ) . '-saved-card-cvc-' . esc_attr( $token->get_id() ) . '">' . esc_html__( 'Security Code', MG_ENTERPRISE_TEXTDOMAIN ) . '&nbsp;<span class="required">*</span></label>
+						<label for="' . esc_attr( MG_ENTERPRISE_ID ) . '-saved-card-cvc-' . esc_attr( $token->get_id() ) . '">' . esc_html__( 'Security code', MG_ENTERPRISE_TEXTDOMAIN ) . '&nbsp;<span class="required">*</span></label>
 						<input id="' . esc_attr( MG_ENTERPRISE_ID ) . '-saved-card-cvc-' . esc_attr( $token->get_id() ) . '" class="input-text wc-credit-card-form-card-cvc" readonly="readonly" inputmode="numeric" autocomplete="off" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" maxlength="4" style="width:100px" />
 					</p>
 				</fieldset>';

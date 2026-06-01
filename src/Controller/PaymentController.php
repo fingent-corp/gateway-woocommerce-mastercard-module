@@ -89,28 +89,7 @@ class PaymentController {
 	protected function get_logger() {
 		return GatewayController::get_instance()->get_logger();
 	}
-
-	/**
-	 * Logs a message with context in a consistent format.
-	 *
-	 * @param string $message
-	 * @param array  $context
-	 * @param string $level
-	 */
-	protected function log( string $message, array $context = [], string $level = 'info' ): void {
-		$logger = $this->get_logger();
-
-		if ( $logger ) {
-			// Always include class name for traceability
-			$context = array_merge(
-				[ 'source' => __CLASS__ ],
-				$context
-			);
-
-			$logger->{$level}( $message, $context );
-		}
-	}
-
+	
 	/**
 	 * Generate the receipt page for a given order ID.
 	 *
@@ -119,9 +98,8 @@ class PaymentController {
 	 * @return void
 	 */
 	public function receipt_page( $order_id ) {
-
 		$order = wc_get_order( $order_id );
-		
+
 		if ( ! $order ) {
 			return;
 		}
@@ -133,7 +111,6 @@ class PaymentController {
         }
 
         $view->render();
-		
 	}
 
 	/**
@@ -181,7 +158,6 @@ class PaymentController {
 	 * @throws GatewayResponseException If the route or request is invalid or if an error occurs during processing.
 	 */
 	public function rest_route_processor( $route, $request ) { 
-			
 		$result = null;
 		$this->service  = GatewayController::get_instance()->init_service();
 		
@@ -203,15 +179,6 @@ class PaymentController {
 
 				// Proceed if the result has a successIndicator
 				if ( $result && isset( $result['successIndicator'] ) ) {
-					$this->log(
-						'Hosted checkout payment request data',
-						[
-							'order_id'           => $order->get_id(),
-							'session_id'         => $result['session']['id'],
-							'success_indicator'  => $result['successIndicator'],
-						]
-					);
-					
 					$order->update_meta_data( '_mpgs_success_indicator_initial', $result['successIndicator'] );
 				}
 				
@@ -254,10 +221,6 @@ class PaymentController {
 				);
 
 				if ( $result && isset( $result['successIndicator'] ) ) {
-					$logger = GatewayController::get_instance()->get_logger();
-					$logger->info('Session ID: ' . ($result['session']['id'] ?? 'N/A'));
-    				$logger->info('Success Indicator: ' . $result['successIndicator']);
-					
 					if ( $order->meta_exists( '_mpgs_success_indicator' ) ) {
 						$order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
 					} else {
@@ -505,15 +468,25 @@ class PaymentController {
 	}
 
 	/**
-	 * Process the hosted checkout payment.
+     * Process the hosted checkout payment.
 	 *
 	 * This function is responsible for processing the payment made through a hosted checkout.
 	 * It performs the necessary actions to complete the payment process.
 	 *
 	 * @throws GatewayResponseException If the payment was declined.
 	 */
+	/**
+	 * Handle hosted checkout payment response from MPGS.
+	 *
+	 * @return void
+	 */
 	protected function process_hosted_checkout_payment() {
+
 		$service = GatewayController::get_instance()->init_service();
+
+		$session_id = isset( $_REQUEST['session_id'] )
+			? sanitize_text_field( wp_unslash( $_REQUEST['session_id'] ) )
+			: null;
 
 		$order_id        = isset($_REQUEST['order_id']) 
 			? $this->remove_order_prefix( sanitize_text_field( wp_unslash( $_REQUEST['order_id'] ) ) )
@@ -550,22 +523,29 @@ class PaymentController {
 			$auth_txn_id       = $latest_txn['authentication']['transactionId'] ?? null;
 			$result_status     = strtoupper( $latest_txn['result'] ?? '' );
 
-			if ( isset( $latest_txn['browserPayment'] ) ) {
-				if ( 'SUCCESS' !== $result_status ) {
-					throw new GatewayResponseException( 'Transaction failed.' );
-				}
-			} else {
-				
-				if ( 'SUCCESS' !== strtoupper( $mpgs_order['result'] ?? '' ) ) {
-					throw new GatewayResponseException( 'Payment was declined by issuer.' );
-				}
+			if ( isset( $latest_txn['gatewayEntryPoint'] ) && $latest_txn['gatewayEntryPoint'] === 'CHECKOUT_VIA_PAYMENT_LINK' ) {
+					if ( isset( $latest_txn['order']['custom']['paymentLink'] ) && $latest_txn['order']['custom']['paymentLink'] === true ) {
+						if ( 'SUCCESS' !== $result_status ) {
+							throw new GatewayResponseException( 'Transaction failed.' );
+						}
+					}
+				} elseif ( isset( $latest_txn['browserPayment'] ) ) {
 
-				if ( $success_indicator !== $result_indicator ) {
-					$txn_response = $service->retrieveTransaction( $this->add_order_prefix( $order_id ), $auth_txn_id );
-					if ( empty( $txn_response['result'] ) || strtoupper( $txn_response['result'] ) !== 'SUCCESS' ) {
-						throw new GatewayResponseException( 'Result indicator mismatch.' );
+					if ( 'SUCCESS' !== $result_status ) {
+						throw new GatewayResponseException( 'Transaction failed.' );
 					}
 				}
+				else {
+					if ( 'SUCCESS' !== strtoupper( $mpgs_order['result'] ?? '' ) ) {
+						throw new GatewayResponseException( 'Payment was declined by issuer.' );
+					}
+
+					if ( $success_indicator !== $result_indicator ) {
+						$txn_response = $service->retrieveTransaction( $this->add_order_prefix( $order_id ), $auth_txn_id );
+						if ( empty( $txn_response['result'] ) || strtoupper( $txn_response['result'] ) !== 'SUCCESS' ) {
+							throw new GatewayResponseException( 'Result indicator mismatch.' );
+						}
+					}
 			}
 
 			$transaction = [];
@@ -576,62 +556,23 @@ class PaymentController {
 				$transaction['transaction']['id']        = sanitize_text_field( $txn['transaction']['id'] ?? '' );
 				$transaction['transaction']['reference'] = sanitize_text_field( $txn['transaction']['reference'] ?? '' );
 			}
-			$type_of_payment = $this->detect_payment_type( $mpgs_order );
-			if ( $type_of_payment === 'CARD' ) {
-				$card_scheme = $this->get_card_scheme( $mpgs_order );
-				if ( $card_scheme ) {
-					$type_of_payment = $card_scheme;
-				}
-			}
 
 			$this->process_wc_order( $order, $mpgs_order, $transaction );
-			$order->update_meta_data( '_type_of_payment', $type_of_payment );
 			wp_safe_redirect( $this->gateway->get_return_url( $order ) );
 			exit;
 
 		} catch ( GatewayResponseException $e ) {
-			$this->log( 'GatewayResponseException', [ 'order_id' => $order_id, 'error' => $e->getMessage() ] );
 			$order->update_status( 'failed', $e->getMessage() );
 			wc_add_notice( esc_html( $e->getMessage() ), 'error' );
 			wp_safe_redirect( wc_get_checkout_url() );
 			exit;
 
 		} catch ( Exception $e ) {
-			$this->log( 'General Exception', [ 'order_id' => $order_id, 'error' => $e->getMessage() ] );
 			$order->update_status( 'failed', 'Unexpected error: ' . $e->getMessage() );
 			wc_add_notice( __( 'An unexpected error occurred during payment. Please try again.', 'your-textdomain' ), 'error' );
 			wp_safe_redirect( wc_get_checkout_url() );
 			exit;
 		}
-	}
-
-	protected function detect_payment_type( $mpgs_order ) {
-		$type_of_payment = 'OTHERS';
-
-		if ( isset( $mpgs_order['sourceOfFunds']['browserPayment']['type'] ) ) {
-			$type_of_payment = strtoupper( sanitize_text_field( $mpgs_order['sourceOfFunds']['browserPayment']['type'] ) );
-		} elseif ( isset( $mpgs_order['sourceOfFunds']['type'] ) ) {
-			$fund_type = strtoupper( sanitize_text_field( $mpgs_order['sourceOfFunds']['type'] ) );
-			if ( in_array( $fund_type, [ 'CARD', 'PAYPAL', 'BROWSER_PAYMENT' ], true ) ) {
-				$type_of_payment = $fund_type;
-			} else {
-				$type_of_payment = $fund_type;
-			}
-		}
-
-		return $type_of_payment;
-	}
-
-	protected function get_card_scheme( $mpgs_order ) {
-		if ( isset( $mpgs_order['sourceOfFunds']['provided']['card']['brand'] ) ) {
-			return strtoupper( sanitize_text_field( $mpgs_order['sourceOfFunds']['provided']['card']['brand'] ) );
-		}
-
-		if ( isset( $mpgs_order['sourceOfFunds']['scheme'] ) ) {
-			return strtoupper( sanitize_text_field( $mpgs_order['sourceOfFunds']['scheme'] ) );
-		}
-
-		return null;
 	}
 
 	/**
@@ -814,13 +755,13 @@ class PaymentController {
 		    '_mpgs_transaction_reference'=> $txn_data['transaction']['reference'] ? $txn_data['transaction']['reference'] : '',
 		);
 
-		foreach ( $meta_data as $key => $value ) {
-		    $order->add_meta_data( $key, $value );
-		}
-
 		if ( $order->get_payment_method() !== MG_ENTERPRISE_ID ) {
 			$order->set_payment_method( MG_ENTERPRISE_ID );
 			$order->set_payment_method_title( __( MG_ENTERPRISE_GATEWAY_TITLE, 'mastercard' ) );
+		}
+
+		foreach ( $meta_data as $key => $value ) {
+		    $order->add_meta_data( $key, $value );
 		}
 		
 		$order->payment_complete( $txn_data['transaction']['id'] );
@@ -926,7 +867,7 @@ class PaymentController {
 		$sandbox_mode 		 = $this->gateway->get_option( 'sandbox' );
 		$notification_secret = ($sandbox_mode === 'yes') ? $this->gateway->get_option( 'test_webhook_secret' ) : $this->gateway->get_option( 'webhook_secret' );
     	$response            = json_decode( $body, true );
-    	$order_status        = array( 'cancelled', 'failed', 'on-hold' ,'pending' );
+    	$order_status        = array( 'cancelled', 'failed', 'on-hold' );
 
     	if ( $secret !== $notification_secret ) {
 	        return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
@@ -948,11 +889,6 @@ class PaymentController {
 							$this->process_wc_order( $order, $response['order'], $response );
 						}
 					}
-					elseif ( in_array( strtoupper( $response['result'] ), [ 'FAILED', 'DECLINED' ] ) ) {
-                        if ( 'failed' !== $order->get_status() ) {
-                            $order->update_status( 'failed', __( 'Payment status updated via webhook.', 'mastercard' ) );
-                        }
-                    }
 					break;
 
 	    		default:

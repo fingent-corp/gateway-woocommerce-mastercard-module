@@ -66,6 +66,7 @@
     font-size: var(--confirm-font-size);
     line-height: var(--confirm-line-height);
     padding: 10px 20px;
+    border-radius: var(--confirm-border-radius);
 }
 .mg_hostedsession .surcharge_wrapper .mg_button_wrapper .wp-element-confirm-button:hover {
     background-color: var(--confirm-bg-hover-color);
@@ -83,6 +84,7 @@
     line-height: var(--cancel-line-height);
     margin-left: 15px;
     padding: 10px 20px;
+    border-radius: var(--cancel-border-radius);
 }
 .mg_hostedsession .surcharge_wrapper .mg_button_wrapper .wp-element-cancel-button:hover {
     background-color: var(--cancel-bg-hover-color);
@@ -120,7 +122,8 @@
     margin: 16px 0;
     padding: 20px;
 }
-.mg_hostedsession .payment_box .wc-payment-form {
+.mg_hostedsession .payment_box .wc-payment-form ,
+.mg_hostedsession .payment_box .token-cvc  {
     background-color: var(--form-bg-color);
     border: 1px solid var(--form-border-color);
     border-radius: var(--form-border-radius);
@@ -134,4 +137,34 @@
 
 .rtl-text .mg_hostedsession .surcharge_wrapper .mg_button_wrapper .wp-element-cancel-button{
     margin-right: 12px;
+}
+
+.mg_hostedsession .payment_box #mg_pay {
+    background-color: var(--paybtn-bg-color);
+    border: 1px solid var(--paybtn-border-color);
+    border-radius: var(--paybtn-border-radius);
+    font-family: var(--paybtn-font-family), serif;
+    color: var(--paybtn-font-color);
+    font-weight: var(--paybtn-font-weight);
+    font-size: var(--paybtn-font-size);
+    line-height: var(--paybtn-line-height);
+}
+.mg_hostedsession .payment_box #mg_pay:hover {
+    background-color: var(--paybtn-bg-hover-color);
+    border: 1px solid var(--paybtn-border-hover-color);
+    color: var(--paybtn-font-hover-color);
+}
+
+.mg_hostedsession .payment_box .wc-payment-form label,
+.mg_hostedsession .payment_box .token-cvc label ,
+.mg_hostedsession .payment_box .wc-payment-form label span.required,
+.mg_hostedsession .payment_box .token-cvc label span.required {
+    font-family: var(--form-font-family), serif;
+    font-size: var(--form-font-size);
+    line-height: var(--form-line-height);
+    color: var(--form-font-color);
+}
+.mg_hostedsession .payment_box .wc-payment-form p input ,
+.mg_hostedsession .payment_box .token-cvc p input   {
+    border-radius: var(--form-border-radius);
 }

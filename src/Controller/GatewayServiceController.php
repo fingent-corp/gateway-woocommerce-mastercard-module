@@ -11,6 +11,8 @@ use Fingent\Mastercard\Logger\GatewayResponseException;
 use Fingent\Mastercard\Model\MastercardGateway;
 use Fingent\Mastercard\Controller\GatewayController;
 use Fingent\Mastercard\Controller\PaymentController;
+use Fingent\Mastercard\Helper\CheckoutBuilder;
+
 
 /**
  * Class Mastercard_GatewayService
@@ -361,7 +363,7 @@ class GatewayServiceController {
 	) {
 		$txn_id       = uniqid( sprintf( '%s-', $order['id'] ) );
 		$uri          = $this->api_url . 'session';
-		$request_data = [
+		$request_data = array(
 			'apiOperation'      => 'INITIATE_CHECKOUT',
 			'partnerSolutionId' => $this->getSolutionId(),
 			'order'             => array_merge(
@@ -371,15 +373,15 @@ class GatewayServiceController {
 					'reference'       => $order['id'],				
 				),			
 			),
-			'interaction'       => $interaction,
 			'billing'           => $billing,
 			'shipping'          => $shipping,
+			'interaction'       => $interaction,
 			'customer'          => $customer,
 			'transaction'       => array(
 				'reference' => $txn_id,
 				'source'    => 'INTERNET',				
 			),
-		];
+		);
 		
 		$request      = $this->message_factory->createRequest(
 			'POST',
@@ -565,44 +567,19 @@ class GatewayServiceController {
 	 *
 	 * @return array Session response array.
 	 * @throws Exception It throws an exception if checkout session is not created.
-	 * @throws GatewayResponseException It throws a GatewayResponseException if the checkout session is not created.
 	 */
 	public function create_session() {
 		$uri      = $this->api_url . 'session';
-		$request_data['authentication'] = $authentication;
-
 		$request  = $this->message_factory->createRequest(
 			'POST',
 			$uri
 		);
+		$response = $this->client->sendRequest( $request );
 
-		$stream       = $this->message_factory->createStream(
-			wp_json_encode(
-				$request_data
-			)
-		);
-		$request_body = $request->withBody( $stream );
-		$response = $this->client->sendRequest( $request_body );
-
-		$response = json_decode(
+		return json_decode(
 			$response->getBody(),
 			true
 		);
-
-		if( $response['result'] !== 'SUCCESS' ) {
-			$response = $this->client->sendRequest( $request );
-
-			$response = json_decode(
-				$response->getBody(),
-				true
-			);
-
-			if( $response['result'] !== 'SUCCESS' ) {
-				return null;
-			}
-		}
-
-		return $response;
 	}
 
 	/**
@@ -724,7 +701,7 @@ class GatewayServiceController {
 		$billing = array(),
 		$shipping = array()
 	) {
-		$uri = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
+		$uri          = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
 		
 		$request_data = array(
 			'apiOperation'      => 'PAY',
@@ -1039,7 +1016,6 @@ class GatewayServiceController {
 			'POST',
 			$uri
 		);
-		
 		$response = $this->client->sendRequest( $request );
 		$response = json_decode(
 			$response->getBody(),
@@ -1137,7 +1113,6 @@ class GatewayServiceController {
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode( $response->getBody(), true );
-
 		return $response;
 	}
 
@@ -1159,5 +1134,157 @@ class GatewayServiceController {
 		$response     = json_decode( $response->getBody(), true );
 
 		return $response;
+	}
+
+	/**
+	 * Generate a secure Pay By Link URL for a WooCommerce order.
+	 *
+	 * This method communicates with the Mastercard API to initiate a checkout session
+	 * in "PAYMENT_LINK" mode. It builds all necessary order, billing, shipping,
+	 * and interaction details, sends a request to the API, saves the returned
+	 * payment link details to the order meta, and optionally triggers the
+	 * "Payment Request" WooCommerce email.
+	 *
+	 * @param array $order       Array containing order details, must include 'id'.
+	 * @param array $interaction Optional interaction data (overridden by CheckoutBuilder).
+	 * @param array $customer    Optional customer data (overridden by CheckoutBuilder).
+	 * @param array $billing     Optional billing data (overridden by CheckoutBuilder).
+	 * @param array $shipping    Optional shipping data (overridden by CheckoutBuilder).
+	 * @return array The API response body decoded as an associative array.
+	 */
+	public function GenerateSecureURL(
+		$order		 = array(),
+		$interaction = array(),
+		$customer    = array(),
+		$billing     = array(),
+		$shipping    = array()
+	) {
+		$gateway = MastercardGateway::get_instance();
+		$orderdet 	= wc_get_order( $order['id'] );
+		if ( $orderdet->meta_exists( '_pay_by_link_is_expired' ) ) {
+			$orderdet->delete_meta_data( '_pay_by_link_is_expired' );
+		}
+		$return_url = add_query_arg(
+			[
+				'wc-api'   => MG_ENTERPRISE_ID,
+				'order_id' => $orderdet->get_id(),
+			],
+			home_url( '/' )
+		);
+		$order_builder = new CheckoutBuilder( $order['id'] );
+		$capture = ($gateway->settings['txn_mode'] === 'capture');
+		$interaction   = $order_builder->getInteraction( $capture, $return_url );
+		$billing       = $order_builder->getBillingFromOrder( $order['id'] );
+		$shipping      = $order_builder->getShippingFromOrder( $order['id'] );
+		$payeer_link_order_details = $order_builder->getPaymentLinkOrder( $order['id'] );
+		$uri        	= $this->api_url . 'session';
+		$request_data = [
+			'apiOperation'      => 'INITIATE_CHECKOUT',
+			'partnerSolutionId' =>  $this->getSolutionId(),
+			'checkoutMode'      => 'PAYMENT_LINK',
+			'billing'           => $billing,
+			'shipping'          => $shipping,
+			'interaction'       => $interaction,
+			'order'             => $payeer_link_order_details,
+			'paymentLink'       => $order_builder->getPaymentLinkSettings(),
+		];
+		
+		$request 				= $this->message_factory->createRequest(
+			'POST',
+			$uri,
+			array()
+		);
+
+		$stream       = $this->message_factory->createStream( wp_json_encode( $request_data ) );
+		$request_body = $request->withBody( $stream );
+
+		$response = $this->client->sendRequest( $request_body );
+		$response = json_decode( $response->getBody(), true );
+
+		$mail_sent = false;
+		if ( isset( $response['result'] ) && strtoupper( $response['result'] ) === 'SUCCESS' ) {
+			$expiry_raw = $response['paymentLink']['expiryDateTime'];
+			if ( ! empty( $response['paymentLink']['url'] ) ) {
+				$orderdet->update_meta_data( '_pay_by_link_url', esc_url_raw( $response['paymentLink']['url'] ) );
+			}
+			if ( ! empty( $response['paymentLink']['expiryDateTime'] ) ) {
+				$orderdet->update_meta_data( '_pay_by_link_expiry_date_time', $expiry_raw );
+			}
+			if ( ! empty( $response['paymentLink']['id'] ) ) {
+				$orderdet->update_meta_data( '_pay_by_link_id', sanitize_text_field( $response['paymentLink']['id'] ) );
+			}
+			if ( ! empty( $response['paymentLink']['numberOfAllowedAttempts'] ) ) {
+				$orderdet->update_meta_data( '_pay_by_link_number_of_attempts', sanitize_text_field( $response['paymentLink']['numberOfAllowedAttempts'] ) );
+			}
+			if ( ! empty( $response['successIndicator'] ) ) {
+				$orderdet->update_meta_data( '_pay_by_link_indicator', sanitize_text_field( $response['successIndicator'] ) );
+			}
+			$orderdet->save();
+			$mailer = WC()->mailer();
+			$emails = $mailer->get_emails();
+			if ( ! empty( $emails['WC_Email_Pay_By_Link'] ) ) {
+				$custom_email = $emails['WC_Email_Pay_By_Link'];
+				$pay_link_url      = $orderdet->get_meta('_pay_by_link_url');
+				$expiry_date_time  = $orderdet->get_meta('_pay_by_link_expiry_date_time');
+				$allowed_attempts  = $orderdet->get_meta('_pay_by_link_number_of_attempts');
+				$custom_email->payment_link     = $pay_link_url;
+				$custom_email->expiry_date_time = $expiry_date_time;
+				$custom_email->allowed_attempts = $allowed_attempts;
+				$mail_sent = (bool) $custom_email->trigger( $orderdet->get_id() );
+			}
+			$response['mail_sent'] = $mail_sent;
+		}
+
+		return $response;
+	}
+
+	/**
+	 * Revoke a Pay By Link payment for a specific WooCommerce order.
+	 *
+	 * This method sends a DELETE request to the payment gateway API to revoke
+	 * the previously generated payment link. Upon successful revocation, it
+	 * cleans up order meta and optionally triggers the "Payment Revoked" email.
+	 *
+	 * @param array $order Array containing order details, must include 'id'.
+	 * @return array The API response body decoded as an associative array.
+	 */
+	public function RevokePaymentLink( $order = array() ) {
+		$orderdet = wc_get_order( $order['id'] );
+		$payment_link_id = $orderdet->get_meta( '_pay_by_link_id' );
+		
+		if ( empty( $payment_link_id ) ) {
+			return [
+				'result' => 'ERROR',
+				'message' => 'No payment link found for this order.'
+			];
+		}
+
+		$uri = $this->api_url . 'link/' . $payment_link_id;
+
+		$request = $this->message_factory->createRequest(
+			'DELETE',
+			$uri,
+			array()
+		);
+
+		$response = $this->client->sendRequest( $request );
+		$response_body = json_decode( $response->getBody(), true );
+
+		$mail_sent = false;
+		if ( isset( $response_body['result'] ) && strtoupper( $response_body['result'] ) === 'SUCCESS' ) {
+			$orderdet->delete_meta_data( '_pay_by_link_url' );
+			$orderdet->delete_meta_data( '_pay_by_link_id' );
+			$orderdet->delete_meta_data( '_pay_by_link_indicator' );
+			$orderdet->save();
+			$mailer = WC()->mailer();
+			$emails = $mailer->get_emails();
+			if ( ! empty( $emails['WC_Email_Pay_By_Link_Revoked'] ) ) {
+				$custom_email = $emails['WC_Email_Pay_By_Link_Revoked'];
+				$mail_sent = (bool) $custom_email->trigger( $orderdet->get_id() );
+			}
+			$response_body['mail_sent'] = $mail_sent;
+		}
+
+		return $response_body;
 	}
 }

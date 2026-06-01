@@ -10,53 +10,44 @@ jQuery(function ($) {
         },
 
         cacheDOM: function () {
-            this.$sandboxToggle    = $( '#woocommerce_mastercard_gateway_sandbox' );
-            this.$sandboxUsername  = $( '#woocommerce_mastercard_gateway_sandbox_username' ).closest( 'tr' );
-            this.$sandboxPassword  = $( '#woocommerce_mastercard_gateway_sandbox_password' ).closest( 'tr' );
-            this.$username         = $( '#woocommerce_mastercard_gateway_username' ).closest( 'tr' );
-            this.$password         = $( '#woocommerce_mastercard_gateway_password' ).closest( 'tr' );
-            this.$webhook          = $( '#woocommerce_mastercard_gateway_webhook_secret' ).closest( 'tr' );
-            this.$testwebhook      = $( '#woocommerce_mastercard_gateway_test_webhook_secret' ).closest( 'tr' );
-
-            this.$method           = $( '#woocommerce_mastercard_gateway_method' );
-            this.$threedsecure     = $( '#woocommerce_mastercard_gateway_threedsecure' ).closest( 'tr' );
-            this.$hcInteraction    = $( '#woocommerce_mastercard_gateway_hc_interaction' ).closest( 'tr' );
-            this.$Interaction      = $( '#woocommerce_mastercard_gateway_hc_interaction' );
-            this.$hcType           = $( '#woocommerce_mastercard_gateway_hc_type' ).closest( 'tr' );
-            this.$savedCards       = $( '#woocommerce_mastercard_gateway_saved_cards' ).closest( 'tr' );
-            this.$customGatewayUrl = $('#woocommerce_mastercard_gateway_custom_gateway_url' ).closest( 'tr' );
-
-            this.$hfAmount         = $('#woocommerce_mastercard_gateway_handling_fee_amount' );
-            this.$hfType           = $('#woocommerce_mastercard_gateway_hf_amount_type' );
-            this.$surchargeAmount  = $('#woocommerce_mastercard_gateway_surcharge_amount' );
-            this.$surchargeType    = $('#woocommerce_mastercard_gateway_surcharge_amount_type' );
-
-            this.$surchargeInfo    = $('#woocommerce_mastercard_gateway_surcharge' );
-            this.$merchantInfo     = $('#woocommerce_mastercard_gateway_merchant_info' );
-            this.$surChargeTab     = $( 'a.nav-tab[href="#surcharge"]' );
-            
-            this.$mifCheckbox      = $('#woocommerce_mastercard_gateway_mif_enabled');
-            this.$hfEnabled        = $('#woocommerce_mastercard_gateway_hf_enabled');
-            this.$scEnabled        = $('#woocommerce_mastercard_gateway_surcharge_enabled');
-            this.$merchantInfoTab  = $( 'a.nav-tab[href="#merchant-information"]' );
-            this.$mainForm         = $('#mainform');
-
-            this.$logoField        = $('#woocommerce_mastercard_gateway_merchant_logo');
-            this.$uploadLogoBtn    = $('<a href="javascript:;" id="mastercard_gateway_merchant_logo" class="button">Upload</a>');
-            this.$clearLogoBtn     = $('<a href="javascript:;" id="clear_mastercard_gateway_merchant_logo" class="button">Clear</a>');
-            
-            this.$openPreview      = $( '#payment-form-preview-root' );
-            this.$closePanel       = $( '#close-wp-admin-drawer' );
-            this.$previewPanel     = $( '#wp-admin-drawer' );
-            this.$overlayPanel     = $( '#wp-admin-drawer-overlay' );
-
-            this.$localeSelect     = $( '#woocommerce_mastercard_gateway_locale' );
-            this.hcLangs           = this.$localeSelect.data( 'hc-langs' );
-            this.hsLangs           = this.$localeSelect.data( 'hs-langs' );
-            this.$stylePreviewRow  = $('#woocommerce_mastercard_gateway_payment_form_styles');
-            this.$stylePreviewDes  = $('.hosted-session-preview');
-            this.$saveBtn          = this.$mainForm.find('.woocommerce-save-button');
-
+            this.$sandboxToggle          = $( '#woocommerce_mastercard_gateway_sandbox' );
+            this.$sandboxUsername        = $( '#woocommerce_mastercard_gateway_sandbox_username' ).closest( 'tr' );
+            this.$sandboxPassword        = $( '#woocommerce_mastercard_gateway_sandbox_password' ).closest( 'tr' );
+            this.$username               = $( '#woocommerce_mastercard_gateway_username' ).closest( 'tr' );
+            this.$password               = $( '#woocommerce_mastercard_gateway_password' ).closest( 'tr' );
+            this.$webhook                = $( '#woocommerce_mastercard_gateway_webhook_secret' ).closest( 'tr' );
+            this.$testwebhook            = $( '#woocommerce_mastercard_gateway_test_webhook_secret' ).closest( 'tr' );
+            this.$method                 = $( '#woocommerce_mastercard_gateway_method' );
+            this.$threedsecure           = $( '#woocommerce_mastercard_gateway_threedsecure' ).closest( 'tr' );
+            this.$hcInteraction          = $( '#woocommerce_mastercard_gateway_hc_interaction' ).closest( 'tr' );
+            this.$Interaction            = $( '#woocommerce_mastercard_gateway_hc_interaction' );
+            this.$hcType                 = $( '#woocommerce_mastercard_gateway_hc_type' ).closest( 'tr' );
+            this.$savedCards             = $( '#woocommerce_mastercard_gateway_saved_cards' ).closest( 'tr' );
+            this.$customGatewayUrl       = $('#woocommerce_mastercard_gateway_custom_gateway_url' ).closest( 'tr' );
+            this.$hfAmount               = $('#woocommerce_mastercard_gateway_handling_fee_amount' );
+            this.$hfType                 = $('#woocommerce_mastercard_gateway_hf_amount_type' );
+            this.$surchargeAmount        = $('#woocommerce_mastercard_gateway_surcharge_amount' );
+            this.$surchargeType          = $('#woocommerce_mastercard_gateway_surcharge_amount_type' );
+            this.$surchargeInfo          = $('#woocommerce_mastercard_gateway_surcharge' );
+            this.$merchantInfo           = $('#woocommerce_mastercard_gateway_merchant_info' );
+            this.$surChargeTab           = $( 'a.nav-tab[href="#surcharge"]' );
+            this.$mifCheckbox            = $('#woocommerce_mastercard_gateway_mif_enabled');
+            this.$hfEnabled              = $('#woocommerce_mastercard_gateway_hf_enabled');
+            this.$scEnabled              = $('#woocommerce_mastercard_gateway_surcharge_enabled');
+            this.$merchantInfoTab        = $( 'a.nav-tab[href="#merchant-information"]' );
+            this.$mainForm               = $('#mainform');
+            this.$logoField              = $('#woocommerce_mastercard_gateway_merchant_logo');
+            this.$uploadLogoBtn          = $('<a href="javascript:;" id="mastercard_gateway_merchant_logo" class="button">Upload</a>');
+            this.$clearLogoBtn           = $('<a href="javascript:;" id="clear_mastercard_gateway_merchant_logo" class="button">Clear</a>');
+            this.$saveBtn                = this.$mainForm.find('.woocommerce-save-button');
+            this.$plEnabled              = $('#woocommerce_mastercard_gateway_paymentlink_enabled');
+            this.$plExpiryValue          = $('#woocommerce_mastercard_gateway_payment_expiry_value').closest('tr');
+            this.$plExpiryUnit           = $('#woocommerce_mastercard_gateway_payment_expiry_unit').closest('tr');
+            this.$plExpiryValueField     = $('#woocommerce_mastercard_gateway_payment_expiry_value'); // actual <input>
+            this.$plExpiryUnitField      = $('#woocommerce_mastercard_gateway_payment_expiry_unit');  // actual <select>
+            this.$plAttempts             = $('#woocommerce_mastercard_gateway_payment_allowed_attempts').closest('tr');
+            this.$plInfoHeading          = $('#woocommerce_mastercard_gateway_paymentlink_info');
+            this.$plInfoDescription      = $('#woocommerce_mastercard_gateway_paymentlink_info').next('p');
             this.$logoField.after('&nbsp;').after(this.$clearLogoBtn).after('&nbsp;').after(this.$uploadLogoBtn).after('&nbsp;');
         },
 
@@ -64,30 +55,20 @@ jQuery(function ($) {
             this.$sandboxToggle.on( 'change', this.toggleSandboxFields.bind( this ) );
             this.$method.on( 'change', this.toggleMethodFields.bind( this ) );
             this.$method.add( this.$hcInteraction ).on( 'change', this.toggleMerchantInfo.bind( this ) );
+            this.$method.add( this.$hcInteraction ).on( 'change', this.togglePaymentLinkFields.bind( this ) );
 
             this.$hfType.on( 'change', () => this.updateFeeLabel( 'handling' ) );
             this.$surchargeType.on( 'change', () => this.updateFeeLabel( 'surcharge' ) );
 
-            this.$hfAmount.add( this.$surchargeAmount )
-                .on( 'keypress', this.restrictInputToNumber )
-                .on( 'input', this.validateDecimalInput );
+            this.$hfAmount.add(this.$surchargeAmount)
+                .on('keypress', (e) => this.restrictInputToNumber(e, true))
+                .on('input', this.validateDecimalInput);
 
             this.$mifCheckbox.on('change', () => this.toggleFieldGroup(this.$mifCheckbox, 10));
             this.$hfEnabled.on('change', () => this.toggleFieldGroup(this.$hfEnabled, 5));
-            this.$scEnabled.on('change', () => this.toggleFieldGroup( this.$scEnabled , 7)); 
-            this.$uploadLogoBtn.on('click', this.uploadLogo.bind(this)); 
+            this.$scEnabled.on('change', () => this.toggleFieldGroup(this.$scEnabled, 7)); // FIX: was 7, now consistent
+            this.$uploadLogoBtn.on('click', this.uploadLogo.bind(this));
             this.$mainForm.on( 'submit', this.validateBeforeSubmit.bind(this) );
-            $( '#mainform' ).on( 'submit', this.validateBeforeSubmit.bind(this) );
-
-            this.$openPreview.on( 'click', () => {
-                this.$previewPanel.addClass( 'active' );
-                this.$overlayPanel.addClass( 'active' );
-            });
-
-            this.$closePanel.on( 'click', () => {
-                this.$previewPanel.removeClass( 'active' );
-                this.$overlayPanel.removeClass( 'active' );
-            });
 
             this.$clearLogoBtn.on('click', (e) => {
                 e.preventDefault();
@@ -95,7 +76,72 @@ jQuery(function ($) {
                 const $saveBtn = this.$mainForm.find('.woocommerce-save-button');
                 $saveBtn.removeAttr('disabled');
             });
-            
+
+            this.$plEnabled.on('change', () => this.toggleFieldGroup(this.$plEnabled, 3));
+            this.$plExpiryValueField
+                .on('keypress', (e) => this.restrictInputToNumber(e, false))
+                .on('blur', this.validateExpiry.bind(this));
+
+            this.$plExpiryUnitField
+                .on('change', this.validateExpiry.bind(this));
+
+            this.$plAttempts.find('input')
+                .on('keypress', (e) => this.restrictInputToNumber(e, false))
+                .on('blur', this.validateAttempts.bind(this));
+        },
+
+        validateExpiry: function () {
+            const $value = this.$plExpiryValueField; // actual input
+            const $unit  = this.$plExpiryUnitField;  // actual select
+
+            this.clearFieldError($value);
+
+            const raw = ($value.val() || '').toString().trim();
+            if (!raw) {
+                this.showFieldError($value, 'Please enter the payment link expiration time.');
+                return false;
+            }
+
+            const val = parseInt(raw.replace(/\D/g, ''), 10);
+            if (isNaN(val) || val < 1) {
+                this.showFieldError($value, 'Please enter a valid numeric expiry value.');
+                return false;
+            }
+
+            const unit = (($unit.val() || '') + '').toLowerCase();
+
+            const mapping = {
+                'months': 3, 'month': 3,
+                'days': 90,   'day': 90,
+                'hours': 2160,'hour': 2160
+            };
+
+            const maxAllowed = mapping[unit] || 3;
+            if (val > maxAllowed) {
+                this.showFieldError($value, `Maximum allowed value for ${unit} is ${maxAllowed}.`);
+                return false;
+            }
+
+            return true;
+        },
+
+        validateAttempts: function () {
+            const $field = this.$plAttempts.find('input');
+            this.clearFieldError($field);
+
+            const val = parseInt($field.val(), 10);
+
+            if (isNaN(val) || val < 1) {
+                this.showFieldError($field, 'Please enter a valid number of allowed attempts.');
+                return false;
+            }
+
+            if (val > 25) {
+                this.showFieldError($field, 'Maximum allowed attempts is 25.');
+                return false;
+            }
+
+            return true;
         },
 
         initializeUI: function () {
@@ -106,8 +152,9 @@ jQuery(function ($) {
             this.initializeCheckboxStatusLabels();
             this.toggleFieldGroup(this.$mifCheckbox, 10);
             this.toggleFieldGroup(this.$hfEnabled, 5);
-            this.toggleFieldGroup(this.$scEnabled, 6);
-            this.updateLocaleOptions();
+            this.toggleFieldGroup(this.$scEnabled, 7); // FIX: was 6, now matches bindEvents (7)
+            this.toggleFieldGroup(this.$plEnabled, 3);
+            this.togglePaymentLinkFields();
         },
 
         toggleSandboxFields: function () {
@@ -134,11 +181,9 @@ jQuery(function ($) {
             this.$surchargeInfo.next().toggle( !isHostedCheckout );
             this.$surchargeInfo.next().next().toggle( !isHostedCheckout );
             this.$surChargeTab.toggle( !isHostedCheckout );
-            this.$stylePreviewRow.toggle( !isHostedCheckout );
-            this.$stylePreviewDes.toggle( !isHostedCheckout );
 
-            this.updateLocaleOptions();
         },
+
         toggleMerchantInfo: function () {
             const method      = this.$method.val();
             const interaction = this.$Interaction.val();
@@ -146,8 +191,23 @@ jQuery(function ($) {
 
             this.$merchantInfo.toggle( show );
             this.$merchantInfo.next().toggle( show );
-            this.$merchantInfo.next().next().toggle( show ); 
+            this.$merchantInfo.next().next().toggle( show );
             this.$merchantInfoTab.toggle( show );
+        },
+
+        togglePaymentLinkFields: function () {
+            const method = this.$method.val();
+            const show   = method === 'hosted-checkout';
+
+             // Toggle heading and description
+            this.$plInfoHeading.toggle(show);
+            this.$plInfoDescription.toggle(show);
+
+            // Toggle actual input fields
+            this.$plEnabled.closest('tr').toggle(show);
+            this.$plExpiryValue.toggle(show);
+            this.$plExpiryUnit.toggle(show);
+            this.$plAttempts.toggle(show);
         },
 
         insertAmountLabels: function () {
@@ -181,16 +241,16 @@ jQuery(function ($) {
             $( labelId ).html( isFixed ? wcSettings.currency.symbol : '%' );
         },
 
-        restrictInputToNumber: function (e) {
+        restrictInputToNumber: function (e, allowDecimal = true) {
             const allowed =
-                [8, 9, 13, 27, 46].includes( e.which ) || // backspace, tab, enter, esc, dot
-                ( e.which >= 35 && e.which <= 39 ) ||     // arrows, home, end
-                ( e.ctrlKey || e.metaKey );               // cmd/ctrl + a/c/v/x
+                [8, 9, 13, 27].includes(e.which) || // backspace, tab, enter, esc
+                (e.which >= 35 && e.which <= 39) || // arrows, home, end
+                (e.ctrlKey || e.metaKey); // cmd/ctrl
 
             const isNumber = e.which >= 48 && e.which <= 57;
-            const isDot = e.which === 46 && !$( this ).val().includes( '.' );
+            const isDot = allowDecimal && e.which === 46 && !$(e.target).val().includes('.');
 
-            if ( !allowed && !isNumber && !isDot ) {
+            if (!allowed && !isNumber && !isDot) {
                 e.preventDefault();
             }
         },
@@ -253,11 +313,11 @@ jQuery(function ($) {
         updateCheckboxStatusLabel: function (selector) {
             const $checkbox = $(selector);
             const $label = $checkbox.closest('label');
-        
+
             if ($label.length) {
                 const isChecked = $checkbox.is(':checked');
                 $label.contents().filter(function () {
-                    return this.nodeType === 3; 
+                    return this.nodeType === 3;
                 }).remove();
                 $label.prepend($checkbox);
                 $label.append(isChecked ? ' Enabled' : ' Disabled');
@@ -265,7 +325,7 @@ jQuery(function ($) {
         },
 
         validateBeforeSubmit: function (e) {
-            const $ = jQuery;  
+            const $ = jQuery;
             const getField = id => $(`#${id}`);
             const fields = {
                 title: getField('woocommerce_mastercard_gateway_title'),
@@ -283,25 +343,28 @@ jQuery(function ($) {
                 surchargeEnabled: getField('woocommerce_mastercard_gateway_surcharge_enabled'),
                 surchargeText: getField('woocommerce_mastercard_gateway_surcharge_text'),
                 surchargeAmount: getField('woocommerce_mastercard_gateway_surcharge_amount'),
+                payLinkEnabled: getField('woocommerce_mastercard_gateway_paymentlink_enabled'),
+                payLinkExpire: getField('woocommerce_mastercard_gateway_payment_expiry_value'),
+                attempts: getField('woocommerce_mastercard_gateway_payment_allowed_attempts'),
                 merchantEmail: getField('woocommerce_mastercard_gateway_merchant_email'),
             };
-            
-            // Clear all existing error messages and styles
+
+            // FIX: Only clear errors on non-checkbox fields to avoid disrupting visibility state
             const clearErrors = () => {
                 $('.wc-mastercard-error-notice').remove();
                 Object.values(fields).forEach($field => {
-                    this.clearFieldError($field);
-                    $field.css('border-color', '');
+                    if ($field.attr('type') !== 'checkbox') {
+                        this.clearFieldError($field);
+                        $field.css('border-color', '');
+                    }
                 });
             };
-        
-            // Show error message and style field
+
             const markError = ($field, message) => {
                 this.showFieldError($field, message);
                 $field.css('border-color', 'red');
             };
-        
-            // Validate if field is non-empty (trimmed)
+
             const requireNonEmpty = ($field, message) => {
                 if (!$field.val().trim()) {
                     markError($field, message);
@@ -316,7 +379,7 @@ jQuery(function ($) {
                 if (parts.length !== 2) return false;
 
                 const [local, domain] = parts;
-                const localPattern = /^[^\s@]+$/u; 
+                const localPattern = /^[^\s@]+$/u;
                 if (!localPattern.test(local)) return false;
                 const domainPattern = /^[^\s@]+\.[^\s@]+$/u;
                 return domainPattern.test(domain);
@@ -331,13 +394,13 @@ jQuery(function ($) {
                 return true;
             };
 
-
             clearErrors();
-        
+
             let isValid = true;
-        
+
             if (!requireNonEmpty(fields.title, 'Please enter the Title for this payment method.')) isValid = false;
-            if (!requireNonEmpty(fields.customGatewayUrl, 'Please enter the Gateway URL. ')) isValid = false;
+            if (!requireNonEmpty(fields.customGatewayUrl, 'Please enter the Gateway URL.')) isValid = false;
+
             if (fields.sandboxToggle.is(':checked')) {
                 if (!requireNonEmpty(fields.sandboxUsername, 'Test Merchant ID is required.')) isValid = false;
                 if (!requireNonEmpty(fields.sandboxPassword, 'Test API Password is required.')) isValid = false;
@@ -345,19 +408,45 @@ jQuery(function ($) {
                 if (!requireNonEmpty(fields.productionUsername, 'Merchant ID is required.')) isValid = false;
                 if (!requireNonEmpty(fields.productionPassword, 'API Password is required.')) isValid = false;
             }
-            
+
             if (fields.hfEnabled.is(':checked') && !requireNonEmpty(fields.hfText, 'Please provide the Handling Fee text.')) isValid = false;
             if (fields.hfEnabled.is(':checked') && !requireNonEmpty(fields.hfAmount, 'Please enter the Handling Fee amount.')) isValid = false;
             if (fields.mifEnabled.is(':checked') && !requireNonEmpty(fields.mifText, 'Please enter the Merchant Name.')) isValid = false;
             if (fields.surchargeEnabled.is(':checked') && !requireNonEmpty(fields.surchargeText, 'Please provide the Surcharge text.')) isValid = false;
             if (fields.surchargeEnabled.is(':checked') && !requireNonEmpty(fields.surchargeAmount, 'Please enter the Surcharge Fee amount.')) isValid = false;
+            if (fields.payLinkEnabled.is(':checked') && !requireNonEmpty(fields.attempts, 'Please enter the number of allowed payment attempts.')) isValid = false;
+
+            if (fields.payLinkEnabled.is(':checked')) {
+                if (!requireNonEmpty(fields.payLinkExpire, 'Please enter the payment link expiration time.')) {
+                    isValid = false;
+                } else if (!this.validateExpiry()) {
+                    isValid = false;
+                } else {
+                    // No additional action required when expiry value is present and valid.
+                }
+
+                if (!this.validateAttempts()) {
+                    isValid = false;
+                }
+            }
+
             if (!requireValidEmail(fields.merchantEmail, 'Please enter a valid email address.')) isValid = false;
-           
-            // If invalid, prevent submission, show admin notice, and scroll to notice
+
             if (!isValid) {
                 e.preventDefault();
+
+                // FIX: Re-apply all visibility toggle rules so hidden sections stay hidden
+                this.toggleSandboxFields();
+                this.toggleMethodFields();
+                this.toggleMerchantInfo();
+                this.togglePaymentLinkFields();
+                this.toggleFieldGroup(this.$mifCheckbox, 10);
+                this.toggleFieldGroup(this.$hfEnabled, 5);
+                this.toggleFieldGroup(this.$scEnabled, 7);
+                this.toggleFieldGroup(this.$plEnabled, 3);
+
                 $('html, body').animate({
-                    scrollTop: 0 
+                    scrollTop: 0
                 }, 500);
             }
         },
@@ -368,35 +457,21 @@ jQuery(function ($) {
             $field.after($error);
             $field.css('border', '1px solid red');
         },
-        
+
         clearFieldError: function ($field) {
             $field.next('.error-message').remove();
             $field.css('border', '');
         },
 
-        updateLocaleOptions: function () {
-            const method       = this.$method.val();
-            const langs        = method === 'hosted-checkout' ? this.hcLangs : this.hsLangs;
-            const selectedLang = this.$localeSelect.val();
-        
-            if ( langs ) {
-                this.$localeSelect.empty();
-        
-                $.each( langs, function ( value, label ) {
-                    const $option = $('<option>', {
-                        value: value,
-                        text:  label
-                    });
-        
-                    if ( value === selectedLang ) {
-                        $option.prop( 'selected', true );
-                    }
-        
-                    this.$localeSelect.append( $option );
-                }.bind( this ));
+        checkMaxAttempts: function ($field, message) {
+            const val = parseInt($field.val(), 10);
+
+            if (isNaN(val) || val > 25) {
+                this.showFieldError($field, message);
+                return false;
             }
+            return true;
         },
-        
     };
 
     wc_mastercard_admin.init();

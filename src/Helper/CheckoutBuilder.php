@@ -201,12 +201,20 @@ class CheckoutBuilder {
 	 *
 	 * @return array
 	 */
-	public function getHostedCheckoutOrder() { // phpcs:ignore       
-        $order_summary = array(); 
+	public function getHostedCheckoutOrder() { // phpcs:ignore
+        $handling_fee  = 0;
+        $order_summary = array();
+        $fees          = $this->order->get_fees(); 
 		$locale        = $this->gateway->get_option( 'locale' );
-		$description   = Countries::get_instance()->get_order_summary_text( $locale );
-		$order_prefix  = (string) PaymentController::get_instance()->add_order_prefix( $this->order->get_id() );
-        $shipping_fee  = $this->getOrderShippingAndHandling();
+		$description   = Countries::get_instance()->get_order_summary_text($locale );
+
+        if ( ! empty( $fees ) ) {
+            foreach ( $fees as $fee ) {
+                $handling_fee += $fee->get_total();
+            }
+        }
+
+        $shipping_fee = (float)( $handling_fee ) + (float) $this->order->get_shipping_total();
 
         if( 'yes' === $this->gateway->send_line_items ) {
             $line_items = $line_items = array(); 
@@ -215,9 +223,10 @@ class CheckoutBuilder {
             if ( $items ) {
                 foreach ( $items as $item ) {
                     $product = $item->get_product();
-
                     $line_item = array(
-                        'name'      => $item->get_name(),
+                        'name'      => $this->getExcerpt( $item->get_name(), 127 ),
+                        'quantity'  => $item->get_quantity(),
+                        'sku'       => $product->get_sku(),
                         'unitPrice' => $this->formattedPrice( $product->get_price_excluding_tax() ),
                     );
 
@@ -232,63 +241,62 @@ class CheckoutBuilder {
                     $line_items[] = $line_item;
                 }
             }
-
+			
             if ( ! empty( $line_items ) ) {
 				$order_summary = array(
-					'id'          => $order_prefix,
+					'id'          => (string) PaymentController::get_instance()->add_order_prefix( $this->order->get_id() ),
 					'description' => $description,
 					'item'        => $line_items,
-					'itemAmount'  => (float) ( $this->getOrderItemAmount() ?: 0 ),
-					'currency'    => get_woocommerce_currency(),
+					'itemAmount'  => $this->formattedPrice( $this->order->get_subtotal() )
 				);
 			} else {
 				$order_summary = array(
-					'id'          => $order_prefix,
+					'id'          => (string) PaymentController::get_instance()->add_order_prefix( $this->order->get_id() ),
 					'description' => $description,
-					'itemAmount'  => (float) ( $this->getOrderItemAmount() ?: 0 )
+					'itemAmount'  => $this->formattedPrice( $this->order->get_subtotal() )
 				);
 			}
 
-            if( $shipping_fee > 0 ) {
+            if( $shipping_fee ) {
                 $order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
             }
 
-            if( $this->order->get_total_tax() > 0 ) {
-                $order_summary['taxAmount'] = $this->formattedPrice( $this->getOrderTax() );
+            if( $this->order->get_total_tax() ) {
+                $order_summary['taxAmount'] = $this->formattedPrice( $this->order->get_total_tax() );
             }
 
             if( $this->order->get_total_discount() ) {
                 $order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
             }
-        } elseif( 'yes' === $this->gateway->hf_enabled ) {
-			$order_summary = array(
-				'id'          => $order_prefix,
-				'description' => $description,
-				'itemAmount'  => $this->formattedPrice( $this->getOrderItemAmount() ),
-			);
+        
+            return array_merge(
+                $order_summary,
+                $this->getOrder()
+            );
+        } else {
+            $order_summary = array(
+                'id'          => (string) PaymentController::get_instance()->add_order_prefix( $this->order->get_id() ),
+                'description' => $description,
+                'itemAmount'  => $this->formattedPrice( $this->order->get_subtotal() ),
+            );
 
-			if( $shipping_fee ) {
-				$order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
-			}
+            if( $shipping_fee ) {
+                $order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
+            }
 
-			if( $this->order->get_total_tax() ) {
-				$order_summary['taxAmount'] = $this->formattedPrice( $this->getOrderTax() );
-			}
+            if( $this->order->get_total_tax() ) {
+                $order_summary['taxAmount'] = $this->formattedPrice( $this->order->get_total_tax() );
+            }
 
-			if( $this->order->get_total_discount() ) {
-				$order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
-			}
-		} else {
-			$order_summary = array(
-				'id'          => $order_prefix,
-				'description' => $description
-			);
-		}
+            if( $this->order->get_total_discount() ) {
+                $order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
+            }
 
-        return array_merge(
-            $order_summary,
-            $this->getOrder()
-        );
+            return array_merge(
+                $order_summary,
+                $this->getOrder()
+            );
+        }
     }
 
 	/**
@@ -297,8 +305,29 @@ class CheckoutBuilder {
 	 * @return array
 	 */
 	public function getOrder() { // phpcs:ignore
+		// Safe numeric getters with fallback to 0
+		$itemAmount  = (float) ( $this->getOrderItemAmount() ?: 0 );
+		$taxAmount   = (float) ( $this->getOrderTax() ?: 0 );
+		$discount    = (float) ( $this->formattedPrice( $this->order->get_total_discount() ) ?: 0 );
+
+		$handlingFee = 0;
+
+		// Fees safe loop
+		$fees = $this->order->get_fees();
+		if ( ! empty( $fees ) ) {
+			foreach ( $fees as $fee ) {
+				$handlingFee += (float) ( $fee->get_total() ?: 0 );
+			}
+		}
+
+		// Safe shipping total
+		$shippingTotal = (float) ( $this->order->get_shipping_total() ?: 0 ) + $handlingFee;
+
+		// Final total
+		$orderTotal = ( $itemAmount + $taxAmount + $shippingTotal ) - $discount;
+
 		return array(
-			'amount'   => $this->formattedPrice( $this->order->get_total() ),
+			'amount'   => $this->formattedPrice( $orderTotal ),
 			'currency' => get_woocommerce_currency(),
 		);
 	}
@@ -309,23 +338,13 @@ class CheckoutBuilder {
 	 * @return array
 	 */
 	public function getOrderTax() { // phpcs:ignore
-		$order_total = (float) $this->order->get_total();
-		$tax         = (float) $this->order->get_total_tax(); 
-		$itemAmount  = (float) $this->getOrderItemAmount();
-		$shipping    = (float) $this->getOrderShippingAndHandling();
-		$discount    = (float) $this->order->get_total_discount();
-		$calculated  = $itemAmount + $shipping + $tax - $discount;
-		$delta       = wc_format_decimal( $order_total - $calculated, 2 );
-
-		if ( abs( $delta ) > 0 ) {
-			$tax += $delta;
-		}
+		$tax = $this->order->get_total_tax(); 
 
 		if ( 'yes' !== get_option( 'woocommerce_tax_round_at_subtotal' ) ) {
 			$tax = wc_round_tax_total( $tax );
 		}
 
-		return (float) $tax;
+		return $this->formattedPrice( $tax );
 	}
 
 	/**
@@ -340,26 +359,7 @@ class CheckoutBuilder {
 			$item_amount = (float) $this->order->get_subtotal();
 		}
 
-		return (float) $item_amount;
-	}
-
-	/**
-	 * Get order shipping and handling.
-	 *
-	 * @return array
-	 */
-	public function getOrderShippingAndHandling() { // phpcs:ignore
-		$handling_fee  = 0;
-		$fees          = $this->order->get_fees();
-		$shipping      = (float) $this->order->get_shipping_total();
-		
-		if ( ! empty( $fees ) ) {
-            foreach ( $fees as $fee ) {
-                $handling_fee += (float) ( $fee->get_total() ?: 0 );
-            }
-        }
-
-		return (float) ( $shipping + $handling_fee );
+		return $this->formattedPrice( $item_amount );
 	}
 
 	/**
@@ -384,14 +384,13 @@ class CheckoutBuilder {
 	}
 
 	/**
-	 * Formatted price with proper precision handling.
+	 * Formatted price.
 	 *
 	 * @param float $price Unformatted price.
-	 * @return float
+	 * @return string
 	 */
 	public function formattedPrice( $price ) { // phpcs:ignore
-		// Ensure proper rounding to avoid precision issues.
-		return (float) number_format( NumberUtil::round( $price, wc_get_price_decimals() ), wc_get_price_decimals(), '.', '' );
+		return number_format( NumberUtil::round( $price, wc_get_price_decimals() ), wc_get_price_decimals(), '.' , '' );
 	}
 
 	/**
@@ -409,16 +408,16 @@ class CheckoutBuilder {
 			$merchant_name  = $this->gateway->get_option( 'merchant_name' );
 			$sitename       = get_bloginfo( 'name', 'display' );
 			$merchant_name  = $merchant_name ? preg_replace( "/['\"]/", '', $merchant_name ) : $sitename;
-			$merchant_name  = mb_substr( $merchant_name, 0, 39 );
+			$merchant_name  = $this->getExcerpt( $merchant_name, 39 );
 
 			$merchant       = array(
 				'name'    => esc_html( $merchant_name ),
 				'url'     => $this->api_url,
 				'address' => array( 
-					'line1' => mb_substr( $this->gateway->get_option( 'merchant_address_line1' ), 0, 100 ),
-					'line2' => mb_substr( $this->gateway->get_option( 'merchant_address_line2' ), 0, 100 ),
-					'line3' => mb_substr( $this->gateway->get_option( 'merchant_address_line3' ), 0, 100 ),
-					'line4' => mb_substr( $this->gateway->get_option( 'merchant_address_line4' ), 0, 100 ),
+					'line1'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line1' ), 100 ),
+					'line2'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line2' ), 100 ),
+					'line3'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line3' ), 100 ),
+					'line4'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line4' ), 100 )
 				)
 			);
 
@@ -452,7 +451,7 @@ class CheckoutBuilder {
 					'shipping'       => 'HIDE',
 				),
 				'operation'      => $capture ? 'PURCHASE' : 'AUTHORIZE',
-				//'locale'         => $this->gateway->get_option( 'locale' )
+				'locale'         => $this->gateway->get_option( 'locale' ),
 			)
 		);
 
@@ -546,4 +545,206 @@ class CheckoutBuilder {
 
         return $field;
     }
+
+	/**
+	 * Retrieves the payment link order information.
+	 *
+	 * @return array
+	 */
+	public function getPaymentLinkOrder( $order_id ) { // phpcs:ignore
+		$order = wc_get_order( $order_id );
+		if ( ! $order ) {
+			return [];
+		}
+
+		$handling_fee  = 0;
+		$order_summary = array();
+		$fees          = $order->get_fees();
+
+		if ( ! empty( $fees ) ) {
+			foreach ( $fees as $fee ) {
+				$handling_fee += $fee->get_total();
+			}
+		}
+
+		$shipping_fee = (float) $handling_fee + (float) $order->get_shipping_total();
+
+		
+
+		if ( 'yes' === $this->gateway->send_line_items ) {
+			$line_items = array();
+			foreach ( $order->get_items() as $item ) {
+				$product   = $item->get_product();
+				$sku       = $product ? $product->get_sku() : '';
+				$unitPrice = $product ? $this->formattedPrice( $product->get_price_excluding_tax() ) : $this->formattedPrice( $item->get_total() );
+
+				$line_items[] = array(
+					'name'      => $item->get_name(),
+					'quantity'  => $item->get_quantity(),
+					'sku'       => $sku,
+					'unitPrice' => $unitPrice,
+				);
+			}
+
+			$order_summary = array(
+				'id'          => (string) PaymentController::get_instance()->add_order_prefix( $order->get_id() ),
+				'description' => 'Payment Link Order',
+				'item'        => $line_items,
+				'itemAmount'  => $this->formattedPrice( $order->get_subtotal() ),
+			);
+
+		} else {
+			$order_summary = array(
+				'id'          => (string) PaymentController::get_instance()->add_order_prefix( $order->get_id() ),
+				'description' => 'Payment Link Order',
+				'itemAmount'  => $this->formattedPrice( $order->get_subtotal() ),
+			);
+		}
+
+		if ( $shipping_fee ) {
+			$order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
+		}
+
+		if ( $order->get_total_tax() ) {
+			$order_summary['taxAmount'] = $this->formattedPrice( $order->get_total_tax() );
+		}
+
+		if ( $order->get_total_discount() ) {
+			$order_summary['discount']['amount'] = $this->formattedPrice( $order->get_total_discount() );
+		}
+
+		
+		$order_summary['amount']   = $this->formattedPrice( $order->get_total() );
+		$order_summary['currency'] = $order->get_currency();
+
+		return $order_summary;
+	}
+
+	public function getPaymentLinkSettings() {
+		
+		$value    = $this->gateway->get_option( 'payment_expiry_value' );
+		$unit     = $this->gateway->get_option( 'payment_expiry_unit' );
+		$attempts = $this->gateway->get_option( 'payment_allowed_attempts' );
+
+		// Default expiry: 3 months
+		if ( empty( $value ) || empty( $unit ) ) {
+			$expiry_timestamp = strtotime( '+3 months' );
+		} else {
+			switch ( $unit ) {
+				case 'hours':
+					$expiry_timestamp = strtotime( '+' . intval( $value ) . ' hours' );
+					break;
+
+				case 'days':
+					$expiry_timestamp = strtotime( '+' . intval( $value ) . ' days' );
+					break;
+
+				case 'months':
+					$days            = intval( $value ) * 30;
+					$expiry_timestamp = strtotime( '+' . $days . ' days' );
+					break;
+				
+				default:
+					$expiry_timestamp = strtotime( '+3 months' );
+			}
+		}
+
+		// Format with milliseconds
+		$expiry = gmdate( 'Y-m-d\TH:i:s', $expiry_timestamp ) . '.000Z';
+
+		if ( empty( $attempts ) ) {
+			$attempts = 25;
+		}
+
+		return array(
+			'expiryDateTime'          => $expiry,
+			'numberOfAllowedAttempts' => absint( $attempts ),
+		);
+	}
+
+	public function getBillingFromOrder( $order_id ) {
+		$order   = wc_get_order( $order_id );
+		$billing = array();
+
+		if ( ! $order ) {
+			return $billing;
+		}
+
+		// Safest: get billing address array directly
+		$billing_data = $order->get_address( 'billing' );
+		$fields = array( 
+			'street'        => array( 'key' => 'address_1', 'length' => 100 ),
+			'street2'       => array( 'key' => 'address_2', 'length' => 100 ),
+			'city'          => array( 'key' => 'city',      'length' => 100 ),
+			'postcodeZip'   => array( 'key' => 'postcode',  'length' => 10 ),
+			'stateProvince' => array( 'key' => 'state',     'length' => 20 ),
+		);
+
+		foreach ( $fields as $key => $field ) {
+			$value = $billing_data[ $field['key'] ] ?? '';
+			if ( $value ) {
+				$billing['address'][ $key ] = self::is_safe( $value, $field['length'] );
+			}
+		}
+
+		$country = $order->get_billing_country();
+
+		if ( $country ) {
+			$billing['address']['country'] = $this->iso2ToIso3( $country );
+		}
+		
+
+		return $billing;
+	}
+
+
+	public function getShippingFromOrder( $order_id ) {
+		$order    = wc_get_order( $order_id );
+		$shipping = array();
+
+		if ( ! $order ) {
+			return $shipping;
+		}
+
+		// Skip if order is virtual (same as your current check)
+		if ( $order->get_shipping_total() == 0 && ! $order->get_shipping_first_name() && ! $order->get_shipping_address_1() ) {
+			return null;
+		}
+
+		$addressFields = array(
+			'street'        => array( 'method' => 'get_shipping_address_1', 'length' => 100 ),
+			'street2'       => array( 'method' => 'get_shipping_address_2', 'length' => 100 ),
+			'city'          => array( 'method' => 'get_shipping_city',      'length' => 100 ),
+			'postcodeZip'   => array( 'method' => 'get_shipping_postcode',  'length' => 10 ),
+			'stateProvince' => array( 'method' => 'get_shipping_state',     'length' => 20 ),
+		);
+
+		foreach ( $addressFields as $key => $field ) {
+			$value = $order->{ $field['method'] }();
+			if ( $value ) {
+				$shipping['address'][ $key ] = self::is_safe( $value, $field['length'] );
+			}
+		}
+
+		$country = $order->get_shipping_country();
+		if ( $country ) {
+
+			$shipping['address']['country'] =  $this->iso2ToIso3( $country );
+		}
+
+		$contactFields = array( 
+			'firstName' => array( 'method' => 'get_shipping_first_name', 'length' => 50 ),
+			'lastName'  => array( 'method' => 'get_shipping_last_name',  'length' => 50 ),
+		);
+
+		foreach ( $contactFields as $key => $field ) {
+			$value = $order->{ $field['method'] }();
+			if ( $value ) {
+				$shipping['contact'][ $key ] = self::is_safe( $value, $field['length'] );
+			}
+		}
+
+		return $shipping;
+	}
+
 }
