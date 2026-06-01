@@ -16,7 +16,7 @@
  * Domain Path: /languages
  *
  * WC requires at least: 8.7
- * WC tested up to: 10.5.3
+ * WC tested up to: 10.7.0
  *
  * @package  Mastercard
  * @version  GIT: @1.5.3@

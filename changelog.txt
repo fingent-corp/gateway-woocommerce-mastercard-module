@@ -1,6 +1,19 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2026-06-01 - version 1.5.3
+
+* Add - Introduced "Pay By Link" feature in Hosted Checkout.
+* Add - Updated the plugin to bypass and properly handle regional decimal separators (such as commas used in Greece).
+* Enhancement - Gateway URLs are now automatically saved in the correct format.
+* Enhancement - Updated the "Send Line Item" feature for digital products.
+* Enhancement - Compatibility with WooCommerce 10.7.0.
+
+2026-04-01 - version 1.5.2.1 
+
+* Fix - Implemented security patches and bug fixes.
+
 2026-03-06 - version 1.5.2
+
 * Add - Updated Configuration Page for better user experience.
 * Add - Introduced Retrieve Transaction API as an alternative mechanism to address the mismatch issue observed on the portal.
 * Add - Apple pay support.
@@ -9,16 +22,20 @@
 * Enhancement - Fully tested and supported on PHP v8.3.
 
 2026-01-16 - version 1.5.1.1
+
 * Fix - Minor bug fixes.
 
 2025-10-24 - version 1.5.1
+
 * Add - Users will have the capability to make payments utilizing the KNET option within the Hosted checkout. Please ensure that the MID has KNET enabled for this payment option to appear on the checkout page.
 * Enhancement - WordPress 6.8.3 & WooCommerce 10.2.2.
 
 2025-06-24 - version 1.5.0.1
+
 * Fix - Rectified the tax rounding issue.
 
 2025-06-12 - version 1.5.0
+
 * Enhancement - WordPress 6.7 & WooCommerce 9.7.
 * Add - PayPal payment support in Hosted Checkout.
 * Add - Option to apply surcharge on the order pay page (fixed or percentage) in Hosted Session.
@@ -26,10 +43,12 @@
 * Fix - Minor bug fixes.
 
 2025-03-03 - version 1.4.9
+
 * Fix - Rectified PSR Log version inconsistencies for PHP 7.4 compatibility.
 * Fix - Addressed an issue where Handling Fees were incorrectly applied to other payment modules.
 
 2024-12-18 - version 1.4.8
+
 * Add - Introduced a webhook feature to notify your system about updates to order transactions. This ensures that orders marked as “Failed” in the platform Admin orders section are updated when the payment is successfully processed in the Merchant portal.
 * Enhancement - Compatibility with WordPress 6.7 and WooCommerce 9.4.
 * Update - Updated the API version to 100.

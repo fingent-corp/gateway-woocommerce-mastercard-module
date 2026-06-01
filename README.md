@@ -51,6 +51,9 @@ With KNET, customers can make payments quickly and effortlessly through the host
    - **Hosted Checkout**<br/>
 This feature lets your customers enter their payment details on a ready-made secure checkout page provided directly by Mastercard. It keeps sensitive information safe while giving your customers a smooth and hassle-free payment experience.
 
+   - **Hosted Checkout – Pay by Link**<br/>
+This feature empowers merchants to generate secure payment URLs to share via email. It redirects customers to a trusted Mastercard checkout page, allowing you to accept payments instantly without needing a website or technical integration.
+
    - **Hosted Session**<br/>
 This feature lets you customize the layout and design of your payment page to match your brand, while still meeting strict PCI security standards. It makes managing security easier without compromising the user experience.
 

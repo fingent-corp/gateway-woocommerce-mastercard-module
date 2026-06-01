@@ -1,6 +1,20 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.3] - 2026-06-01
+### Added
+- Introduced "Pay By Link" feature in Hosted Checkout.
+- Updated the plugin to bypass and properly handle regional decimal separators (such as commas used in Greece).
+
+### Enhancement
+- Gateway URLs are now automatically saved in the correct format.
+- Updated the "Send Line Item" feature for digital products.
+- Compatibility with WooCommerce 10.7.0.
+
+## [1.5.2.1] - 2026-04-01
+### Fixed
+- Implemented security patches and bug fixes.
+
 ## [1.5.2] - 2026-03-06
 ### Added
 - Updated Configuration Page for better user experience.
