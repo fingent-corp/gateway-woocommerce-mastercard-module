@@ -2127,6 +2127,8 @@ class AdminController {
 			wp_die( esc_html__( 'Invalid Order ID.', MG_ENTERPRISE_TEXTDOMAIN ) );
 		}
 
+		check_admin_referer( 'regenerate_payment_' . $order_id );
+
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_die( esc_html__( 'You do not have permission to do this.', MG_ENTERPRISE_TEXTDOMAIN ) );
 		}

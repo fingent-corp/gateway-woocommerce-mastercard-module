@@ -61,7 +61,7 @@ class FrontendController {
 		add_filter( 'script_loader_tag', array( $this, 'add_js_extra_attribute' ), 10 );
 		add_action( 'wp_enqueue_scripts', array( $this, 'payment_gateway_scripts' ), 10 );
 		add_action( 'template_redirect', array( $this, 'define_default_payment_gateway' ) );
-		add_action( 'woocommerce_thankyou', array( $this, 'clear_session_storage' ), 10 );
+		add_action( 'wp_enqueue_scripts', array( $this, 'clear_session_storage' ), 20 );
 		add_action( 'woocommerce_cart_calculate_fees', array( $this, 'add_handling_fee' ), 10, 1 );	
 		add_filter( 'woocommerce_saved_payment_methods_list', array( $this, 'remove_saved_mastercard_methods' ), 10, 2 );
 		add_filter( 'woocommerce_payment_gateway_get_saved_payment_method_option_html', array( $this, 'mastercard_saved_payment_method_option_html' ), 10, 3 );
@@ -249,22 +249,25 @@ class FrontendController {
 	 *
 	 * @return void
 	 */
-	public function clear_session_storage( $order_id ) {
-		if ( ! $order_id ) {
+	public function clear_session_storage() {
+		if ( ! is_order_received_page() ) {
 			return;
 		}
-	
-		$order = wc_get_order( $order_id );
-	
-		if ( $order instanceof WC_Order && $order->get_payment_method() === MG_ENTERPRISE_ID ) {
-			wp_enqueue_script(
-				'clear-session-storage',
-				UtilityController::plugin_url() . '/assets/js/clear-session.js', 
-				array(),
-				MG_ENTERPRISE_MODULE_VERSION,
-				true
-			);
+
+		$order_id = absint( get_query_var( 'order-received' ) );
+		$order    = wc_get_order( $order_id );
+
+		if ( ! $order || $order->get_payment_method() !== MG_ENTERPRISE_ID ) {
+			return;
 		}
+		
+		wp_enqueue_script(
+			'clear-session-storage',
+			UtilityController::plugin_url() . '/assets/js/clear-session.js', 
+			array(),
+			MG_ENTERPRISE_MODULE_VERSION,
+			true
+		);
 	}
 
 	/**
@@ -386,6 +389,46 @@ class FrontendController {
 			);
 
 			wp_send_json( $return );
+		}
+
+		wp_send_json(
+			array(
+				'message' => __( 'Surcharge is not enabled.', MG_ENTERPRISE_TEXTDOMAIN ),
+				'code'    => 400,
+			),
+			400
+		);
+	}
+
+	/**
+	 * Verify order-scoped token and payable status for surcharge AJAX.
+	 *
+	 * @param int $order_id Order ID.
+	 * @return WC_Order
+	 */
+	protected function verify_surcharge_ajax_access( $order_id ) {
+		$token = isset( $_POST['mg_order_token'] ) ? sanitize_text_field( wp_unslash( $_POST['mg_order_token'] ) ) : '';
+
+		if ( ! RestAuthHelper::verify_order_rest_token( $order_id, $token ) ) {
+			wp_send_json(
+				array(
+					'message' => __( 'Unauthorized.', MG_ENTERPRISE_TEXTDOMAIN ),
+					'code'    => 403,
+				),
+				403
+			);
+		}
+
+		try {
+			return RestAuthHelper::get_payable_order( $order_id );
+		} catch ( \Exception $e ) {
+			wp_send_json(
+				array(
+					'message' => __( 'This order cannot be modified.', MG_ENTERPRISE_TEXTDOMAIN ),
+					'code'    => 403,
+				),
+				403
+			);
 		}
 	}
 

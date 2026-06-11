@@ -915,6 +915,7 @@ class GatewayServiceController {
 	 */
 	public function captureTxn( $order_id, $txn_id, $amount, $currency ) { // phpcs:ignore
 		$new_txn_id = 'capture-' . $txn_id;
+		$amount     = CheckoutBuilder::formatAmountString( $amount );
 		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
 		$request    = $this->message_factory->createRequest(
 			'PUT',
@@ -968,6 +969,7 @@ class GatewayServiceController {
 	 */
 	public function refund( $order_id, $txn_id, $amount, $currency ) {
 		$new_txn_id = 'refund-' . $txn_id;
+		$amount     = CheckoutBuilder::formatAmountString( $amount );
 		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
 		$request    = $this->message_factory->createRequest(
 			'PUT',

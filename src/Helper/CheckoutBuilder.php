@@ -1,7 +1,6 @@
 <?php
 namespace Fingent\Mastercard\Helper;
 
-use Automattic\WooCommerce\Utilities\NumberUtil;
 use Fingent\Mastercard\Model\MastercardGateway;
 use Fingent\Mastercard\Helper\Countries;
 use Fingent\Mastercard\Controller\PaymentController;
@@ -49,6 +48,22 @@ class CheckoutBuilder {
 	}
 
 	/**
+	 * Public store URL sent to MPGS as interaction.merchant.url (not the API gateway host).
+	 *
+	 * @return string
+	 */
+	protected function get_merchant_site_url() {
+		$url = home_url( '/' );
+
+		// MPGS requires a secure merchant URL for hosted / embedded checkout.
+		if ( is_ssl() || 'yes' === $this->gateway->get_option( 'sandbox' ) ) {
+			$url = self::force_https_url( $url );
+		}
+
+		return esc_url_raw( $url );
+	}
+
+	/**
 	 * Converts a two-letter ISO country code to a three-letter ISO country code.
 	 *
 	 * @param string $iso2_country - The two-letter ISO country code.
@@ -70,6 +85,12 @@ class CheckoutBuilder {
 	 * @return boolean Returns true if the value is safe and within the limit, otherwise returns false.
 	 */
 	public static function is_safe( $value, $limited = 0 ) {
+		if ( ! is_string( $value ) ) {
+			$value = (string) $value;
+		}
+
+		$value = trim( $value );
+
 		if ( '' === $value ) {
 			return null;
 		}
@@ -79,6 +100,39 @@ class CheckoutBuilder {
 		}
 
 		return $value;
+	}
+
+	/**
+	 * Remove null values and blank strings from API payloads.
+	 *
+	 * MPGS rejects empty strings for several fields (minimum length 2).
+	 *
+	 * @param mixed $data Request payload or nested array.
+	 * @return mixed Sanitized payload.
+	 */
+	public static function filterEmptyStrings( $data ) {
+		if ( ! is_array( $data ) ) {
+			return $data;
+		}
+
+		$filtered = array();
+
+		foreach ( $data as $key => $value ) {
+			if ( is_array( $value ) ) {
+				$value = self::filterEmptyStrings( $value );
+				if ( empty( $value ) ) {
+					continue;
+				}
+			} elseif ( null === $value ) {
+				continue;
+			} elseif ( is_string( $value ) && '' === trim( $value ) ) {
+				continue;
+			}
+
+			$filtered[ $key ] = $value;
+		}
+
+		return $filtered;
 	}
 
 	/**
@@ -189,10 +243,12 @@ class CheckoutBuilder {
 	 * @return array
 	 */
 	public function getCustomer() { // phpcs:ignore
-		return array(
-			'email'     => $this->order->get_billing_email(),
-			'firstName' => self::is_safe( $this->order->get_billing_first_name(), 50 ),
-			'lastName'  => self::is_safe( $this->order->get_billing_last_name(), 50 ),
+		return self::filterEmptyStrings(
+			array(
+				'email'     => self::is_safe( $this->order->get_billing_email(), 255 ),
+				'firstName' => self::is_safe( $this->order->get_billing_first_name(), 50 ),
+				'lastName'  => self::is_safe( $this->order->get_billing_last_name(), 50 ),
+			)
 		);
 	}
 
@@ -217,87 +273,154 @@ class CheckoutBuilder {
         $shipping_fee = (float)( $handling_fee ) + (float) $this->order->get_shipping_total();
 
         if( 'yes' === $this->gateway->send_line_items ) {
-            $line_items = $line_items = array(); 
-            $items = $this->order->get_items();
+			$line_items = $this->buildOrderLineItems( $this->order->get_items(), true );
 
-            if ( $items ) {
-                foreach ( $items as $item ) {
-                    $product = $item->get_product();
-                    $line_item = array(
-                        'name'      => $this->getExcerpt( $item->get_name(), 127 ),
-                        'quantity'  => $item->get_quantity(),
-                        'sku'       => $product->get_sku(),
-                        'unitPrice' => $this->formattedPrice( $product->get_price_excluding_tax() ),
-                    );
-
-                    if( $item->get_quantity() ) {
-                        $line_item['quantity'] = $item->get_quantity();
-                    }
-
-                    if( $product->get_sku() ) {
-                        $line_item['sku'] = $product->get_sku();
-                    }
-
-                    $line_items[] = $line_item;
-                }
-            }
-			
-            if ( ! empty( $line_items ) ) {
+			if ( ! empty( $line_items ) ) {
 				$order_summary = array(
 					'id'          => (string) PaymentController::get_instance()->add_order_prefix( $this->order->get_id() ),
 					'description' => $description,
 					'item'        => $line_items,
-					'itemAmount'  => $this->formattedPrice( $this->order->get_subtotal() )
 				);
 			} else {
 				$order_summary = array(
 					'id'          => (string) PaymentController::get_instance()->add_order_prefix( $this->order->get_id() ),
 					'description' => $description,
-					'itemAmount'  => $this->formattedPrice( $this->order->get_subtotal() )
 				);
 			}
 
-            if( $shipping_fee ) {
-                $order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
-            }
+			$order_summary = $this->appendOrderBreakdownAmounts( $order_summary, $shipping_fee );
 
-            if( $this->order->get_total_tax() ) {
-                $order_summary['taxAmount'] = $this->formattedPrice( $this->order->get_total_tax() );
-            }
-
-            if( $this->order->get_total_discount() ) {
-                $order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
-            }
-        
-            return array_merge(
-                $order_summary,
-                $this->getOrder()
-            );
+			return $this->finalizeHostedOrderPayload( $order_summary );
         } else {
             $order_summary = array(
                 'id'          => (string) PaymentController::get_instance()->add_order_prefix( $this->order->get_id() ),
                 'description' => $description,
-                'itemAmount'  => $this->formattedPrice( $this->order->get_subtotal() ),
             );
 
-            if( $shipping_fee ) {
-                $order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
-            }
+			$order_summary = $this->appendOrderBreakdownAmounts( $order_summary, $shipping_fee );
 
-            if( $this->order->get_total_tax() ) {
-                $order_summary['taxAmount'] = $this->formattedPrice( $this->order->get_total_tax() );
-            }
-
-            if( $this->order->get_total_discount() ) {
-                $order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
-            }
-
-            return array_merge(
-                $order_summary,
-                $this->getOrder()
-            );
+			return $this->finalizeHostedOrderPayload( $order_summary );
         }
     }
+
+	/**
+	 * Append tax, shipping/handling, and discount fields for MPGS order breakdown.
+	 *
+	 * @param array $order_summary Order summary payload.
+	 * @param float $shipping_fee  Combined shipping and fee total.
+	 *
+	 * @return array
+	 */
+	private function appendOrderBreakdownAmounts( array $order_summary, $shipping_fee ) {
+		if ( ! isset( $order_summary['itemAmount'] ) ) {
+			$order_summary['itemAmount'] = $this->getOrderItemAmount();
+		}
+
+		if ( $shipping_fee ) {
+			$order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
+		}
+
+		if ( $this->order->get_total_tax() ) {
+			$order_summary['taxAmount'] = $this->getOrderTax();
+		}
+
+		if ( $this->order->get_total_discount() ) {
+			$order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
+		}
+
+		return $order_summary;
+	}
+
+	/**
+	 * Normalize, merge order total, and reconcile breakdown amounts for MPGS.
+	 *
+	 * @param array $order_summary Order summary payload.
+	 *
+	 * @return array
+	 */
+	private function finalizeHostedOrderPayload( array $order_summary ) {
+		$payload = self::normalizeMonetaryFields(
+			array_merge(
+				$order_summary,
+				$this->getOrder()
+			)
+		);
+
+		if ( ! empty( $payload['item'] ) && is_array( $payload['item'] ) ) {
+			$payload['itemAmount'] = self::sumLineItemsAmount( $payload['item'] );
+		}
+
+		return self::reconcileOrderAmounts( $payload );
+	}
+
+	/**
+	 * Build MPGS line items from WooCommerce order rows (unitPrice * quantity = line subtotal).
+	 *
+	 * @param array $items       WooCommerce order items.
+	 * @param bool  $use_excerpt Whether to truncate product names.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function buildOrderLineItems( $items, $use_excerpt = true ) {
+		$line_items = array();
+
+		if ( empty( $items ) ) {
+			return $line_items;
+		}
+
+		foreach ( $items as $item ) {
+			if ( ! is_a( $item, 'WC_Order_Item_Product' ) ) {
+				continue;
+			}
+
+			$qty           = max( 1, (int) $item->get_quantity() );
+			$line_subtotal = (float) $item->get_subtotal();
+			$unit_price    = $line_subtotal / $qty;
+			$product       = $item->get_product();
+
+			$line_item = array(
+				'name'      => $use_excerpt ? $this->getExcerpt( $item->get_name(), 127 ) : $item->get_name(),
+				'quantity'  => $qty,
+				'unitPrice' => $this->formattedPrice( $unit_price ),
+			);
+
+			$sku = $product ? self::is_safe( $product->get_sku(), 127 ) : null;
+			if ( $sku ) {
+				$line_item['sku'] = $sku;
+			}
+
+			$line_items[] = $line_item;
+		}
+
+		return $line_items;
+	}
+
+	/**
+	 * Sum quantity * unitPrice for all MPGS line items (matches gateway validation).
+	 *
+	 * @param array $line_items Normalized line items.
+	 * @return string
+	 */
+	public static function sumLineItemsAmount( array $line_items ) {
+		$decimals   = max( 0, (int) wc_get_price_decimals() );
+		$multiplier = 10 ** $decimals;
+		$total_minor = 0;
+
+		foreach ( $line_items as $line_item ) {
+			$qty = max( 1, (int) ( $line_item['quantity'] ?? 1 ) );
+
+			if ( function_exists( 'wc_string_to_num' ) ) {
+				$unit = wc_string_to_num( $line_item['unitPrice'] ?? 0 );
+			} else {
+				$unit = (float) ( $line_item['unitPrice'] ?? 0 );
+			}
+
+			$unit_minor   = (int) round( (float) $unit * $multiplier );
+			$total_minor += $unit_minor * $qty;
+		}
+
+		return self::formatAmountString( $total_minor / $multiplier );
+	}
 
 	/**
 	 * Retrieves the order information.
@@ -305,30 +428,9 @@ class CheckoutBuilder {
 	 * @return array
 	 */
 	public function getOrder() { // phpcs:ignore
-		// Safe numeric getters with fallback to 0
-		$itemAmount  = (float) ( $this->getOrderItemAmount() ?: 0 );
-		$taxAmount   = (float) ( $this->getOrderTax() ?: 0 );
-		$discount    = (float) ( $this->formattedPrice( $this->order->get_total_discount() ) ?: 0 );
-
-		$handlingFee = 0;
-
-		// Fees safe loop
-		$fees = $this->order->get_fees();
-		if ( ! empty( $fees ) ) {
-			foreach ( $fees as $fee ) {
-				$handlingFee += (float) ( $fee->get_total() ?: 0 );
-			}
-		}
-
-		// Safe shipping total
-		$shippingTotal = (float) ( $this->order->get_shipping_total() ?: 0 ) + $handlingFee;
-
-		// Final total
-		$orderTotal = ( $itemAmount + $taxAmount + $shippingTotal ) - $discount;
-
 		return array(
-			'amount'   => $this->formattedPrice( $orderTotal ),
-			'currency' => get_woocommerce_currency(),
+			'amount'   => $this->formattedPrice( $this->order->get_total() ),
+			'currency' => $this->order->get_currency(),
 		);
 	}
 
@@ -377,20 +479,178 @@ class CheckoutBuilder {
 			);
 		} else {
 			return array(
-				'amount' => 0,
+				'amount' => self::formatAmountString( 0 ),
 				'type'   => 'SURCHARGE'
 			);
 		}
 	}
 
 	/**
-	 * Formatted price.
+	 * Format a monetary value for MPGS (max 2 decimal places, no float artifacts).
 	 *
-	 * @param float $price Unformatted price.
+	 * @param float|string $price Unformatted price.
 	 * @return string
 	 */
 	public function formattedPrice( $price ) { // phpcs:ignore
-		return number_format( NumberUtil::round( $price, wc_get_price_decimals() ), wc_get_price_decimals(), '.' , '' );
+		return self::formatAmountString( $price );
+	}
+
+	/**
+	 * Format amount as a decimal string suitable for gateway API fields.
+	 *
+	 * @param float|int|string $amount Amount value.
+	 * @return string
+	 */
+	public static function formatAmountString( $amount ) {
+		$decimals = max( 0, (int) wc_get_price_decimals() );
+
+		if ( function_exists( 'wc_string_to_num' ) ) {
+			$amount = wc_string_to_num( $amount );
+		} elseif ( is_numeric( $amount ) ) {
+			$amount = (float) $amount;
+		} else {
+			$amount = 0.0;
+		}
+
+		// Round via integer minor-units to avoid float artifacts (e.g. 43.899999999999999).
+		$multiplier = 10 ** $decimals;
+		$minor      = (int) round( $amount * $multiplier );
+
+		return number_format( $minor / $multiplier, $decimals, '.', '' );
+	}
+
+	/**
+	 * Prepare a gateway API request payload (normalize amounts, remove empty fields).
+	 *
+	 * @param array $request_data Request body array.
+	 * @return array
+	 */
+	public static function prepareGatewayRequestData( array $request_data ) {
+		$request_data = self::normalizeMonetaryFields( $request_data );
+
+		if ( isset( $request_data['order'] ) && is_array( $request_data['order'] ) ) {
+			$request_data['order'] = self::reconcileOrderAmounts( $request_data['order'] );
+		}
+
+		return self::filterEmptyStrings( $request_data );
+	}
+
+	/**
+	 * Normalize monetary fields in an order payload before sending to MPGS.
+	 *
+	 * @param array $data Order or nested order data.
+	 * @return array
+	 */
+	public static function normalizeMonetaryFields( $data ) {
+		if ( ! is_array( $data ) ) {
+			return $data;
+		}
+
+		$amount_keys = array(
+			'amount',
+			'itemAmount',
+			'unitPrice',
+			'taxAmount',
+			'shippingAndHandlingAmount',
+		);
+
+		foreach ( $data as $key => $value ) {
+			if ( in_array( $key, array( 'discount', 'merchantCharge' ), true ) && is_array( $value ) && array_key_exists( 'amount', $value ) ) {
+				$data[ $key ]['amount'] = self::formatAmountString( $value['amount'] );
+			} elseif ( 'item' === $key && is_array( $value ) ) {
+				foreach ( $value as $index => $line_item ) {
+					$data[ $key ][ $index ] = self::normalizeMonetaryFields( $line_item );
+				}
+			} elseif ( in_array( $key, $amount_keys, true ) ) {
+				$data[ $key ] = self::formatAmountString( $value );
+			} elseif ( is_array( $value ) ) {
+				$data[ $key ] = self::normalizeMonetaryFields( $value );
+			}
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Ensure MPGS breakdown fields sum to order.amount (WooCommerce total).
+	 *
+	 * MPGS validates: itemAmount + taxAmount + shippingAndHandlingAmount - discount = amount.
+	 * Per-field rounding can drift by one cent from the WooCommerce order total.
+	 *
+	 * @param array $order Normalized order payload.
+	 * @return array
+	 */
+	public static function reconcileOrderAmounts( array $order ) {
+		if ( empty( $order['amount'] ) || ! isset( $order['itemAmount'] ) ) {
+			return $order;
+		}
+
+		$decimals   = max( 0, (int) wc_get_price_decimals() );
+		$multiplier = 10 ** $decimals;
+
+		$to_minor = static function ( $value ) use ( $multiplier ) {
+			if ( function_exists( 'wc_string_to_num' ) ) {
+				$value = wc_string_to_num( $value );
+			}
+
+			return (int) round( (float) $value * $multiplier );
+		};
+
+		$amount_minor    = $to_minor( $order['amount'] );
+		$item_minor      = $to_minor( $order['itemAmount'] );
+		$tax_minor       = $to_minor( $order['taxAmount'] ?? 0 );
+		$shipping_minor  = $to_minor( $order['shippingAndHandlingAmount'] ?? 0 );
+		$discount_minor  = 0;
+
+		if ( isset( $order['discount']['amount'] ) ) {
+			$discount_minor = $to_minor( $order['discount']['amount'] );
+		}
+
+		$computed_minor = $item_minor + $tax_minor + $shipping_minor - $discount_minor;
+		$diff           = $amount_minor - $computed_minor;
+
+		if ( 0 === $diff ) {
+			return $order;
+		}
+
+		$has_line_items = ! empty( $order['item'] ) && is_array( $order['item'] );
+
+		// When line items are sent, itemAmount must equal sum(qty * unitPrice); adjust tax/shipping instead.
+		if ( $has_line_items && isset( $order['taxAmount'] ) ) {
+			$order['taxAmount'] = self::formatAmountString( ( $tax_minor + $diff ) / $multiplier );
+		} elseif ( $has_line_items && isset( $order['shippingAndHandlingAmount'] ) ) {
+			$order['shippingAndHandlingAmount'] = self::formatAmountString( ( $shipping_minor + $diff ) / $multiplier );
+		} elseif ( ! $has_line_items ) {
+			$order['itemAmount'] = self::formatAmountString( ( $item_minor + $diff ) / $multiplier );
+		} else {
+			$order = self::absorbAmountDiffOnLastLineItem( $order, $diff, $multiplier );
+			$order['itemAmount'] = self::sumLineItemsAmount( $order['item'] );
+		}
+
+		return $order;
+	}
+
+	/**
+	 * Shift a minor-unit order total difference onto the last line item unit price.
+	 *
+	 * @param array $order      Order payload.
+	 * @param int   $diff_minor Difference in minor currency units.
+	 * @param int   $multiplier Minor units per major unit.
+	 *
+	 * @return array
+	 */
+	private static function absorbAmountDiffOnLastLineItem( array $order, $diff_minor, $multiplier ) {
+		$items       = $order['item'];
+		$last_index  = count( $items ) - 1;
+		$last        = $items[ $last_index ];
+		$qty         = max( 1, (int) ( $last['quantity'] ?? 1 ) );
+		$unit        = function_exists( 'wc_string_to_num' ) ? wc_string_to_num( $last['unitPrice'] ?? 0 ) : (float) ( $last['unitPrice'] ?? 0 );
+		$unit_minor  = (int) round( (float) $unit * $multiplier );
+		$unit_minor += (int) round( $diff_minor / $qty );
+		$items[ $last_index ]['unitPrice'] = self::formatAmountString( $unit_minor / $multiplier );
+		$order['item']                     = $items;
+
+		return $order;
 	}
 
 	/**
@@ -403,6 +663,8 @@ class CheckoutBuilder {
 	 */
 	public function getInteraction( $capture = true, $return_url = null ) { // phpcs:ignore
 		$merchant_interaction = array();
+		$locale               = $this->gateway->get_option( 'locale' );
+		$locale               = ! empty( $locale ) ? $locale : 'en_US';
 
 		if( 'yes' === $this->gateway->mif_enabled ) {
 			$merchant_name  = $this->gateway->get_option( 'merchant_name' );
@@ -410,16 +672,23 @@ class CheckoutBuilder {
 			$merchant_name  = $merchant_name ? preg_replace( "/['\"]/", '', $merchant_name ) : $sitename;
 			$merchant_name  = $this->getExcerpt( $merchant_name, 39 );
 
-			$merchant       = array(
-				'name'    => esc_html( $merchant_name ),
-				'url'     => $this->api_url,
-				'address' => array( 
-					'line1'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line1' ), 100 ),
-					'line2'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line2' ), 100 ),
-					'line3'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line3' ), 100 ),
-					'line4'	=> $this->getExcerpt( $this->gateway->get_option( 'merchant_address_line4' ), 100 )
+			$merchant_address = self::filterEmptyStrings(
+				array(
+					'line1' => self::is_safe( $this->gateway->get_option( 'merchant_address_line1' ), 100 ),
+					'line2' => self::is_safe( $this->gateway->get_option( 'merchant_address_line2' ), 100 ),
+					'line3' => self::is_safe( $this->gateway->get_option( 'merchant_address_line3' ), 100 ),
+					'line4' => self::is_safe( $this->gateway->get_option( 'merchant_address_line4' ), 100 ),
 				)
 			);
+
+			$merchant = array(
+				'name' => esc_html( $merchant_name ),
+				'url'  => $this->get_merchant_site_url(),
+			);
+
+			if ( ! empty( $merchant_address ) ) {
+				$merchant['address'] = $merchant_address;
+			}
 
 			if( $this->gateway->get_option( 'merchant_email' ) ) {
 				$merchant['email'] = $this->gateway->get_option( 'merchant_email' );
@@ -437,7 +706,7 @@ class CheckoutBuilder {
 		} else {
 			$sitename = $this->getExcerpt( get_bloginfo( 'name', 'display' ), 39 );
 			$merchant_interaction['merchant']['name'] = $sitename;
-			$merchant_interaction['merchant']['url']  = $this->api_url;
+			$merchant_interaction['merchant']['url']  = $this->get_merchant_site_url();
 		}
 
 		$interaction = array_merge(
@@ -451,7 +720,6 @@ class CheckoutBuilder {
 					'shipping'       => 'HIDE',
 				),
 				'operation'      => $capture ? 'PURCHASE' : 'AUTHORIZE',
-				'locale'         => $this->gateway->get_option( 'locale' ),
 			)
 		);
 
@@ -557,6 +825,9 @@ class CheckoutBuilder {
 			return [];
 		}
 
+		$previous_order = $this->order;
+		$this->order    = $order;
+
 		$handling_fee  = 0;
 		$order_summary = array();
 		$fees          = $order->get_fees();
@@ -569,55 +840,37 @@ class CheckoutBuilder {
 
 		$shipping_fee = (float) $handling_fee + (float) $order->get_shipping_total();
 
-		
-
 		if ( 'yes' === $this->gateway->send_line_items ) {
-			$line_items = array();
-			foreach ( $order->get_items() as $item ) {
-				$product   = $item->get_product();
-				$sku       = $product ? $product->get_sku() : '';
-				$unitPrice = $product ? $this->formattedPrice( $product->get_price_excluding_tax() ) : $this->formattedPrice( $item->get_total() );
-
-				$line_items[] = array(
-					'name'      => $item->get_name(),
-					'quantity'  => $item->get_quantity(),
-					'sku'       => $sku,
-					'unitPrice' => $unitPrice,
-				);
-			}
+			$line_items = $this->buildOrderLineItems( $order->get_items(), false );
 
 			$order_summary = array(
 				'id'          => (string) PaymentController::get_instance()->add_order_prefix( $order->get_id() ),
 				'description' => 'Payment Link Order',
 				'item'        => $line_items,
-				'itemAmount'  => $this->formattedPrice( $order->get_subtotal() ),
 			);
 
 		} else {
 			$order_summary = array(
 				'id'          => (string) PaymentController::get_instance()->add_order_prefix( $order->get_id() ),
 				'description' => 'Payment Link Order',
-				'itemAmount'  => $this->formattedPrice( $order->get_subtotal() ),
 			);
 		}
 
-		if ( $shipping_fee ) {
-			$order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
-		}
-
-		if ( $order->get_total_tax() ) {
-			$order_summary['taxAmount'] = $this->formattedPrice( $order->get_total_tax() );
-		}
-
-		if ( $order->get_total_discount() ) {
-			$order_summary['discount']['amount'] = $this->formattedPrice( $order->get_total_discount() );
-		}
-
-		
+		$order_summary = $this->appendOrderBreakdownAmounts( $order_summary, $shipping_fee );
 		$order_summary['amount']   = $this->formattedPrice( $order->get_total() );
 		$order_summary['currency'] = $order->get_currency();
 
-		return $order_summary;
+		$payload = self::normalizeMonetaryFields( $order_summary );
+
+		if ( ! empty( $payload['item'] ) && is_array( $payload['item'] ) ) {
+			$payload['itemAmount'] = self::sumLineItemsAmount( $payload['item'] );
+		}
+
+		$result = self::reconcileOrderAmounts( $payload );
+
+		$this->order = $previous_order;
+
+		return $result;
 	}
 
 	public function getPaymentLinkSettings() {
@@ -746,5 +999,4 @@ class CheckoutBuilder {
 
 		return $shipping;
 	}
-
 }
