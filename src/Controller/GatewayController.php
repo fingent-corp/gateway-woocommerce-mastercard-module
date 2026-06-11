@@ -347,4 +347,29 @@ class GatewayController {
 
 		return true;
 	}
+
+	/**
+	 * Log exception details and return a safe REST error for clients.
+	 *
+	 * @param \Throwable $e       Exception.
+	 * @param int        $status HTTP status.
+	 * @return \WP_Error
+	 */
+	protected function rest_api_error_response( $e, $status = 400 ) {
+		if ( $this->logger ) {
+			$this->logger->error(
+				$e->getMessage(),
+				array(
+					'exception' => get_class( $e ),
+					'status'    => $status,
+				)
+			);
+		}
+
+		return new \WP_Error(
+			'mastercard_api_error',
+			__( 'Payment could not be processed. Please try again or contact the store.', 'mastercard' ),
+			array( 'status' => $status )
+		);
+	}
 }

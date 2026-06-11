@@ -860,44 +860,63 @@ class PaymentController {
 	 * @param WP_REST_Request $request The request object containing webhook data.
 	 * @return WP_REST_Response A response object indicating the status of the webhook processing.
 	 */
-	public function webhook_handler( $request ) {
-		$body                = $request->get_body();
-    	$headers             = $request->get_headers();
-    	$secret              = $headers['x_notification_secret'][0];
-		$sandbox_mode 		 = $this->gateway->get_option( 'sandbox' );
-		$notification_secret = ($sandbox_mode === 'yes') ? $this->gateway->get_option( 'test_webhook_secret' ) : $this->gateway->get_option( 'webhook_secret' );
-    	$response            = json_decode( $body, true );
-    	$order_status        = array( 'cancelled', 'failed', 'on-hold' );
+public function webhook_handler( $request ) {
+        $body                = $request->get_body();
+        $headers             = $request->get_headers();
+        $secret              = $headers['x_notification_secret'][0];
+        $sandbox_mode          = $this->gateway->get_option( 'sandbox' );
+        $notification_secret = ($sandbox_mode === 'yes') ? $this->gateway->get_option( 'test_webhook_secret' ) : $this->gateway->get_option( 'webhook_secret' );
+        $response            = json_decode( $body, true );
+        $order_status        = array( 'cancelled', 'failed', 'on-hold' ,'pending' );
 
-    	if ( $secret !== $notification_secret ) {
-	        return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
-	    }
+        if ( empty( $secret ) || ! hash_equals( (string) $notification_secret, (string) $secret ) ) {
+            return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
+        }
 
-    	if ( json_last_error() !== JSON_ERROR_NONE ) {
-	        return new WP_REST_Response( array( 'error' => 'Invalid JSON' ), 400 );
-	    }
+        if ( json_last_error() !== JSON_ERROR_NONE ) {
+            return new WP_REST_Response( array( 'error' => 'Invalid JSON' ), 400 );
+        }
 
-	    $order_id = absint( $this->remove_order_prefix( $response['order']['id'] ) );
+        $order_id = absint( $this->remove_order_prefix( $response['order']['id'] ) );
 
-	    if( $order_id ) {
-	    	$order = new WC_Order( $order_id );
+        if( $order_id ) {
+            $order = new WC_Order( $order_id );
 
-	    	switch ( $response['gatewayEntryPoint'] ) {
-	    		case 'CHECKOUT_VIA_WEBSITE':
-	    			if( 'SUCCESS' === $response['result'] ) {
-						if ( in_array( $order->get_status(), $order_status ) ) {
-							$this->process_wc_order( $order, $response['order'], $response );
+            switch ( $response['gatewayEntryPoint'] ) {
+                case 'CHECKOUT_VIA_WEBSITE':
+
+                    $is_iris = isset( $response['sourceOfFunds']['browserPayment']['type'] )
+                    && strtoupper( $response['sourceOfFunds']['browserPayment']['type'] ) === 'IRIS_PAY';
+
+                    if ( $is_iris ) {
+						$order_status_mpgs = strtoupper( $response['status'] ?? '' );
+
+						if ( $order_status_mpgs === 'CAPTURED' ) {
+							if ( in_array( $order->get_status(), $order_status ) ) {
+								$this->process_wc_order( $order, $response['order'], $response );
+							}
+						} elseif ( in_array( $order_status_mpgs, [ 'FAILED', 'CANCELLED' ], true ) ) {
+							if ( 'failed' !== $order->get_status() ) {
+								$order->update_status( 'failed', __( 'IRIS payment failed or was cancelled.', 'mastercard' ) );
+							}
+						}
+					} else {
+						if( 'SUCCESS' === $response['result'] ) {
+							if ( in_array( $order->get_status(), $order_status ) ) {
+								$this->process_wc_order( $order, $response['order'], $response );
+							}
 						}
 					}
-					break;
+                break;
 
-	    		default:
-	    			break;
-	    	}  	
-    	} else {
-    		return new WP_REST_Response( array( 'error' => 'Invalid Order' ), 400 );
-    	}
-	}
+                default:
+                    break;
+            }      
+        } else {
+            return new WP_REST_Response( array( 'error' => 'Invalid Order' ), 400 );
+        }
+    }
+
 
 	/**
 	 * Calculate the payment amount for an order.

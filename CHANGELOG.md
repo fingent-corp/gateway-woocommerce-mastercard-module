@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.3.1] - 2026-06-11
+### Added
+- IRIS Pay Support in Hosted Checkout.
+
+### Fixed
+- Resolved bugs related to Greek currency processing.
+
 ## [1.5.3] - 2026-06-01
 ### Added
 - Introduced "Pay By Link" feature in Hosted Checkout.

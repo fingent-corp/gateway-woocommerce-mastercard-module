@@ -1,5 +1,10 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2026-06-11 - version 1.5.3.1
+
+* Add - IRIS Pay Support in Hosted Checkout.
+* Fix - Resolved bugs related to Greek currency processing.
+
 2026-06-01 - version 1.5.3
 
 * Add - Introduced "Pay By Link" feature in Hosted Checkout.
