@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.3.2] - 2026-08-05
+### Added
+- Click to Pay Support in Hosted Checkout.
+### Fixed
+- Fixed an issue that prevented customers from being redirected to the Mastercard Hosted Checkout page during guest checkout.
+
 ## [1.5.3.1] - 2026-06-11
 ### Added
 - IRIS Pay Support in Hosted Checkout.

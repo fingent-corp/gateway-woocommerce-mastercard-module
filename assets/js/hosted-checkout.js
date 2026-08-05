@@ -63,7 +63,6 @@ function cancelCallback() {
         dataType: 'json',
         beforeSend: function (xhr) {
             if ( mgHCParams.authorization ) {
-                xhr.setRequestHeader( 'Authorization', mgHCParams.authorization );
                 xhr.setRequestHeader( 'X-MG-Access-Token', mgHCParams.authorization );
             }
         }

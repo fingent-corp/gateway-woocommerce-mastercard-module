@@ -175,7 +175,6 @@ function mgPayWithSelectedInstrument() {
             dataType: 'json',
             beforeSend: function (xhr) {
                 if ( mgSessionParams.authorization ) {
-                    xhr.setRequestHeader( 'Authorization', mgSessionParams.authorization );
                     xhr.setRequestHeader( 'X-MG-Access-Token', mgSessionParams.authorization );
                 }
             }
@@ -281,7 +280,6 @@ function mgPayWithSelectedInstrument() {
             dataType: 'json',
             beforeSend: function (xhr) {
                 if ( mgSessionParams.authorization ) {
-                    xhr.setRequestHeader( 'Authorization', mgSessionParams.authorization );
                     xhr.setRequestHeader( 'X-MG-Access-Token', mgSessionParams.authorization );
                 }
             }

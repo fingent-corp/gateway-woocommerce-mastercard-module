@@ -51,6 +51,10 @@ Give your customers the flexibility of IRIS Pay for quick and secure payments ri
 
    **Note**: IRIS  Pay is only available for full page redirect in Hosted Checkout.
 
+   - **Click to Pay (Supported in Hosted Checkout Only)**<br/>
+Bring a faster, password-free checkout experience to your store with Click to Pay. Available seamlessly through the hosted checkout page, this feature eliminates manual data entry by automatically recognizing returning shoppers and their preferred cards.
+To activate this feature, ensure your merchant ID (MID) is enabled for Click to Pay within your gateway configuration. Once live, it delivers a highly secure, frictionless payment journey that boosts conversion rates and makes card authorization effortless for your global customers.   
+
 **2. Checkout and Payment Integration -** These features focus on methods of collecting payment details from customers:
 
    - **Hosted Checkout**<br/>
