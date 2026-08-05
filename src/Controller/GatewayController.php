@@ -154,7 +154,7 @@ class GatewayController {
 					'/webhook',
 					array(
 						'methods'             => 'POST',
-						'permission_callback' => array( $this, 'get_items_permissions_check' ),
+						'permission_callback' => array( $this, 'webhook_permissions_check' ),
 						'callback'            => array( $this, 'rest_route_forward' ),
 					)
 				);
@@ -299,37 +299,37 @@ class GatewayController {
 	}
 
 	/**
-	 * Permission check.
+	 * Permission check for browser-facing REST routes.
+	 *
+	 * Validates X-MG-Access-Token only. Do not use Authorization: Basic here —
+	 * WordPress Application Passwords intercept that header and break guest checkout.
 	 *
 	 * @param \WP_REST_Request $request Request.
 	 *
 	 * @return bool|\WP_Error
 	 */
 	public function get_items_permissions_check( $request ) {
-		$auth_header = $request->get_header( 'authorization' );
+		$access_token = $request->get_header( 'x-mg-access-token' );
 
-		if ( empty( $auth_header ) ) {
+		if ( empty( $access_token ) ) {
 			return new \WP_Error(
 				'rest_forbidden',
-				__( 'Authorization header missing.', 'mastercard' ),
+				__( 'Access token missing.', 'mastercard' ),
 				array( 'status' => 401 )
 			);
 		}
 
-		if ( ! preg_match( '/Basic\s+(.+)/i', $auth_header, $matches ) ) {
-			return new \WP_Error(
-				'rest_forbidden',
-				__( 'Invalid authorization scheme.', 'mastercard' ),
-				array( 'status' => 401 )
-			);
+		// Accept "Basic <base64>" (current JS format) or raw base64.
+		if ( preg_match( '/Basic\s+(.+)/i', $access_token, $matches ) ) {
+			$provided_token = trim( $matches[1] );
+		} else {
+			$provided_token = trim( $access_token );
 		}
-
-		$provided_token = trim( $matches[1] );
 
 		if ( '' === $provided_token ) {
 			return new \WP_Error(
 				'rest_forbidden',
-				__( 'Empty basic token.', 'mastercard' ),
+				__( 'Empty access token.', 'mastercard' ),
 				array( 'status' => 401 )
 			);
 		}
@@ -340,7 +340,34 @@ class GatewayController {
 		if ( empty( $expected_token ) || ! hash_equals( $expected_token, $provided_token ) ) {
 			return new \WP_Error(
 				'rest_forbidden',
-				__( 'Invalid basic token.', 'mastercard' ),
+				__( 'Invalid access token.', 'mastercard' ),
+				array( 'status' => 401 )
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Permission check for gateway webhook notifications.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 *
+	 * @return bool|\WP_Error
+	 */
+	public function webhook_permissions_check( $request ) {
+		$secret  = $request->get_header( 'x-notification-secret' );
+		$gateway = MastercardGateway::get_instance();
+
+		$sandbox_mode        = $gateway->get_option( 'sandbox' );
+		$notification_secret = ( 'yes' === $sandbox_mode )
+			? $gateway->get_option( 'test_webhook_secret' )
+			: $gateway->get_option( 'webhook_secret' );
+
+		if ( empty( $secret ) || empty( $notification_secret ) || ! hash_equals( (string) $notification_secret, (string) $secret ) ) {
+			return new \WP_Error(
+				'rest_forbidden',
+				__( 'Invalid webhook secret.', 'mastercard' ),
 				array( 'status' => 401 )
 			);
 		}

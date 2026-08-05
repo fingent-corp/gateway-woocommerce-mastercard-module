@@ -863,13 +863,13 @@ class PaymentController {
 public function webhook_handler( $request ) {
         $body                = $request->get_body();
         $headers             = $request->get_headers();
-        $secret              = $headers['x_notification_secret'][0];
+        $secret              = isset( $headers['x_notification_secret'][0] ) ? $headers['x_notification_secret'][0] : '';
         $sandbox_mode          = $this->gateway->get_option( 'sandbox' );
         $notification_secret = ($sandbox_mode === 'yes') ? $this->gateway->get_option( 'test_webhook_secret' ) : $this->gateway->get_option( 'webhook_secret' );
         $response            = json_decode( $body, true );
         $order_status        = array( 'cancelled', 'failed', 'on-hold' ,'pending' );
 
-        if ( empty( $secret ) || ! hash_equals( (string) $notification_secret, (string) $secret ) ) {
+        if ( empty( $secret ) || empty( $notification_secret ) || ! hash_equals( (string) $notification_secret, (string) $secret ) ) {
             return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
         }
 
