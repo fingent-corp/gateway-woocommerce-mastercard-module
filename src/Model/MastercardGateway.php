@@ -1,14 +1,25 @@
 <?php
+// phpcs:ignoreFile -- PSR-4 Composer autoload requires PascalCase filenames.
+/**
+ * WooCommerce payment gateway model for Mastercard.
+ *
+ * @package Fingent\Mastercard\Model
+ */
+
 namespace Fingent\Mastercard\Model;
 
 use WC_Order;
 use WC_Payment_Gateway;
 use Fingent\Mastercard\View\Settings;
 use Fingent\Mastercard\View\CheckoutView;
+use Fingent\Mastercard\Helper\PluginTelemetry;
 use Fingent\Mastercard\Controller\AdminController;
 use Fingent\Mastercard\Controller\PaymentController;
 use Fingent\Mastercard\Controller\UtilityController;
 
+/**
+ * Mastercard payment gateway integration for WooCommerce.
+ */
 class MastercardGateway extends WC_Payment_Gateway {
 	/**
 	 * Singleton instance.
@@ -20,56 +31,56 @@ class MastercardGateway extends WC_Payment_Gateway {
 	/**
 	 * Order prefix
 	 *
-	 * @var string
+	 * @var string|null
 	 */
 	public $order_prefix = null;
 
 	/**
-	 * Gateway enabled or not.
+	 * Gateway enabled or not (`yes` or `no`).
 	 *
-	 * @var bool
+	 * @var string
 	 */
-	public $enabled = null;
+	public $enabled = '';
 
 	/**
 	 * Sandbox
 	 *
-	 * @var bool
+	 * @var bool|string|null
 	 */
 	public $sandbox = null;
 
 	/**
 	 * Username
 	 *
-	 * @var string
+	 * @var string|null
 	 */
 	public $username = null;
 
 	/**
 	 * Password
 	 *
-	 * @var string
+	 * @var string|null
 	 */
 	public $password = null;
 
 	/**
 	 * Gateway URL
 	 *
-	 * @var string
+	 * @var string|null
 	 */
 	protected $gateway_url = null;
 
 	/**
 	 * Hosted checkout Interaction
 	 *
-	 * @var string
+	 * @var string|null
 	 */
 	public $hc_interaction = null;
 
 	/**
 	 * Hosted checkout type
 	 *
-	 * @var string
+	 * @var string|null
 	 *
 	 * @todo Remove after removal of Legacy Hosted Checkout
 	 */
@@ -78,63 +89,63 @@ class MastercardGateway extends WC_Payment_Gateway {
 	/**
 	 * Capture method
 	 *
-	 * @var bool
+	 * @var bool|null
 	 */
 	public $capture = null;
 
 	/**
 	 * Method
 	 *
-	 * @var string
+	 * @var string|null
 	 */
 	public $method = null;
 
 	/**
 	 * 3D Secure Version 1
 	 *
-	 * @var bool
+	 * @var bool|null
 	 */
 	public $threedsecure_v1 = null;
 
 	/**
 	 * 3D Secure Version 2 (with fallback to 3DS1)
 	 *
-	 * @var bool
+	 * @var bool|null
 	 */
 	public $threedsecure_v2 = null;
 
 	/**
 	 * Handling fees
 	 *
-	 * @var bool
+	 * @var bool|string|null
 	 */
 	public $hf_enabled = null;
 
 	/**
 	 * Send Line Items
 	 *
-	 * @var bool
+	 * @var bool|string|null
 	 */
 	public $send_line_items = null;
 
 	/**
 	 * Merchant Information
 	 *
-	 * @var bool
+	 * @var bool|string|null
 	 */
 	public $mif_enabled = null;
 
 	/**
 	 * Surcharge
 	 *
-	 * @var bool
+	 * @var bool|string|null
 	 */
 	public $surcharge_enabled = null;
 
 	/**
 	 * Saved Cards
 	 *
-	 * @var bool
+	 * @var bool|null
 	 */
 	public $saved_cards = null;
 
@@ -154,16 +165,16 @@ class MastercardGateway extends WC_Payment_Gateway {
 	/**
 	 * MastercardGateway constructor.
 	 *
-	 * @throws Exception If there's a problem connecting to the gateway.
+	 * @throws \Exception If there's a problem connecting to the gateway.
 	 */
-	public function __construct() { 
+	public function __construct() {
 		$this->id                 = MG_ENTERPRISE_ID;
 		$this->title              = MG_ENTERPRISE_GATEWAY_TITLE;
 		$this->method_title       = MG_ENTERPRISE_GATEWAY_TITLE;
 		$this->has_fields         = true;
 		$this->method_description = __(
 			'Accept payments on your WooCommerce store using Mastercard Gateway.',
-			MG_ENTERPRISE_TEXTDOMAIN
+			'mastercard-gateway'
 		);
 
 		$this->init_form_fields();
@@ -191,10 +202,10 @@ class MastercardGateway extends WC_Payment_Gateway {
 		$this->sandbox           = $this->get_option( 'sandbox', false );
 		$this->username          = 'no' === $this->sandbox ? $this->get_option( 'username' ) : $this->get_option( 'sandbox_username' );
 		$this->password          = 'no' === $this->sandbox ? $this->get_option( 'password' ) : $this->get_option( 'sandbox_password' );
-		$this->icon              = esc_url( UtilityController::plugin_url() ) . '/assets/images/mastercard.gif';	
+		$this->icon              = esc_url( UtilityController::plugin_url() ) . '/assets/images/mastercard.gif';
 
-		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );	
-		add_filter( 'woocommerce_settings_api_sanitized_fields_' . $this->id,   array( $this, 'sanitize_gateway_settings' ) );		
+		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
+		add_filter( 'woocommerce_settings_api_sanitized_fields_' . $this->id, array( $this, 'sanitize_gateway_settings' ) );
 	}
 
 	/**
@@ -209,12 +220,16 @@ class MastercardGateway extends WC_Payment_Gateway {
 	/**
 	 * This function processes the admin options.
 	 *
-	 * @return array $saved Admin Options.
+	 * @return bool
 	 */
 	public function process_admin_options() {
-		$saved = parent::process_admin_options(); 
+		$saved = parent::process_admin_options();
 		AdminController::get_instance()->check_payment_options_inquiry( $this->settings );
-		
+
+		// Always evaluate telemetry after save — WordPress update_option() returns false when
+		// the option value is unchanged, so gating on $saved skipped retries and re-saves.
+		PluginTelemetry::maybe_send_gateway_configured( $this->settings );
+
 		return $saved;
 	}
 
@@ -253,12 +268,12 @@ class MastercardGateway extends WC_Payment_Gateway {
 	 */
 	public function get_gateway_url() {
 		$gateway_url = $this->get_option( 'custom_gateway_url' );
-	
+
 		if ( empty( $gateway_url ) ) {
 			$gateway_url = $this->get_option( 'gateway_url', API_EU );
 		}
-	
-		return $this->format_gateway_url($gateway_url);
+
+		return $this->format_gateway_url( $gateway_url );
 	}
 
 	/**
@@ -270,19 +285,25 @@ class MastercardGateway extends WC_Payment_Gateway {
 	 * @param string $url Raw URL input.
 	 * @return string Cleaned URL.
 	 */
-	private function format_gateway_url($url) {
-		$url = trim($url);
-		$url = str_replace('\\', '/', $url);
-		if (preg_match('#^[a-z0-9.-]+$#i', $url)) {
+	private function format_gateway_url( $url ) {
+		$url = trim( $url );
+		$url = str_replace( '\\', '/', $url );
+		if ( preg_match( '#^[a-z0-9.-]+$#i', $url ) ) {
 			return $url;
 		}
-		$url = preg_replace('#^[^a-z0-9.-]+#i', '', $url);
-		$url = preg_replace('#^[a-z]+[;:/]+#i', '', $url);
-		if (strpos($url, '/') !== false) {
-			$parts = explode('/', $url);
-			$url = $parts[0];
+		$url = preg_replace( '#^[^a-z0-9.-]+#i', '', $url );
+		if ( ! is_string( $url ) ) {
+			return '';
 		}
-		$url = rtrim($url, ':');
+		$url = preg_replace( '#^[a-z]+[;:/]+#i', '', $url );
+		if ( ! is_string( $url ) ) {
+			return '';
+		}
+		if ( strpos( $url, '/' ) !== false ) {
+			$parts = explode( '/', $url );
+			$url   = $parts[0];
+		}
+		$url = rtrim( $url, ':' );
 
 		return $url;
 	}
@@ -305,10 +326,10 @@ class MastercardGateway extends WC_Payment_Gateway {
 	 *
 	 * @return bool True if the payment is successfully processed using 3D Secure version 1, false otherwise.
 	 *
-	 * @throws Exception If any error occurs during the payment process.
+	 * @throws \Exception If any error occurs during the payment process.
 	 */
 	public function use_3dsecure_v1() {
-		return $this->threedsecure_v1;
+		return (bool) $this->threedsecure_v1;
 	}
 
 	/**
@@ -320,10 +341,10 @@ class MastercardGateway extends WC_Payment_Gateway {
 	 *
 	 * @return bool True if the payment is successfully processed using 3D Secure version 2, false otherwise.
 	 *
-	 * @throws Exception If any error occurs during the payment process.
+	 * @throws \Exception If any error occurs during the payment process.
 	 */
 	public function use_3dsecure_v2() {
-		return $this->threedsecure_v2;
+		return (bool) $this->threedsecure_v2;
 	}
 
 	/**
@@ -334,7 +355,7 @@ class MastercardGateway extends WC_Payment_Gateway {
 	 * @return string The merchant ID.
 	 */
 	public function get_merchant_id() {
-		return $this->username;
+		return $this->username ?? '';
 	}
 
 	/**
@@ -342,7 +363,7 @@ class MastercardGateway extends WC_Payment_Gateway {
 	 *
 	 * This function retrieves the API version number from a predefined source.
 	 *
-	 * @return string The API version number.
+	 * @return int The API version number.
 	 */
 	public function get_api_version_num() {
 		return (int) MG_ENTERPRISE_API_VERSION_NUM;
@@ -364,11 +385,11 @@ class MastercardGateway extends WC_Payment_Gateway {
 	 *
 	 * @param int $order_id The ID of the order to process payment for.
 	 *
-	 * @return bool True if the payment was successfully processed, false otherwise.
+	 * @return array<string, string>
 	 */
 	public function process_payment( $order_id ) {
 		$order = new WC_Order( $order_id );
-		$order->update_status( 'pending', __( 'Pending payment', MG_ENTERPRISE_TEXTDOMAIN ) );
+		$order->update_status( 'pending', __( 'Pending payment', 'mastercard-gateway' ) );
 
 		return array(
 			'result'   => 'success',
@@ -387,24 +408,25 @@ class MastercardGateway extends WC_Payment_Gateway {
 	 */
 	public function process_refund( $order_id, $amount = null, $reason = '' ) {
 		AdminController::get_instance()->process_refund( $order_id, $amount, $reason );
-		
+
 		return true;
 	}
 
 	/**
 	 * Sanitize all gateway settings before saving them in the DB.
-	 * 
+	 *
 	 * - Specifically checks if a custom gateway URL is provided,
 	 *   and passes it through `sanitize_gateway_url()` for normalization.
 	 * - Ensures consistent formatting so later requests do not fail due to malformed URLs.
 	 *
-	 * @param array $settings The gateway settings being saved.
-	 * @return array Sanitized settings.
+	 * @param array<string, mixed> $settings The gateway settings being saved.
+	 * @return array<string, mixed> Sanitized settings.
 	 */
 	public function sanitize_gateway_settings( $settings ) {
 		if ( ! empty( $settings['custom_gateway_url'] ) ) {
 			$settings['custom_gateway_url'] = $this->sanitize_gateway_url( $settings['custom_gateway_url'] );
 		}
+
 		return $settings;
 	}
 
@@ -428,27 +450,34 @@ class MastercardGateway extends WC_Payment_Gateway {
 	 * @param string $url The raw URL input from the merchant.
 	 * @return string Normalized and safe URL.
 	 */
-	
 	public function sanitize_gateway_url( $url ) {
 		$url = trim( $url );
 		$url = str_replace( '\\', '/', $url );
 		$url = preg_replace( '#^[a-z]+[:;/]+#i', '', $url );
-		$url = 'https://' . ltrim( $url, '/');
+		if ( ! is_string( $url ) ) {
+			return '';
+		}
+		$url = 'https://' . ltrim( $url, '/' );
 		$url = preg_replace( '#^http://#i', 'https://', $url );
-		$parts = @parse_url( $url );
+		if ( ! is_string( $url ) ) {
+			return '';
+		}
+		$parts = wp_parse_url( $url );
+		if ( ! is_array( $parts ) ) {
+			$parts = array();
+		}
 		$host = '';
 		if ( ! empty( $parts['host'] ) ) {
 			$host = $parts['host'];
 		} else {
-			$path = isset($parts['path']) ? $parts['path'] : '';
+			$path = isset( $parts['path'] ) ? $parts['path'] : '';
 			if ( $path ) {
-				$segments = explode('/', $path);
-				$host = $segments[0];
+				$segments = explode( '/', $path );
+				$host     = $segments[0];
 			}
 		}
 		$port = ! empty( $parts['port'] ) ? ':' . $parts['port'] : '';
-		$url = 'https://' . strtolower( $host ) . $port . '/';
-		return $url;
-	}
 
+		return 'https://' . strtolower( $host ) . $port . '/';
+	}
 }

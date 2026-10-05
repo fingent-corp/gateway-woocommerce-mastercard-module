@@ -46,15 +46,6 @@ With KNET, customers can make payments quickly and effortlessly through the host
 
    **Note**: KNET payment feature relies on real-time data integration with an external partner service. While we have optimized the application for stability, occasional service interruptions from the provider may temporarily impact availability
 
-   - **IRIS Pay [Supported in Hosted Checkout Only]**<br/>
-Give your customers the flexibility of IRIS Pay for quick and secure payments right from the hosted checkout page. To get started, ensure your MID is enabled for IRIS Pay processing. Once live, this integration ensures a streamlined, worry-free checkout experience, making it easier than ever for shoppers to authorize payments with minimal effort.
-
-   **Note**: IRIS  Pay is only available for full page redirect in Hosted Checkout.
-
-   - **Click to Pay (Supported in Hosted Checkout Only)**<br/>
-Bring a faster, password-free checkout experience to your store with Click to Pay. Available seamlessly through the hosted checkout page, this feature eliminates manual data entry by automatically recognizing returning shoppers and their preferred cards.
-To activate this feature, ensure your merchant ID (MID) is enabled for Click to Pay within your gateway configuration. Once live, it delivers a highly secure, frictionless payment journey that boosts conversion rates and makes card authorization effortless for your global customers.   
-
 **2. Checkout and Payment Integration -** These features focus on methods of collecting payment details from customers:
 
    - **Hosted Checkout**<br/>

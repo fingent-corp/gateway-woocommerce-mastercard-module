@@ -6,20 +6,20 @@
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api, woocommerce-blocks
- * Version: 1.5.3.2
+ * Version: 1.5.4
  * Requires Plugins: woocommerce
  * Requires at least: 6.0
- * Tested up to: 7.0.2
+ * Tested up to: 7.0
  * Requires PHP: 7.4
  * php version 7.4
  * Text Domain: mastercard-gateway
  * Domain Path: /languages
  *
  * WC requires at least: 8.7
- * WC tested up to: 11.0.0
+ * WC tested up to: 10.8.1
  *
  * @package  Mastercard
- * @version  GIT: @1.5.3.2@
+ * @version  GIT: @1.5.3.1@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -42,15 +42,15 @@
 // If this file is called directly, abort.
 defined( 'ABSPATH' ) || exit;
 
-define( 'MG_ENTERPRISE_MAIN_FILE',                 __FILE__ );
-define( 'MG_ENTERPRISE_PLUGIN_BASENAME',           plugin_basename( MG_ENTERPRISE_MAIN_FILE ) );
-define( 'MG_ENTERPRISE_DIR_PATH',                  trailingslashit( plugin_dir_path( __FILE__ ) ) );
-define( 'MG_ENTERPRISE_TEXTDOMAIN', 			   'mastercard-gateway' );
+define( 'MG_ENTERPRISE_MAIN_FILE', __FILE__ );
+define( 'MG_ENTERPRISE_PLUGIN_BASENAME', plugin_basename( MG_ENTERPRISE_MAIN_FILE ) );
+define( 'MG_ENTERPRISE_DIR_PATH', trailingslashit( plugin_dir_path( __FILE__ ) ) );
+define( 'MG_ENTERPRISE_TEXTDOMAIN', 'mastercard-gateway' );
 
 
-//require autoload
+// Require Composer autoload.
 if ( file_exists( MG_ENTERPRISE_DIR_PATH . 'vendor/autoload.php' ) ) {
-	require MG_ENTERPRISE_DIR_PATH . 'vendor/autoload.php';
+	require_once MG_ENTERPRISE_DIR_PATH . 'vendor/autoload.php';
 }
 
 use Fingent\Mastercard\Core\Loader;

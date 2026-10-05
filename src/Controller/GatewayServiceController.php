@@ -1,16 +1,31 @@
 <?php
+// phpcs:ignoreFile -- PSR-4 Composer autoload requires PascalCase filenames.
+/**
+ * HTTP client for Mastercard Payment Gateway Services API operations.
+ *
+ * @package Fingent\Mastercard\Controller
+ */
+
 namespace Fingent\Mastercard\Controller;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+use Http\Client\Common\HttpClientRouter;
+use Http\Client\Common\PluginClient;
+use Http\Message\RequestMatcher\RequestMatcher;
+use Nyholm\Psr7\Factory\Psr17Factory;
+use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 use Fingent\Mastercard\Logger\ApiErrorPlugin;
 use Fingent\Mastercard\Logger\ApiLoggerPlugin;
 use Fingent\Mastercard\Logger\GatewayResponseException;
 use Fingent\Mastercard\Model\MastercardGateway;
 use Fingent\Mastercard\Controller\GatewayController;
 use Fingent\Mastercard\Controller\PaymentController;
+use Fingent\Mastercard\Emails\PaymentRequestEmail;
+use Fingent\Mastercard\Emails\PaymentRevokedEmail;
 use Fingent\Mastercard\Helper\CheckoutBuilder;
 
 
@@ -18,42 +33,37 @@ use Fingent\Mastercard\Helper\CheckoutBuilder;
  * Class Mastercard_GatewayService
  *
  * Represents a gateway service for processing Mastercard transactions.
+ *
+ * @phpstan-type MpgsPayload array<string, mixed>
  */
 class GatewayServiceController {
 	/**
-	 * Singleton instance.
+	 * PSR-17 request factory.
 	 *
-	 * @var GatewayServiceController|null
+	 * @var Psr17Factory
 	 */
-	private static ?GatewayServiceController $instance = null;
+	protected $message_factory;
 
 	/**
-	 * Message factory variable
-	 *
-	 * @var MessageFactoryInterface
-	 */
-	protected $message_factory = null;
-
-	/**
-	 * Stream factory variable
+	 * PSR-17 stream factory.
 	 *
 	 * @var StreamFactoryInterface
 	 */
-	protected $stream_factory = null;
+	protected $stream_factory;
 
 	/**
 	 * API endpoint variable
 	 *
 	 * @var string
 	 */
-	protected $api_url = null;
+	protected $api_url;
 
 	/**
 	 * Http client variable
 	 *
 	 * @var HttpClientRouter
 	 */
-	protected $client = null;
+	protected $client;
 
 	/**
 	 * Webhook endpoint variable
@@ -75,54 +85,52 @@ class GatewayServiceController {
 	 * @var string|null
 	 */
 	protected $password;
-	
-	/**
-	 * GatewayServiceController Instance.
-	 *
-	 * @return GatewayServiceController instance.
-	 */
-
-	public static function get_instance() {
-		if ( null === self::$instance ) {
-			self::$instance = new self();
-		}
-
-		return self::$instance;
-	}
 
 	/**
 	 * GatewayServiceController constructor.
 	 *
-	 * @param string $base_url Mastercard API Base URL.
-	 * @param string $api_version Mastercard API version.
-	 * @param string $merchant_id Mastercard merchant ID.
-	 * @param string $password Mastercard API password.
-	 * @param string $webhook_url Webhook URL.
-	 * @param int    $logging_level Logging Level.
-	 *
-	 * @throws \Exception Throws an exception with the response.
+	 * @param string           $base_url         Mastercard API base URL.
+	 * @param string           $api_version      Mastercard API version.
+	 * @param string           $merchant_id      Mastercard merchant ID.
+	 * @param string           $webhook_url      Webhook URL.
+	 * @param Psr17Factory     $message_factory  PSR-17 message factory.
+	 * @param PluginClient     $client           Plugin HTTP client.
+	 * @param RequestMatcher   $request_matcher  Request matcher.
+	 * @param HttpClientRouter $http_client      HTTP client router.
 	 */
 	public function __construct(
 		$base_url,
 		$api_version,
 		$merchant_id,
 		$webhook_url,
-		$logger,
-		$message_factory,
-		$client,
-		$request_matcher,
-		$http_client
+		Psr17Factory $message_factory,
+		PluginClient $client,
+		RequestMatcher $request_matcher,
+		HttpClientRouter $http_client
 	) {
 		$this->webhook_url     = $webhook_url;
 		$this->message_factory = $message_factory;
+		$this->stream_factory  = $message_factory;
 		$this->api_url         = 'https://' . $base_url . '/api/rest/' . $api_version . '/merchant/' . $merchant_id . '/';
 		$this->username        = 'merchant.' . $merchant_id;
 		$this->client          = $http_client;
-		
+
 		$this->client->addClient(
 			$client,
 			$request_matcher
-		);	
+		);
+	}
+
+	/**
+	 * Create a PSR-7 stream for a gateway request body.
+	 *
+	 * @param string|false|null $body JSON request body.
+	 * @return \Psr\Http\Message\StreamInterface
+	 */
+	protected function create_request_stream( $body ) {
+		$body = is_string( $body ) && '' !== $body ? $body : '{}';
+
+		return $this->message_factory->createStream( $body );
 	}
 
 	/**
@@ -132,6 +140,18 @@ class GatewayServiceController {
 	 */
 	protected function getSolutionId() { // phpcs:ignore
 		return 'WC_' . WC()->version . '_FINGENT_' . MG_ENTERPRISE_MODULE_VERSION;
+	}
+
+	/**
+	 * JSON-encode a gateway request after normalizing monetary fields.
+	 *
+	 * @param array<string, mixed> $request_data Request body.
+	 * @return string
+	 */
+	protected function encode_gateway_request_body( array $request_data ) {
+		$encoded = wp_json_encode( CheckoutBuilder::prepare_gateway_request_data( $request_data ) );
+
+		return false !== $encoded ? $encoded : '{}';
 	}
 
 	/**
@@ -147,8 +167,8 @@ class GatewayServiceController {
 			return null;
 		}
 
-		if ( $limited > 0 && Tools::strlen( $value ) > $limited ) {
-			return Tools::substr( $value, 0, $limited );
+		if ( $limited > 0 && strlen( $value ) > $limited ) {
+			return substr( $value, 0, $limited );
 		}
 
 		return $value;
@@ -159,7 +179,7 @@ class GatewayServiceController {
 	 *
 	 * @param mixed $value The value to be checked.
 	 *
-	 * @return bool True if the value is numeric, false otherwise.
+	 * @return string Formatted decimal amount string.
 	 */
 	public static function numeric( $value ) {
 		return number_format( $value, 2, '.', '' );
@@ -175,8 +195,8 @@ class GatewayServiceController {
 	 */
 	public function validateCheckoutSessionResponse( $data ) { // phpcs:ignore
 		if ( ! isset( $data['result'] ) || 'SUCCESS' !== $data['result'] ) {
-			if( isset( $data['error']['explanation'] ) ) {
-				throw new GatewayResponseException( $data['error']['explanation'] );
+			if ( isset( $data['error']['explanation'] ) ) {
+				throw new GatewayResponseException( esc_html( wp_strip_all_tags( (string) $data['error']['explanation'] ) ) );
 			} else {
 				throw new GatewayResponseException( 'Missing or invalid session result.' );
 			}
@@ -192,10 +212,10 @@ class GatewayServiceController {
 	 *
 	 * @param mixed $data The session response data to be validated.
 	 *
-	 * @return void.
+	 * @return void
 	 * @throws GatewayResponseException It throws an exception if a missing session or ID.
 	 */
-	public function validateSessionResponse( $data ) { // phpcs:ignore
+	public function validateSessionResponse( $data ): void { // phpcs:ignore
 		if ( ! isset( $data['session']['id'] ) ) {
 			throw new GatewayResponseException( 'Missing session or ID.' );
 		}
@@ -204,9 +224,9 @@ class GatewayServiceController {
 	/**
 	 * This function validates the transaction response data.
 	 *
-	 * @param array $data The transaction response data.
+	 * @param MpgsPayload $data The transaction response data.
 	 *
-	 * @return void
+	 * @return mixed Validated transaction response.
 	 */
 	public function validateTxnResponse( $data ) { // phpcs:ignore
 		return $data;
@@ -217,7 +237,7 @@ class GatewayServiceController {
 	 *
 	 * @param mixed $data The order response data to be validated.
 	 *
-	 * @return void
+	 * @return mixed Validated order response.
 	 */
 	public function validateOrderResponse( $data ) { // phpcs:ignore
 		return $data;
@@ -228,7 +248,7 @@ class GatewayServiceController {
 	 *
 	 * @param mixed $data The data to be validated.
 	 *
-	 * @return void
+	 * @return mixed Validated void response.
 	 */
 	public function validateVoidResponse( $data ) { // phpcs:ignore
 		return $data;
@@ -262,16 +282,16 @@ class GatewayServiceController {
 	 * @param string $tds_id Transaction ID.
 	 * @param string $pa_res Process Result.
 	 *
-	 * @return mixed|ResponseInterface
-	 * @throws Exception It throws an exception if a request is not processed.
+	 * @return array<string, mixed>
+	 * @throws \Exception It throws an exception if a request is not processed.
 	 */
-	public function process3dsResult( $tds_id, $pa_res ) { // phpcs:ignore
+	public function process_3ds_result( $tds_id, $pa_res ) { // phpcs:ignore
 		$uri     = $this->api_url . '3DSecureId/' . $tds_id;
 		$request = $this->message_factory->createRequest(
 			'POST',
 			$uri
 		);
-		$stream  = $this->message_factory->createStream(
+		$stream  = $this->create_request_stream(
 			wp_json_encode(
 				array(
 					'apiOperation' => 'PROCESS_ACS_RESULT',
@@ -285,7 +305,7 @@ class GatewayServiceController {
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 
@@ -296,26 +316,27 @@ class GatewayServiceController {
 	 * Request to check a cardholder's enrollment in the 3DSecure scheme.
 	 * PUT https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/3DSecureId/{3DSecureId}
 	 *
-	 * @param array      $data 3DS array of data.
-	 * @param array      $order Order array.
-	 * @param array|null $session Session data.
-	 * @param array|null $source_of_funds Fund source.
+	 * @param MpgsPayload      $data 3DS array of data.
+	 * @param MpgsPayload      $order Order array.
+	 * @param MpgsPayload|null $session Session data.
+	 * @param MpgsPayload|null $source_of_funds Fund source.
 	 *
-	 * @return mixed|ResponseInterface
-	 * @throws Exception It throws an exception if a request is not processed.
+	 * @return array<string, mixed>
+	 * @throws \Exception It throws an exception if a request is not processed.
 	 */
-	public function check3dsEnrollment( $data, $order, $session = null, $source_of_funds = array() ) { // phpcs:ignore
-		$tds_id  = uniqid(
-			sprintf( '3DS-' ),
-			true
-		);
+	public function check_3ds_enrollment( $data, $order, $session = null, $source_of_funds = array() ) { // phpcs:ignore
+		$tds_id = '3DS-' . bin2hex( random_bytes( 8 ) );
+
+		if ( isset( $order['amount'] ) && '' !== $order['amount'] ) {
+			$order['amount'] = self::numeric( $order['amount'] );
+		}
 		$uri     = $this->api_url . '3DSecureId/' . $tds_id;
 		$request = $this->message_factory->createRequest(
 			'PUT',
 			$uri
 		);
-		$stream  = $this->message_factory->createStream(
-			wp_json_encode(
+		$stream  = $this->create_request_stream(
+			$this->encode_gateway_request_body(
 				array(
 					'apiOperation'  => 'CHECK_3DS_ENROLLMENT',
 					'3DSecure'      => $data,
@@ -329,7 +350,7 @@ class GatewayServiceController {
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 
@@ -344,23 +365,24 @@ class GatewayServiceController {
 	 * allows you to return the payer to the merchant's website after completing the payment attempt.
 	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/session
 	 *
-	 * @param array $order Order array.
-	 * @param array $interaction Customer interaction.
-	 * @param array $customer Customer details.
-	 * @param array $billing Billing details.
-	 * @param array $shipping Shipping details.
+	 * @param MpgsPayload $order Order array.
+	 * @param MpgsPayload $interaction Customer interaction.
+	 * @param MpgsPayload $customer Customer details.
+	 * @param MpgsPayload $billing Billing details.
+	 * @param MpgsPayload $shipping Shipping details.
 	 *
-	 * @return array
-	 * @throws Exception It throws an exception if a request is not processed.
+	 * @return MpgsPayload
+	 * @throws \Exception It throws an exception if a request is not processed.
 	 * @throws GatewayResponseException It throws a GatewayResponseException if the checkout initiation is failed.
 	 */
-	public function initiateCheckout( // phpcs:ignore
+	public function initiate_checkout( // phpcs:ignore
 		$order = array(),
 		$interaction = array(),
 		$customer = array(),
 		$billing = array(),
 		$shipping = array()
 	) {
+		$order        = CheckoutBuilder::normalize_monetary_fields( $order );
 		$txn_id       = uniqid( sprintf( '%s-', $order['id'] ) );
 		$uri          = $this->api_url . 'session';
 		$request_data = array(
@@ -370,8 +392,8 @@ class GatewayServiceController {
 				$order,
 				array(
 					'notificationUrl' => $this->webhook_url,
-					'reference'       => $order['id'],				
-				),			
+					'reference'       => $order['id'],
+				),
 			),
 			'billing'           => $billing,
 			'shipping'          => $shipping,
@@ -379,32 +401,67 @@ class GatewayServiceController {
 			'customer'          => $customer,
 			'transaction'       => array(
 				'reference' => $txn_id,
-				'source'    => 'INTERNET',				
+				'source'    => 'INTERNET',
 			),
 		);
-		
-		$request      = $this->message_factory->createRequest(
+
+		$request_data = $this->sanitize_request_data( $request_data );
+
+		$request = $this->message_factory->createRequest(
 			'POST',
-			$uri,
-			array()
+			$uri
 		);
 
-		$stream       = $this->message_factory->createStream(
-			wp_json_encode(
-				$request_data
-			)
+		$stream = $this->create_request_stream(
+			$this->encode_gateway_request_body( $request_data )
 		);
 
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 
 		$this->validateCheckoutSessionResponse( $response );
-		
+
 		return $response;
+	}
+
+	/**
+	 * Recursively removes null/empty-string fields from request payloads.
+	 *
+	 * @param mixed $data Request payload fragment.
+	 * @return mixed
+	 */
+	private function sanitize_request_data( $data ) { // phpcs:ignore
+		if ( ! is_array( $data ) ) {
+			return $data;
+		}
+
+		$clean = array();
+
+		foreach ( $data as $key => $value ) {
+			if ( is_array( $value ) ) {
+				$value = $this->sanitize_request_data( $value );
+				if ( array() !== $value ) {
+					$clean[ $key ] = $value;
+				}
+				continue;
+			}
+
+			if ( null === $value ) {
+				continue;
+			}
+
+			if ( is_string( $value ) && '' === trim( $value ) ) {
+				continue;
+			}
+
+			$clean[ $key ] = $value;
+		}
+
+		return $clean;
 	}
 
 	/**
@@ -414,14 +471,14 @@ class GatewayServiceController {
 	 * allows you to return the payer to the merchant's website after completing the payment attempt.
 	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/session
 	 *
-	 * @param array $order Order array.
-	 * @param array $interaction Customer interaction.
-	 * @param array $customer Customer details.
-	 * @param array $billing Billing details.
-	 * @param array $shipping Shipping details.
+	 * @param MpgsPayload $order Order array.
+	 * @param MpgsPayload $interaction Customer interaction.
+	 * @param MpgsPayload $customer Customer details.
+	 * @param MpgsPayload $billing Billing details.
+	 * @param MpgsPayload $shipping Shipping details.
 	 *
-	 * @return array Response array.
-	 * @throws Exception It throws an exception if checkout session is not created.
+	 * @return MpgsPayload Response array.
+	 * @throws \Exception It throws an exception if checkout session is not created.
 	 * @throws GatewayResponseException An exception is thrown when null is returned.
 	 *
 	 * @todo Remove with Legacy Hosted Checkout
@@ -433,6 +490,7 @@ class GatewayServiceController {
 		$billing = array(),
 		$shipping = array()
 	) {
+		$order        = CheckoutBuilder::normalize_monetary_fields( $order );
 		$txn_id       = uniqid( sprintf( '%s-', $order['id'] ) );
 		$uri          = $this->api_url . 'session';
 		$request_data = array(
@@ -442,7 +500,7 @@ class GatewayServiceController {
 				$order,
 				array(
 					'notificationUrl' => $this->webhook_url,
-					'reference'       => $order['id'],					
+					'reference'       => $order['id'],
 				)
 			),
 			'billing'           => $billing,
@@ -458,16 +516,14 @@ class GatewayServiceController {
 			'POST',
 			$uri
 		);
-		$stream       = $this->message_factory->createStream(
-			wp_json_encode(
-				$request_data
-			)
+		$stream       = $this->create_request_stream(
+			$this->encode_gateway_request_body( $request_data )
 		);
 
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 		$this->validateCheckoutSessionResponse( $response );
@@ -479,16 +535,17 @@ class GatewayServiceController {
 	 * Request to add or update request fields contained in the session.
 	 * PUT    https://test-gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/session/{sessionId}
 	 *
-	 * @param int   $session_id Session ID.
-	 * @param array $order Customer WC_Order details.
-	 * @param array $customer Customer details.
-	 * @param array $billing Customer billing details.
-	 * @param array $shipping Customer shipping details.
-	 * @param array $authentication User authentication array.
-	 * @param array $token Gateway token array.
+	 * @param int         $session_id Session ID.
+	 * @param MpgsPayload $order Customer WC_Order details.
+	 * @param MpgsPayload $customer Customer details.
+	 * @param MpgsPayload $billing Customer billing details.
+	 * @param MpgsPayload $shipping Customer shipping details.
+	 * @param MpgsPayload $authentication      User authentication array.
+	 * @param MpgsPayload $token               Gateway token array.
+	 * @param MpgsPayload $redirect_query_args Extra query args for 3DS return URL.
 	 *
 	 * @return mixed
-	 * @throws Exception It throws an exception if checkout session is not updated.
+	 * @throws \Exception It throws an exception if checkout session is not updated.
 	 * @throws GatewayResponseException It throws an exception if checkout session is not updated.
 	 */
 	public function update_session(
@@ -498,17 +555,28 @@ class GatewayServiceController {
 		$billing = array(),
 		$shipping = array(),
 		$authentication = array(),
-		$token = array()
+		$token = array(),
+		$redirect_query_args = array()
 	) {
-		$uri     = $this->api_url . 'session/' . $session_id;
+		$order = CheckoutBuilder::normalize_monetary_fields( $order );
+		$uri   = $this->api_url . 'session/' . $session_id;
 
 		if ( ! empty( $authentication ) && ! isset( $authentication['acceptVersions'] ) ) {
+			$wc_order_id   = PaymentController::get_instance()->remove_order_prefix( (string) $order['id'] );
+			$wc_order      = wc_get_order( $wc_order_id );
+			$redirect_args = array(
+				'wc-api'     => MG_ENTERPRISE_ID,
+				'order_id'   => $wc_order_id,
+				'session_id' => $session_id,
+			);
+
+			if ( $wc_order instanceof \WC_Order ) {
+				$redirect_args['order_key'] = $wc_order->get_order_key();
+			}
+
 			$authentication['redirectResponseUrl'] = add_query_arg(
-				array(
-				    'wc-api'     => MG_ENTERPRISE_ID,
-				    'order_id'   => PaymentController::get_instance()->remove_order_prefix( $order['id'] ),
-				    'session_id' => $session_id
-				), home_url( '/' )
+				array_merge( $redirect_args, $redirect_query_args ),
+				home_url( '/' )
 			);
 		}
 
@@ -539,15 +607,13 @@ class GatewayServiceController {
 			'PUT',
 			$uri
 		);
-		$stream       = $this->message_factory->createStream(
-			wp_json_encode(
-				$request_data
-			)
+		$stream       = $this->create_request_stream(
+			$this->encode_gateway_request_body( $request_data )
 		);
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 
@@ -565,8 +631,8 @@ class GatewayServiceController {
 	 *
 	 * POST https://test-gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/session
 	 *
-	 * @return array Session response array.
-	 * @throws Exception It throws an exception if checkout session is not created.
+	 * @return MpgsPayload Session response array.
+	 * @throws \Exception It throws an exception if checkout session is not created.
 	 */
 	public function create_session() {
 		$uri      = $this->api_url . 'session';
@@ -577,7 +643,7 @@ class GatewayServiceController {
 		$response = $this->client->sendRequest( $request );
 
 		return json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 	}
@@ -590,17 +656,17 @@ class GatewayServiceController {
 	 *
 	 * @param string      $txn_id Transaction ID.
 	 * @param string      $order_id WC_Order ID.
-	 * @param array       $order WC_Order items.
-	 * @param array       $surcharge WC_Order Surcharge items.
-	 * @param array       $authentication Authentication params.
+	 * @param MpgsPayload $order WC_Order items.
+	 * @param MpgsPayload $surcharge WC_Order Surcharge items.
+	 * @param MpgsPayload $authentication Authentication params.
 	 * @param string|null $tds_id 3D Secure Id.
-	 * @param array       $session Transaction session details.
-	 * @param array       $customer Customer details.
-	 * @param array       $billing Customer billing details.
-	 * @param array       $shipping Customer shipping details.
+	 * @param MpgsPayload $session Transaction session details.
+	 * @param MpgsPayload $customer Customer details.
+	 * @param MpgsPayload $billing Customer billing details.
+	 * @param MpgsPayload $shipping Customer shipping details.
 	 *
-	 * @return mixed|ResponseInterface Response array.
-	 * @throws Exception It throws an exception if the transaction is not authorized.
+	 * @return array<string, mixed> Response array.
+	 * @throws \Exception It throws an exception if the transaction is not authorized.
 	 */
 	public function authorize(
 		$txn_id,
@@ -614,7 +680,8 @@ class GatewayServiceController {
 		$billing = array(),
 		$shipping = array()
 	) {
-		$uri = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
+		$order = CheckoutBuilder::normalize_monetary_fields( $order );
+		$uri   = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
 
 		$request_data = array(
 			'apiOperation'      => 'AUTHORIZE',
@@ -637,7 +704,7 @@ class GatewayServiceController {
 			),
 		);
 
-		if( $surcharge[ 'amount' ] > 0 ) {
+		if ( $surcharge['amount'] > 0 ) {
 			$request_data['order']['merchantCharge'] = $surcharge;
 		}
 
@@ -649,15 +716,13 @@ class GatewayServiceController {
 			'PUT',
 			$uri
 		);
-		$stream       = $this->message_factory->createStream(
-			wp_json_encode(
-				$request_data
-			)
+		$stream       = $this->create_request_stream(
+			$this->encode_gateway_request_body( $request_data )
 		);
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 
@@ -677,17 +742,17 @@ class GatewayServiceController {
 	 *
 	 * @param string      $txn_id Transaction ID.
 	 * @param string      $order_id WC_Order ID.
-	 * @param array       $order WC_Order items.
-	 * @param array       $surcharge WC_Order Surcharge items.
-	 * @param array       $authentication Authentication params.
+	 * @param MpgsPayload $order WC_Order items.
+	 * @param MpgsPayload $surcharge WC_Order Surcharge items.
+	 * @param MpgsPayload $authentication Authentication params.
 	 * @param string|null $tds_id 3D Secure Id.
-	 * @param array       $session Transaction session details.
-	 * @param array       $customer Customer details.
-	 * @param array       $billing Customer billing details.
-	 * @param array       $shipping Customer shipping details.
+	 * @param MpgsPayload $session Transaction session details.
+	 * @param MpgsPayload $customer Customer details.
+	 * @param MpgsPayload $billing Customer billing details.
+	 * @param MpgsPayload $shipping Customer shipping details.
 	 *
-	 * @return mixed|ResponseInterface Response array.
-	 * @throws Exception It throws an exception if the payment is not completed.
+	 * @return array<string, mixed> Response array.
+	 * @throws \Exception It throws an exception if the payment is not completed.
 	 */
 	public function pay(
 		$txn_id,
@@ -701,8 +766,9 @@ class GatewayServiceController {
 		$billing = array(),
 		$shipping = array()
 	) {
-		$uri          = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
-		
+		$order = CheckoutBuilder::normalize_monetary_fields( $order );
+		$uri   = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
+
 		$request_data = array(
 			'apiOperation'      => 'PAY',
 			'3DSecureId'        => $tds_id,
@@ -724,29 +790,27 @@ class GatewayServiceController {
 			),
 		);
 
-		if( $surcharge[ 'amount' ] > 0 ) {
+		if ( $surcharge['amount'] > 0 ) {
 			$request_data['order']['merchantCharge'] = $surcharge;
 		}
 
 		if ( ! empty( $authentication ) ) {
 			$request_data['authentication'] = $authentication;
 		}
-		
-		$request      = $this->message_factory->createRequest(
+
+		$request = $this->message_factory->createRequest(
 			'PUT',
 			$uri
 		);
 
-		$stream       = $this->message_factory->createStream(
-			wp_json_encode(
-				$request_data
-			)
+		$stream = $this->create_request_stream(
+			$this->encode_gateway_request_body( $request_data )
 		);
 
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 		$this->validateTxnResponse( $response );
@@ -761,10 +825,10 @@ class GatewayServiceController {
 	 *
 	 * @param string $order_id Order ID.
 	 *
-	 * @return array Order details.
+	 * @return MpgsPayload Order details.
 	 * @throws \Http\Client\Exception It throws an exception if is not found.
 	 */
-	public function retrieveOrder( $order_id ) { // phpcs:ignore
+	public function retrieve_order( $order_id ) { // phpcs:ignore
 		$uri      = $this->api_url . 'order/' . $order_id;
 		$request  = $this->message_factory->createRequest(
 			'GET',
@@ -772,7 +836,7 @@ class GatewayServiceController {
 		);
 		$response = $this->client->sendRequest( $request );
 		$response = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 		$this->validateOrderResponse( $response );
@@ -783,15 +847,15 @@ class GatewayServiceController {
 	/**
 	 * Helper method to find the authorisation transaction.
 	 *
-	 * @param string $order_id Order ID.
-	 * @param array  $response Order details.
+	 * @param string      $order_id Order ID.
+	 * @param MpgsPayload $response Order details.
 	 *
-	 * @return null|array
-	 * @throws Exception It throws an exception if the authorized transaction is not found.
+	 * @return MpgsPayload|null
+	 * @throws \Exception It throws an exception if the authorized transaction is not found.
 	 */
-	public function getAuthorizationTransaction( $order_id, $response = array() ) { // phpcs:ignore
+	public function get_authorization_transaction( $order_id, $response = array() ) { // phpcs:ignore
 		if ( empty( $response ) ) {
-			$response = $this->retrieveOrder( $order_id );
+			$response = $this->retrieve_order( $order_id );
 		}
 
 		// @todo: Find only the first one
@@ -807,15 +871,15 @@ class GatewayServiceController {
 	/**
 	 * Helper method to find the capture/pay transaction
 	 *
-	 * @param string $order_id Order ID.
-	 * @param array  $response Order details.
+	 * @param string      $order_id Order ID.
+	 * @param MpgsPayload $response Order details.
 	 *
-	 * @return null|array
-	 * @throws Exception It throws an exception if the capture transaction is not found.
+	 * @return MpgsPayload|null
+	 * @throws \Exception It throws an exception if the capture transaction is not found.
 	 */
-	public function getCaptureTransaction( $order_id, $response = array() ) { // phpcs:ignore
+	public function get_capture_transaction( $order_id, $response = array() ) { // phpcs:ignore
 		if ( empty( $response ) ) {
-			$response = $this->retrieveOrder( $order_id );
+			$response = $this->retrieve_order( $order_id );
 		}
 
 		// @todo: Find only the first one
@@ -835,10 +899,10 @@ class GatewayServiceController {
 	 * @param string $order_id Order ID.
 	 * @param string $txn_id Transaction ID.
 	 *
-	 * @return array Response array.
-	 * @throws Exception It throws an exception if the transaction is not found.
+	 * @return MpgsPayload Response array.
+	 * @throws \Exception It throws an exception if the transaction is not found.
 	 */
-	public function retrieveTransaction( $order_id, $txn_id ) { // phpcs:ignore
+	public function retrieve_transaction( $order_id, $txn_id ) { // phpcs:ignore
 		$uri      = $this->api_url . 'order/' . $order_id . '/transaction/' . $txn_id;
 		$request  = $this->message_factory->createRequest(
 			'GET',
@@ -846,7 +910,7 @@ class GatewayServiceController {
 		);
 		$response = $this->client->sendRequest( $request );
 		$response = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 		$this->validateTxnResponse( $response );
@@ -862,17 +926,17 @@ class GatewayServiceController {
 	 * @param string $order_id Order ID.
 	 * @param string $txn_id Transaction ID.
 	 *
-	 * @return mixed|\Psr\Http\Message\ResponseInterface Transaction response.
-	 * @throws Exception It throws an exception if void a previous transaction.
+	 * @return array<string, mixed> Transaction response.
+	 * @throws \Exception It throws an exception if void a previous transaction.
 	 */
-	public function voidTxn( $order_id, $txn_id ) { // phpcs:ignore
+	public function void_txn( $order_id, $txn_id ) { // phpcs:ignore
 		$new_txn_id = 'void-' . $txn_id;
 		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
 		$request    = $this->message_factory->createRequest(
 			'PUT',
 			$uri
 		);
-		$stream     = $this->message_factory->createStream(
+		$stream     = $this->create_request_stream(
 			wp_json_encode(
 				array(
 					'apiOperation'      => 'VOID',
@@ -888,7 +952,7 @@ class GatewayServiceController {
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 		$this->validateVoidResponse( $response );
@@ -910,19 +974,19 @@ class GatewayServiceController {
 	 * @param float  $amount Order amount.
 	 * @param string $currency Order currency.
 	 *
-	 * @return mixed|ResponseInterface Capture transaction response.
-	 * @throws Exception It throws an exception if capture transaction is failed.
+	 * @return array<string, mixed> Capture transaction response.
+	 * @throws \Exception It throws an exception if capture transaction is failed.
 	 */
-	public function captureTxn( $order_id, $txn_id, $amount, $currency ) { // phpcs:ignore
+	public function capture_txn( $order_id, $txn_id, $amount, $currency ) { // phpcs:ignore
 		$new_txn_id = 'capture-' . $txn_id;
-		$amount     = CheckoutBuilder::formatAmountString( $amount );
+		$amount     = CheckoutBuilder::format_amount_string( $amount );
 		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
 		$request    = $this->message_factory->createRequest(
 			'PUT',
 			$uri
 		);
-		$stream     = $this->message_factory->createStream(
-			wp_json_encode(
+		$stream     = $this->create_request_stream(
+			$this->encode_gateway_request_body(
 				array(
 					'apiOperation'      => 'CAPTURE',
 					'partnerSolutionId' => $this->getSolutionId(),
@@ -942,7 +1006,7 @@ class GatewayServiceController {
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 		$this->validateTxnResponse( $response );
@@ -964,20 +1028,20 @@ class GatewayServiceController {
 	 * @param float  $amount Order amount.
 	 * @param string $currency Order currency.
 	 *
-	 * @return mixed|ResponseInterface Refund transaction response.
-	 * @throws Exception It throws an exception if capture transaction is failed.
+	 * @return array<string, mixed> Refund transaction response.
+	 * @throws \Exception It throws an exception if capture transaction is failed.
 	 */
 	public function refund( $order_id, $txn_id, $amount, $currency ) {
 		$new_txn_id = 'refund-' . $txn_id;
-		$amount     = CheckoutBuilder::formatAmountString( $amount );
+		$amount     = CheckoutBuilder::format_amount_string( $amount );
 		$uri        = $this->api_url . 'order/' . $order_id . '/transaction/' . $new_txn_id;
 		$request    = $this->message_factory->createRequest(
 			'PUT',
 			$uri
 		);
-		
-		$stream     = $this->message_factory->createStream(
-			wp_json_encode(
+
+		$stream = $this->create_request_stream(
+			$this->encode_gateway_request_body(
 				array(
 					'apiOperation'      => 'REFUND',
 					'partnerSolutionId' => $this->getSolutionId(),
@@ -997,7 +1061,7 @@ class GatewayServiceController {
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
 		$response     = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 		$this->validateTxnResponse( $response );
@@ -1009,10 +1073,10 @@ class GatewayServiceController {
 	 * Request to retrieve the options available for processing a payment, for example, the credit cards and currencies.
 	 * https://mtf.gateway.mastercard.com/api/rest/version/73/merchant/{merchantId}/paymentOptionsInquiry.
 	 *
-	 * @return array $response Payment options response.
-	 * @throws Exception An exception is thrown when null is returned.
+	 * @return MpgsPayload $response Payment options response.
+	 * @throws \Exception An exception is thrown when null is returned.
 	 */
-	public function paymentOptionsInquiry() { // phpcs:ignore
+	public function payment_options_inquiry() { // phpcs:ignore
 		$uri      = $this->api_url . 'paymentOptionsInquiry';
 		$request  = $this->message_factory->createRequest(
 			'POST',
@@ -1020,7 +1084,7 @@ class GatewayServiceController {
 		);
 		$response = $this->client->sendRequest( $request );
 		$response = json_decode(
-			$response->getBody(),
+			(string) $response->getBody(),
 			true
 		);
 
@@ -1029,60 +1093,80 @@ class GatewayServiceController {
 
 	/**
 	 * Request to capture the status of the installed plugin from client server.
-	 * https://dev-wiki.fingent.net/wp-json/mpgs/v2/update-repo-status.
+	 * https://mpgs.fingent.wiki/wp-json/mpgs/v2/update-repo-status.
 	 *
-	 * @return array $response Shop Details.
-	 * @throws Exception An exception is thrown when null is returned.
+	 * @param string $repo_name      Repository name.
+	 * @param string $plugin_type    Plugin type identifier.
+	 * @param string $tag_name       Release tag name.
+	 * @param string $latest_release Latest release version.
+	 * @param string $country_code   Store country code.
+	 * @param string $country_name   Store country name.
+	 * @param string $shop_name      Store name.
+	 * @param string $shop_url       Store URL.
+	 * @param string $api_token      Bearer API token.
+	 * @param string $api_url        Capture endpoint URL.
+	 * @param array<string, mixed> $extra_payload Extra telemetry fields.
+	 * @return array<string, mixed> Shop details response.
 	 */
-	public function sendCaptureRequest(
-	    string $repoName,
-	    string $pluginType,
-	    string $tagName,
-	    string $latestRelease,
-	    string $countryCode,
-	    string $countryName,
-	    string $shopName,
-	    string $shopUrl,
-	    string $apiToken,
-	    string $apiUrl
+	public function send_capture_request(
+		string $repo_name,
+		string $plugin_type,
+		string $tag_name,
+		string $latest_release,
+		string $country_code,
+		string $country_name,
+		string $shop_name,
+		string $shop_url,
+		string $api_token,
+		string $api_url,
+		array $extra_payload = array()
 	): array {
-	    $payload = [
-	        'repo_name'      => $repoName,
-	        'plugin_type'    => $pluginType,
-	        'tag_name'       => $tagName,
-	        'latest_release' => $latestRelease,
-	        'country_code'   => $countryCode,
-	        'country'        => $countryName,
-	        'shop_name'      => $shopName,
-	        'shop_url'       => $shopUrl,
-	    ];
+		$payload = array(
+			'repo_name'      => $repo_name,
+			'plugin_type'    => $plugin_type,
+			'tag_name'       => $tag_name,
+			'latest_release' => $latest_release,
+			'country_code'   => $country_code,
+			'country'        => $country_name,
+			'shop_name'      => $shop_name,
+			'shop_url'       => $shop_url,
+		);
 
-	    $headers = [
-	        'Authorization' => 'Bearer ' . $apiToken,
-	        'Content-Type'  => 'application/json',
-	    ];
+		if ( ! empty( $extra_payload ) ) {
+			$payload = array_merge( $payload, $extra_payload );
+		}
 
-	    try {
-	        $response = wp_remote_post($apiUrl, [
-	            'body'    => json_encode($payload),
-	            'headers' => $headers,
-	            'timeout' => 15,
-	        ]);
+		$headers = array(
+			'Authorization' => 'Bearer ' . $api_token,
+			'Content-Type'  => 'application/json',
+		);
 
-	        if (is_wp_error($response)) {
-	            return ['error' => 'Request failed: ' . $response->get_error_message()];
-	        }
+		try {
+			$request_body = wp_json_encode( $payload );
+			$response     = wp_remote_post(
+				$api_url,
+				array(
+					'body'    => false !== $request_body ? $request_body : '{}',
+					'headers' => $headers,
+					'timeout' => 15,
+				)
+			);
 
-	        $body = wp_remote_retrieve_body($response);
-	        $data = json_decode($body, true);
+			if ( ! is_array( $response ) ) {
+				$message = $response instanceof \WP_Error ? $response->get_error_message() : 'Unknown error';
+				return array( 'error' => 'Request failed: ' . $message );
+			}
 
-	        return is_array($data) ? $data : ['error' => 'Invalid response format'];
+			$body = wp_remote_retrieve_body( $response );
+			$data = json_decode( $body, true );
 
-	    } catch (Exception $e) {
-	        return ['error' => 'Exception: ' . $e->getMessage()];
-	    }
+			return is_array( $data ) ? $data : array( 'error' => 'Invalid response format' );
+
+		} catch ( \Exception $e ) {
+			return array( 'error' => 'Exception: ' . $e->getMessage() );
+		}
 	}
-	
+
 	/**
 	 * Request for the gateway to store payment instrument (e.g. credit or debit cards, gift cards,
 	 * ACH bank account details) against a token, where the system generates the token id.
@@ -1090,16 +1174,16 @@ class GatewayServiceController {
 	 *
 	 * @param string $session_id Session ID.
 	 *
-	 * @return mixed|ResponseInterface Token details.
-	 * @throws Exception An exception is thrown when create card token is failed.
+	 * @return array<string, mixed> Token details.
+	 * @throws \Exception An exception is thrown when create card token is failed.
 	 */
-	public function createCardToken( $session_id ) { // phpcs:ignore
+	public function create_card_token( $session_id ) { // phpcs:ignore
 		$uri     = $this->api_url . 'token';
 		$request = $this->message_factory->createRequest(
 			'POST',
 			$uri
 		);
-		$stream  = $this->message_factory->createStream(
+		$stream  = $this->create_request_stream(
 			wp_json_encode(
 				array(
 					'session'       => array(
@@ -1114,7 +1198,7 @@ class GatewayServiceController {
 
 		$request_body = $request->withBody( $stream );
 		$response     = $this->client->sendRequest( $request_body );
-		$response     = json_decode( $response->getBody(), true );
+		$response     = json_decode( (string) $response->getBody(), true );
 		return $response;
 	}
 
@@ -1123,17 +1207,17 @@ class GatewayServiceController {
 	 * by making a GET request to the Simplify API.
 	 *
 	 * @param string $token_id The unique identifier for the payment token.
-	 * @return array|null The decoded JSON response containing card details,
+	 * @return MpgsPayload|null The decoded JSON response containing card details,
 	 *                    or null if the response is empty or invalid.
 	 */
 	public function getCardType( $token_id ) { // phpcs:ignore
-		$uri     = $this->api_url . 'token/' . $token_id ;
-		$request = $this->message_factory->createRequest(
+		$uri      = $this->api_url . 'token/' . $token_id;
+		$request  = $this->message_factory->createRequest(
 			'GET',
 			$uri
 		);
-		$response     = $this->client->sendRequest( $request );
-		$response     = json_decode( $response->getBody(), true );
+		$response = $this->client->sendRequest( $request );
+		$response = json_decode( (string) $response->getBody(), true );
 
 		return $response;
 	}
@@ -1147,61 +1231,50 @@ class GatewayServiceController {
 	 * payment link details to the order meta, and optionally triggers the
 	 * "Payment Request" WooCommerce email.
 	 *
-	 * @param array $order       Array containing order details, must include 'id'.
-	 * @param array $interaction Optional interaction data (overridden by CheckoutBuilder).
-	 * @param array $customer    Optional customer data (overridden by CheckoutBuilder).
-	 * @param array $billing     Optional billing data (overridden by CheckoutBuilder).
-	 * @param array $shipping    Optional shipping data (overridden by CheckoutBuilder).
-	 * @return array The API response body decoded as an associative array.
+	 * @param MpgsPayload $order Array containing order details, must include 'id'.
+	 * @return MpgsPayload The API response body decoded as an associative array.
 	 */
-	public function GenerateSecureURL(
-		$order		 = array(),
-		$interaction = array(),
-		$customer    = array(),
-		$billing     = array(),
-		$shipping    = array()
-	) {
-		$gateway = MastercardGateway::get_instance();
-		$orderdet 	= wc_get_order( $order['id'] );
+	public function generate_secure_url( $order = array() ) {
+		$gateway  = MastercardGateway::get_instance();
+		$orderdet = wc_get_order( $order['id'] );
+		if ( ! $orderdet instanceof \WC_Order ) {
+			return array(
+				'result'  => 'ERROR',
+				'message' => 'Invalid order.',
+			);
+		}
 		if ( $orderdet->meta_exists( '_pay_by_link_is_expired' ) ) {
 			$orderdet->delete_meta_data( '_pay_by_link_is_expired' );
 		}
-		$return_url = add_query_arg(
-			[
-				'wc-api'   => MG_ENTERPRISE_ID,
-				'order_id' => $orderdet->get_id(),
-			],
-			home_url( '/' )
-		);
-		$order_builder = new CheckoutBuilder( $order['id'] );
-		$capture = ($gateway->settings['txn_mode'] === 'capture');
-		$interaction   = $order_builder->getInteraction( $capture, $return_url );
-		$billing       = $order_builder->getBillingFromOrder( $order['id'] );
-		$shipping      = $order_builder->getShippingFromOrder( $order['id'] );
-		$payeer_link_order_details = $order_builder->getPaymentLinkOrder( $order['id'] );
-		$uri        	= $this->api_url . 'session';
-		$request_data = [
+		$return_url                = PaymentController::get_instance()->get_payment_return_url( $orderdet->get_id() );
+		$order_builder             = new CheckoutBuilder( $order['id'] );
+		$capture                   = ( 'capture' === $gateway->settings['txn_mode'] );
+		$checkout_interaction      = $order_builder->get_interaction( $capture, $return_url );
+		$checkout_billing          = $order_builder->get_billing_from_order( $order['id'] );
+		$checkout_shipping         = $order_builder->get_shipping_from_order( $order['id'] );
+		$payeer_link_order_details = $order_builder->get_payment_link_order( $order['id'] );
+		$uri                       = $this->api_url . 'session';
+		$request_data              = array(
 			'apiOperation'      => 'INITIATE_CHECKOUT',
-			'partnerSolutionId' =>  $this->getSolutionId(),
+			'partnerSolutionId' => $this->getSolutionId(),
 			'checkoutMode'      => 'PAYMENT_LINK',
-			'billing'           => $billing,
-			'shipping'          => $shipping,
-			'interaction'       => $interaction,
+			'billing'           => $checkout_billing,
+			'shipping'          => $checkout_shipping,
+			'interaction'       => $checkout_interaction,
 			'order'             => $payeer_link_order_details,
-			'paymentLink'       => $order_builder->getPaymentLinkSettings(),
-		];
-		
-		$request 				= $this->message_factory->createRequest(
-			'POST',
-			$uri,
-			array()
+			'paymentLink'       => $order_builder->get_payment_link_settings(),
 		);
 
-		$stream       = $this->message_factory->createStream( wp_json_encode( $request_data ) );
+		$request = $this->message_factory->createRequest(
+			'POST',
+			$uri
+		);
+
+		$stream       = $this->create_request_stream( $this->encode_gateway_request_body( $request_data ) );
 		$request_body = $request->withBody( $stream );
 
 		$response = $this->client->sendRequest( $request_body );
-		$response = json_decode( $response->getBody(), true );
+		$response = json_decode( (string) $response->getBody(), true );
 
 		$mail_sent = false;
 		if ( isset( $response['result'] ) && strtoupper( $response['result'] ) === 'SUCCESS' ) {
@@ -1224,15 +1297,15 @@ class GatewayServiceController {
 			$orderdet->save();
 			$mailer = WC()->mailer();
 			$emails = $mailer->get_emails();
-			if ( ! empty( $emails['WC_Email_Pay_By_Link'] ) ) {
-				$custom_email = $emails['WC_Email_Pay_By_Link'];
-				$pay_link_url      = $orderdet->get_meta('_pay_by_link_url');
-				$expiry_date_time  = $orderdet->get_meta('_pay_by_link_expiry_date_time');
-				$allowed_attempts  = $orderdet->get_meta('_pay_by_link_number_of_attempts');
+			if ( isset( $emails['WC_Email_Pay_By_Link'] ) && $emails['WC_Email_Pay_By_Link'] instanceof PaymentRequestEmail ) {
+				$custom_email                   = $emails['WC_Email_Pay_By_Link'];
+				$pay_link_url                   = $orderdet->get_meta( '_pay_by_link_url' );
+				$expiry_date_time               = $orderdet->get_meta( '_pay_by_link_expiry_date_time' );
+				$allowed_attempts               = $orderdet->get_meta( '_pay_by_link_number_of_attempts' );
 				$custom_email->payment_link     = $pay_link_url;
 				$custom_email->expiry_date_time = $expiry_date_time;
 				$custom_email->allowed_attempts = $allowed_attempts;
-				$mail_sent = (bool) $custom_email->trigger( $orderdet->get_id() );
+				$mail_sent                      = (bool) $custom_email->trigger( $orderdet->get_id() );
 			}
 			$response['mail_sent'] = $mail_sent;
 		}
@@ -1247,30 +1320,35 @@ class GatewayServiceController {
 	 * the previously generated payment link. Upon successful revocation, it
 	 * cleans up order meta and optionally triggers the "Payment Revoked" email.
 	 *
-	 * @param array $order Array containing order details, must include 'id'.
-	 * @return array The API response body decoded as an associative array.
+	 * @param MpgsPayload $order Array containing order details, must include 'id'.
+	 * @return MpgsPayload The API response body decoded as an associative array.
 	 */
-	public function RevokePaymentLink( $order = array() ) {
+	public function revoke_payment_link( $order = array() ) {
 		$orderdet = wc_get_order( $order['id'] );
+		if ( ! $orderdet instanceof \WC_Order ) {
+			return array(
+				'result'  => 'ERROR',
+				'message' => 'Invalid order.',
+			);
+		}
 		$payment_link_id = $orderdet->get_meta( '_pay_by_link_id' );
-		
+
 		if ( empty( $payment_link_id ) ) {
-			return [
-				'result' => 'ERROR',
-				'message' => 'No payment link found for this order.'
-			];
+			return array(
+				'result'  => 'ERROR',
+				'message' => 'No payment link found for this order.',
+			);
 		}
 
 		$uri = $this->api_url . 'link/' . $payment_link_id;
 
 		$request = $this->message_factory->createRequest(
 			'DELETE',
-			$uri,
-			array()
+			$uri
 		);
 
-		$response = $this->client->sendRequest( $request );
-		$response_body = json_decode( $response->getBody(), true );
+		$response      = $this->client->sendRequest( $request );
+		$response_body = json_decode( (string) $response->getBody(), true );
 
 		$mail_sent = false;
 		if ( isset( $response_body['result'] ) && strtoupper( $response_body['result'] ) === 'SUCCESS' ) {
@@ -1280,9 +1358,8 @@ class GatewayServiceController {
 			$orderdet->save();
 			$mailer = WC()->mailer();
 			$emails = $mailer->get_emails();
-			if ( ! empty( $emails['WC_Email_Pay_By_Link_Revoked'] ) ) {
-				$custom_email = $emails['WC_Email_Pay_By_Link_Revoked'];
-				$mail_sent = (bool) $custom_email->trigger( $orderdet->get_id() );
+			if ( isset( $emails['WC_Email_Pay_By_Link_Revoked'] ) && $emails['WC_Email_Pay_By_Link_Revoked'] instanceof PaymentRevokedEmail ) {
+				$mail_sent = (bool) $emails['WC_Email_Pay_By_Link_Revoked']->trigger( $orderdet->get_id() );
 			}
 			$response_body['mail_sent'] = $mail_sent;
 		}

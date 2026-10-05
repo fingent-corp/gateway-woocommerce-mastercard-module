@@ -1,15 +1,5 @@
 == Mastercard Payment Gateway Services Changelog ==
 
-2026-08-05 - version 1.5.3.2
-
-* Add - Click to Pay Support in Hosted Checkout.
-* Fix - Fixed an issue that prevented customers from being redirected to the Mastercard Hosted Checkout page during guest checkout.
-
-2026-06-11 - version 1.5.3.1
-
-* Add - IRIS Pay Support in Hosted Checkout.
-* Fix - Resolved bugs related to Greek currency processing.
-
 2026-06-01 - version 1.5.3
 
 * Add - Introduced "Pay By Link" feature in Hosted Checkout.
