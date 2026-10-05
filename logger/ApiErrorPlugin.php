@@ -1,36 +1,25 @@
 <?php
+// phpcs:ignoreFile -- PSR-4 Composer autoload requires PascalCase filenames.
+/**
+ * HTTP client plugin that maps API error responses to exceptions.
+ *
+ * @package Fingent\Mastercard\Logger
+ */
+
 namespace Fingent\Mastercard\Logger;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-use Http\Client\Common\Exception\ClientErrorException;
-use Http\Client\Common\Exception\ServerErrorException;
-use Http\Client\Common\HttpClientRouter;
 use Http\Client\Common\Plugin;
-use Http\Client\Common\Plugin\AuthenticationPlugin;
-use Http\Client\Common\Plugin\ContentLengthPlugin;
-use Http\Client\Common\Plugin\HeaderSetPlugin;
-use Http\Client\Common\PluginClient;
-use Http\Client\Exception;
-use Http\Discovery\HttpClientDiscovery;
-use Http\Message\Authentication\BasicAuth;
-use Http\Message\Formatter;
-use Http\Message\Formatter\SimpleFormatter;
-use Http\Message\RequestMatcher\RequestMatcher;
-use Monolog\Handler\StreamHandler;
-use Monolog\Logger;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 use Http\Promise\Promise;
 
 /**
- * The ApiErrorPlugin defines a contract for logging messages within this plugin.
- *
- * @var Mastercard_Gateway $gateway Gateway array values
- * @var WC_Abstract_Order $order Order array
+ * HTTP client plugin that maps API error responses to exceptions.
  */
 class ApiErrorPlugin implements Plugin {
 	/**
@@ -41,36 +30,14 @@ class ApiErrorPlugin implements Plugin {
 	private $logger;
 
 	/**
-	 * Formatter variable
-	 *
-	 * @var Formatter
-	 */
-	private $formatter;
-
-	/**
 	 * Constructor function
 	 *
 	 * @param LoggerInterface $logger The logger instance.
-	 * @param Formatter       $formatter The formatter instance (optional).
 	 *
 	 * @return void
 	 */
-	public function __construct( LoggerInterface $logger, ?Formatter $formatter = null ) {
-		$this->logger    = $logger;
-		$this->formatter = $formatter ?? $this->getDefaultFormatter();
-	}
-
-	/**
-	 * Returns the default formatter instance.
-	 *
-	 * This method can be overridden in subclasses to provide a custom
-	 * default formatter if none is explicitly provided.
-	 *
-	 * @return Formatter The default formatter instance.
-	 */
-	protected function getDefaultFormatter(): Formatter {
-	    // Can be overridden in subclasses if needed
-	    return new SimpleFormatter();
+	public function __construct( LoggerInterface $logger ) {
+		$this->logger = $logger;
 	}
 
 	/**
@@ -97,17 +64,14 @@ class ApiErrorPlugin implements Plugin {
 	/**
 	 * Transform the response to an exception.
 	 *
-	 * This function takes a request and response as input and transforms the response into an exception.
-	 *
 	 * @param RequestInterface  $request The request object.
 	 * @param ResponseInterface $response The response object.
 	 *
-	 * @return array $response Response Array.
+	 * @return ResponseInterface
 	 *
-	 * @throws ServerErrorException If response is not a valid JSON.
-	 * @throws ClientErrorException Throws an error with the transformed response.
+	 * @throws GatewayResponseException When the gateway returns an error response.
 	 */
-	protected function transformResponseToException( RequestInterface $request, ResponseInterface $response ) {
+	protected function transformResponseToException( RequestInterface $request, ResponseInterface $response ): ResponseInterface {
 		$status_code = $response->getStatusCode();
 
 		// Handle 4xx client errors.
@@ -118,30 +82,29 @@ class ApiErrorPlugin implements Plugin {
 				$response_data = json_decode( $body, true );
 
 				if ( json_last_error() !== JSON_ERROR_NONE ) {
-					throw new ServerErrorException( 'Response not valid JSON', $request, $response );
+					throw new GatewayResponseException( 'Response not valid JSON', 502 );
 				}
 
 				$msg = '';
 
 				if ( isset( $response_data['error']['cause'] ) ) {
-					$msg .= $response_data['error']['cause'] . ': ';
+					$msg .= sanitize_text_field( (string) $response_data['error']['cause'] ) . ': ';
 				}
 				if ( isset( $response_data['error']['explanation'] ) ) {
-					$msg .= $response_data['error']['explanation'];
+					$msg .= sanitize_text_field( (string) $response_data['error']['explanation'] );
 				}
 
 				if ( '' !== $msg ) {
-					$this->logger->error( $msg );
-					throw new ClientErrorException( $msg, $request, $response );
+					$this->logger->error( 'Mastercard gateway returned a client error response.' );
+					throw new GatewayResponseException( 'Payment gateway returned a client error.', (int) $status_code );
 				}
 			}
 		}
 
 		// Handle 5xx server errors.
 		if ( $status_code >= 500 && $status_code < 600 ) {
-			$reason = $response->getReasonPhrase();
-			$this->logger->error( $reason );
-			throw new ServerErrorException( $reason, $request, $response );
+			$this->logger->error( 'Mastercard gateway returned a server error response.' );
+			throw new GatewayResponseException( 'Payment gateway returned a server error.', (int) $status_code );
 		}
 
 		return $response;

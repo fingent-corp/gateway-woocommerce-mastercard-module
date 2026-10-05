@@ -1,36 +1,29 @@
 <?php
+// phpcs:ignoreFile -- PSR-4 Composer autoload requires PascalCase filenames.
+/**
+ * API request/response logger for the Mastercard HTTP client.
+ *
+ * @package Fingent\Mastercard\Logger
+ */
+
 namespace Fingent\Mastercard\Logger;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-use Http\Client\Common\Exception\ClientErrorException;
-use Http\Client\Common\Exception\ServerErrorException;
-use Http\Client\Common\HttpClientRouter;
 use Http\Client\Common\Plugin;
-use Http\Client\Common\Plugin\AuthenticationPlugin;
-use Http\Client\Common\Plugin\ContentLengthPlugin;
-use Http\Client\Common\Plugin\HeaderSetPlugin;
-use Http\Client\Common\PluginClient;
 use Http\Client\Exception;
-use Http\Discovery\HttpClientDiscovery;
-use Http\Message\Authentication\BasicAuth;
 use Http\Message\Formatter;
 use Http\Message\Formatter\SimpleFormatter;
-use Http\Message\RequestMatcher\RequestMatcher;
-use Monolog\Handler\StreamHandler;
-use Monolog\Logger;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 use Http\Promise\Promise;
+use Fingent\Mastercard\Helper\LogRedactor;
 
 /**
- * Class Mastercard_ApiLoggerPlugin
- *
- * This class implements the Plugin interface and serves as an API logger plugin for Mastercard.
- * It provides methods to log API requests and responses for debugging and analysis purposes.
+ * Logs Mastercard API requests and responses for debugging.
  */
 class ApiLoggerPlugin implements Plugin {
 	/**
@@ -48,29 +41,35 @@ class ApiLoggerPlugin implements Plugin {
 	private $formatter;
 
 	/**
+	 * Whether to log request/response bodies (debug only).
+	 *
+	 * @var bool
+	 */
+	private $log_bodies;
+
+	/**
 	 * Constructor function
 	 *
 	 * @param LoggerInterface $logger The logger instance.
 	 * @param Formatter|null  $formatter The formatter instance (optional).
+	 * @param bool            $log_bodies Log HTTP bodies when true.
 	 *
 	 * @return void
 	 */
-	public function __construct( LoggerInterface $logger, ?Formatter $formatter = null ) {
-		$this->logger    = $logger;
-		$this->formatter = $formatter ?? $this->getDefaultFormatter();
+	public function __construct( LoggerInterface $logger, ?Formatter $formatter = null, $log_bodies = false ) {
+		$this->logger     = $logger;
+		$this->formatter  = $formatter ?? $this->getDefaultFormatter();
+		$this->log_bodies = (bool) $log_bodies;
 	}
 
 	/**
 	 * Returns the default formatter instance.
 	 *
-	 * This method can be overridden in subclasses to provide a custom
-	 * default formatter if none is explicitly provided.
-	 *
 	 * @return Formatter The default formatter instance.
 	 */
 	protected function getDefaultFormatter(): Formatter {
-	    // Can be overridden in subclasses if needed
-	    return new SimpleFormatter();
+		// Can be overridden in subclasses if needed.
+		return new SimpleFormatter();
 	}
 
 	/**
@@ -83,9 +82,15 @@ class ApiLoggerPlugin implements Plugin {
 	 * @return Promise A promise that resolves with the response.
 	 */
 	public function handleRequest( RequestInterface $request, callable $next, callable $first ): Promise {
-		$req_body = json_decode( $request->getBody(), true );
+		$req_body = json_decode( (string) $request->getBody(), true );
 		if ( json_last_error() !== JSON_ERROR_NONE ) {
 			$req_body = $request->getBody();
+		}
+
+		$context = array();
+
+		if ( $this->log_bodies && is_array( $req_body ) ) {
+			$context['request'] = LogRedactor::redact( $req_body );
 		}
 
 		$this->logger->info(
@@ -94,15 +99,21 @@ class ApiLoggerPlugin implements Plugin {
 				'Emit request: "%s"',
 				$this->formatter->formatRequest( $request )
 			),
-			[ 'request' => $req_body ] // phpcs:ignore
+			$context
 		);
 
 		return $next( $request )->then(
 			function ( ResponseInterface $response ) use ( $request ) {
-				$body = json_decode( $response->getBody(), true ); 
+				$body = json_decode( (string) $response->getBody(), true );
 				if ( json_last_error() !== JSON_ERROR_NONE ) {
 					$body = $response->getBody();
 				}
+				$response_context = array();
+
+				if ( $this->log_bodies && is_array( $body ) ) {
+					$response_context['response'] = LogRedactor::redact( $body );
+				}
+
 				$this->logger->info(
 					sprintf(
 						/* translators: 1. Response, 2. Request. */
@@ -110,41 +121,43 @@ class ApiLoggerPlugin implements Plugin {
 						$this->formatter->formatResponse( $response ),
 						$this->formatter->formatRequest( $request )
 					),
-					[  // phpcs:ignore
-						'response' => $body,
-					]
+					$response_context
 				);
 
 				return $response;
 			},
 			function ( \Exception $exception ) use ( $request ) {
 				if ( $exception instanceof Exception\HttpException ) {
+					$error_context = array(
+						'exception' => get_class( $exception ),
+					);
+
+					if ( $exception->getCode() ) {
+						$error_context['code'] = $exception->getCode();
+					}
+
 					$this->logger->error(
-						/* translators: 1. Exception Response, 2. Request. */
 						sprintf(
+							/* translators: 1. Exception Response, 2. Request. */
 							'Error: "%s" with response: "%s" when emitting request: "%s"',
-							$exception->getMessage(),
+							sanitize_text_field( $exception->getMessage() ),
 							$this->formatter->formatResponse( $exception->getResponse() ),
 							$this->formatter->formatRequest( $request )
 						),
-						[ // phpcs:ignore
-							'request'   => $request,
-							'response'  => $exception->getResponse(),
-							'exception' => $exception,
-						]
+						$error_context
 					);
 				} else {
 					$this->logger->error(
-						/* translators: 1. Request. */
 						sprintf(
+							/* translators: 1. Request. */
 							'Error: "%s" when emitting request: "%s"',
-							$exception->getMessage(),
+							sanitize_text_field( $exception->getMessage() ),
 							$this->formatter->formatRequest( $request )
 						),
-						[  // phpcs:ignore
-							'request'   => $request,
-							'exception' => $exception,
-						]
+						array(
+							'exception' => get_class( $exception ),
+							'code'      => (int) $exception->getCode(),
+						)
 					);
 				}
 

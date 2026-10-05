@@ -1,4 +1,11 @@
 <?php
+// phpcs:ignoreFile -- PSR-4 Composer autoload requires PascalCase filenames.
+/**
+ * Payment receipt, return URL, REST, and 3DS checkout processing.
+ *
+ * @package Fingent\Mastercard\Controller
+ */
+
 namespace Fingent\Mastercard\Controller;
 
 use WC_Order;
@@ -9,6 +16,7 @@ use Fingent\Mastercard\Model\MastercardGateway;
 use Fingent\Mastercard\View\CheckoutView;
 use Fingent\Mastercard\Controller\FrontendController;
 use Fingent\Mastercard\Controller\GatewayController;
+use Fingent\Mastercard\Controller\GatewayServiceController;
 use Fingent\Mastercard\Controller\UtilityController;
 use Fingent\Mastercard\Core\PaymentTokenCC;
 use Fingent\Mastercard\Helper\CheckoutBuilder;
@@ -20,6 +28,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+/**
+ * Handles checkout payment flows, callbacks, and gateway REST routes.
+ */
 class PaymentController {
 	/**
 	 * Singleton instance.
@@ -50,9 +61,9 @@ class PaymentController {
 	protected UtilityController $utility;
 
 	/**
-	 * GatewayController
+	 * Gateway API service.
 	 *
-	 * @var GatewayController
+	 * @var GatewayServiceController
 	 */
 	protected $service;
 
@@ -89,7 +100,7 @@ class PaymentController {
 	protected function get_logger() {
 		return GatewayController::get_instance()->get_logger();
 	}
-	
+
 	/**
 	 * Generate the receipt page for a given order ID.
 	 *
@@ -100,46 +111,124 @@ class PaymentController {
 	public function receipt_page( $order_id ) {
 		$order = wc_get_order( $order_id );
 
-		if ( ! $order ) {
+		if ( ! $order instanceof WC_Order ) {
 			return;
 		}
 
 		if ( HOSTED_SESSION === $this->gateway->method ) {
-        	$view = new CheckoutView( $order, array( 'method' => 'session' ) );
-        } else {
-        	$view = new CheckoutView( $order, array( 'method' => 'checkout' ) );
-        }
+			$view = new CheckoutView( $order, array( 'method' => 'session' ) );
+		} else {
+			$view = new CheckoutView( $order, array( 'method' => 'checkout' ) );
+		}
 
-        $view->render();
+		$view->render();
 	}
 
 	/**
 	 * This function generates the payment return URL for a given order ID and parameters.
 	 *
-	 * @param int   $order_id The ID of the order for which the payment return URL is generated.
-	 * @param array $params Additional parameters to be included in the return URL (optional).
+	 * @param int                  $order_id The ID of the order for which the payment return URL is generated.
+	 * @param array<string, mixed> $params   Additional parameters to be included in the return URL (optional).
 	 *
 	 * @return string The generated payment return URL.
 	 */
 	public function get_payment_return_url( $order_id, $params = array() ) {
+		$order = wc_get_order( $order_id );
+
 		$params = array_merge(
 			array(
-				'order_id' => $order_id,
+				'order_id'  => $order_id,
+				'order_key' => $order instanceof WC_Order ? $order->get_order_key() : '',
 			),
 			$params
 		);
-		
+
 		return add_query_arg( 'wc-api', MG_ENTERPRISE_ID, home_url( '/' ) ) . '&' . http_build_query( $params );
+	}
+
+	/**
+	 * Validate callback request against the expected WooCommerce order key.
+	 *
+	 * @param \WC_Order $order WooCommerce order.
+	 *
+	 * @return bool
+	 */
+	protected function is_valid_return_order_request( WC_Order $order ) {
+		$order_key = $this->sanitize_request_field( 'order_key' ) ?? ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		if ( '' !== $order_key && hash_equals( (string) $order->get_order_key(), $order_key ) ) {
+			return true;
+		}
+
+		if ( $this->is_valid_pay_by_link_return( $order ) ) {
+			return true;
+		}
+
+		// 3DS v2 MPGS redirects may only include mg_3ds_nonce + transaction_id (legacy sessions).
+		if ( $this->gateway->threedsecure_v2 ) {
+			return $this->matches_3ds_v2_return_credentials( $order );
+		}
+
+		return false;
+	}
+
+	/**
+	 * Validate pay-by-link return when MPGS redirects with resultIndicator.
+	 *
+	 * Legacy payment links may omit order_key in the return URL; the success
+	 * indicator issued at link creation is sufficient to bind the callback.
+	 *
+	 * @param \WC_Order $order WooCommerce order.
+	 * @return bool
+	 */
+	protected function is_valid_pay_by_link_return( WC_Order $order ) {
+		$pay_link_url = $order->get_meta( '_pay_by_link_url' );
+
+		if ( empty( $pay_link_url ) ) {
+			return false;
+		}
+
+		$result_indicator = $this->sanitize_request_field( 'resultIndicator' );
+
+		if ( null === $result_indicator || '' === $result_indicator ) {
+			return false;
+		}
+
+		$stored_indicator = (string) $order->get_meta( '_pay_by_link_indicator' );
+
+		if ( '' === $stored_indicator ) {
+			return false;
+		}
+
+		return hash_equals( $stored_indicator, $result_indicator );
+	}
+
+	/**
+	 * Sanitize a scalar string value from $_REQUEST.
+	 *
+	 * @param string $key Request parameter name.
+	 *
+	 * @return string|null Sanitized value, or null when missing or not a string.
+	 */
+	private function sanitize_request_field( string $key ): ?string {
+		if ( ! isset( $_REQUEST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			return null;
+		}
+
+		$raw = wp_unslash( $_REQUEST[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+
+		return is_string( $raw ) ? sanitize_text_field( $raw ) : null;
 	}
 
 	/**
 	 * This function adds a prefix to an order ID.
 	 *
-	 * @param string $order_id The original order ID.
+	 * @param int|string $order_id The original order ID.
 	 *
 	 * @return string The order ID with the prefix added.
 	 */
 	public function add_order_prefix( $order_id ) {
+		$order_id = (string) $order_id;
 		if ( $this->gateway->order_prefix ) {
 			$order_id = $this->gateway->order_prefix . $order_id;
 		}
@@ -150,51 +239,56 @@ class PaymentController {
 	/**
 	 * This function processes a REST route and request.
 	 *
-	 * @param string $route The REST route to be processed.
-	 * @param array  $request The request data associated with the route.
+	 * @param string           $route   The REST route to be processed.
+	 * @param \WP_REST_Request $request The REST request associated with the route.
 	 *
 	 * @return mixed The processed result of the route and request.
 	 *
-	 * @throws GatewayResponseException If the route or request is invalid or if an error occurs during processing.
+	 * @throws GatewayResponseException If the route, request, or parameters are invalid or processing fails.
 	 */
-	public function rest_route_processor( $route, $request ) { 
-		$result = null;
-		$this->service  = GatewayController::get_instance()->init_service();
-		
-		switch ( $route ) {
-			case ( (bool) preg_match( '~/mastercard/v1/checkoutSession/\d+~', $route ) ):
-				$order         = new WC_Order( $request->get_param( 'id' ) );
-				$return_url    = $this->get_payment_return_url( $order->get_id() );
-				$order_builder = new CheckoutBuilder( $order );
-				$result        = $this->service->initiateCheckout(
-					$order_builder->getHostedCheckoutOrder(),
-					$order_builder->getInteraction(
-						$this->gateway->capture,
-						$return_url
-					),
-					$order_builder->getCustomer(),
-					$order_builder->getBilling(),
-					$order_builder->getShipping()
-				);
+	public function rest_route_processor( $route, $request ) {
+		$result        = null;
+		$this->service = GatewayController::get_instance()->init_service();
+		try {
+			if ( preg_match( '~/mastercard/v1/checkoutSession/\d+~', $route ) ) {
+					$wc_order_id = $request->get_param( 'id' );
+				if ( ! is_numeric( $wc_order_id ) ) {
+					throw new GatewayResponseException( 'Invalid order ID.' );
+				}
+					$order         = new WC_Order( (int) $wc_order_id );
+					$return_url    = $this->get_payment_return_url( $order->get_id() );
+					$order_builder = new CheckoutBuilder( $order );
+					$result        = $this->service->initiate_checkout(
+						$order_builder->get_hosted_checkout_order(),
+						$order_builder->get_interaction(
+							$this->gateway->capture ?? false,
+							$return_url
+						),
+						$order_builder->get_customer(),
+						$order_builder->get_billing(),
+						$order_builder->get_shipping() ?? array()
+					);
 
-				// Proceed if the result has a successIndicator
+					// Proceed if the result has a successIndicator.
 				if ( $result && isset( $result['successIndicator'] ) ) {
 					$order->update_meta_data( '_mpgs_success_indicator_initial', $result['successIndicator'] );
 				}
-				
-				$order->save_meta_data();
-				break;
 
-			case ( (bool) preg_match( '~/mastercard/v1/savePayment/\d+~', $route ) ):
-				$order         = new WC_Order( $request->get_param( 'id' ) );
-				$save_new_card = ( 'true' === $request->get_param( 'save_new_card' ) );
+					$order->save_meta_data();
+			} elseif ( preg_match( '~/mastercard/v1/savePayment/\d+~', $route ) ) {
+					$wc_order_id = $request->get_param( 'id' );
+				if ( ! is_numeric( $wc_order_id ) ) {
+					throw new GatewayResponseException( 'Invalid order ID.' );
+				}
+					$order         = new WC_Order( (int) $wc_order_id );
+					$save_new_card = ( 'true' === $request->get_param( 'save_new_card' ) );
 
 				if ( $save_new_card ) {
-					$order->update_meta_data( '_save_card', true );
+					$order->update_meta_data( '_save_card', 'yes' );
 					$order->save_meta_data();
 				}
 
-				$auth = array();
+					$auth = array();
 
 				if ( $this->gateway->threedsecure_v1 ) {
 					$auth = array(
@@ -208,57 +302,90 @@ class PaymentController {
 						'purpose' => 'PAYMENT_TRANSACTION',
 					);
 				}
-				$session_id    = $order->get_meta( '_mpgs_session_id' ); 
-				$order_builder = new CheckoutBuilder( $order );
-				$result        = $this->service->update_session(
-					$session_id,
-					$order_builder->getHostedCheckoutOrder(),
-					$order_builder->getCustomer(),
-					$order_builder->getBilling(),
-					$order_builder->getShipping(),
-					$auth,
-					$this->get_token_from_request()
-				);
+
+					$redirect_query_args = array();
+					$three_ds_txn_id     = null;
+
+				if ( $this->gateway->threedsecure_v2 ) {
+					$three_ds_txn_id = $this->generate_txn_id_for_order( $order );
+					$return_token    = bin2hex( random_bytes( 16 ) );
+					$order->update_meta_data( '_mpgs_3ds_v2_transaction_id', $three_ds_txn_id );
+					$order->update_meta_data( '_mpgs_3ds_v2_return_token', $return_token );
+					$redirect_query_args['mg_3ds_nonce'] = $return_token;
+					$redirect_query_args['order_key']    = $order->get_order_key();
+				}
+
+					$session_id    = $order->get_meta( '_mpgs_session_id' );
+					$order_builder = new CheckoutBuilder( $order );
+					$result        = $this->service->update_session(
+						$session_id,
+						$order_builder->get_hosted_checkout_order(),
+						$order_builder->get_customer(),
+						$order_builder->get_billing(),
+						$order_builder->get_shipping() ?? array(),
+						$auth,
+						$this->get_token_from_request(),
+						$redirect_query_args
+					);
+
+				if ( $three_ds_txn_id ) {
+					$result['threeDsTransactionId'] = $three_ds_txn_id;
+				}
 
 				if ( $result && isset( $result['successIndicator'] ) ) {
 					if ( $order->meta_exists( '_mpgs_success_indicator' ) ) {
 						$order->update_meta_data( '_mpgs_success_indicator', $result['successIndicator'] );
 					} else {
-						$order->add_meta_data( '_mpgs_success_indicator', $result['successIndicator'], true  );
-					}	
+						$order->add_meta_data( '_mpgs_success_indicator', $result['successIndicator'], true );
+					}
 				}
 
 				if ( isset( $result['sourceOfFunds']['token'] ) ) {
-					$token = $result['sourceOfFunds']['token'];					
-				
+					$token = $result['sourceOfFunds']['token'];
+
 					if ( $order->meta_exists( '_mpgs_current_token' ) ) {
 						$order->update_meta_data( '_mpgs_current_token', $token );
 					} else {
 						$order->add_meta_data( '_mpgs_current_token', $token, true );
 					}
 				}
-				
-				$order->save_meta_data();
-				break;
 
-			case ( (bool) preg_match( '~/mastercard/v1/session/\d+~', $route ) ):
-				$order  = new WC_Order( $request->get_param( 'id' ) );
-				$result = $this->service->create_session();
+					$order->save_meta_data();
+			} elseif ( preg_match( '~/mastercard/v1/session/\d+~', $route ) ) {
+					$wc_order_id = $request->get_param( 'id' );
+				if ( ! is_numeric( $wc_order_id ) ) {
+					throw new GatewayResponseException( 'Invalid order ID.' );
+				}
+					$order  = new WC_Order( (int) $wc_order_id );
+					$result = $this->service->create_session();
 
 				if ( $order->meta_exists( '_mpgs_session_id' ) ) {
 					$order->update_meta_data( '_mpgs_session_id', $result['session']['id'] );
 				} else {
 					$order->add_meta_data( '_mpgs_session_id', $result['session']['id'], true );
 				}
-				$order->save_meta_data();
-				break;
-
-			case '/mastercard/v1/webhook':
+					$order->save_meta_data();
+			} elseif ( '/mastercard/v1/webhook' === $route ) {
 				$this->webhook_handler( $request );
-				break;
-	
-			default:
-				break;	
+			}
+		} catch ( \Throwable $e ) {
+			$logger = $this->get_logger();
+			if ( $logger ) {
+				$logger->error(
+					'REST route processor error',
+					array(
+						'route'   => $route,
+						'error'   => $e->getMessage(),
+						'request' => method_exists( $request, 'get_params' ) ? $request->get_params() : array(),
+					)
+				);
+			}
+
+			return new \WP_Error(
+				'mastercard_rest_error',
+				__( 'Payment could not be processed. Please try again or contact the store.', 'mastercard' ),
+				array( 'status' => 400 )
+			);
 		}
 
 		return $result;
@@ -290,28 +417,32 @@ class PaymentController {
 		header( 'HTTP/1.1 200 OK' );
 
 		$three_ds_txn_id        = null;
-		$gateway_recommendation = isset( $_REQUEST['response_gatewayRecommendation'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['response_gatewayRecommendation'] ) ) : null; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$gateway_recommendation = $this->sanitize_request_field( 'response_gatewayRecommendation' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		if ( $gateway_recommendation ) {
 			if ( 'PROCEED' === $gateway_recommendation ) {
-				if ( isset( $_REQUEST['transaction_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-					$three_ds_txn_id = sanitize_text_field( wp_unslash( $_REQUEST['transaction_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-				}
+				$three_ds_txn_id = $this->sanitize_request_field( 'transaction_id' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			} else {
-				if ( isset( $_REQUEST['order_id'] ) ) { // phpcs:ignore
-					$order_id = sanitize_text_field( wp_unslash( $_REQUEST['order_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				$order_id = $this->sanitize_request_field( 'order_id' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				if ( $order_id ) {
 
-					if ( $order_id ) {
-						$order = new WC_Order( $this->remove_order_prefix( $order_id ) ); // phpcs:ignore
-						$order->update_status(
-							'failed',
-							__( '3DS authorization was not provided. Payment declined.', MG_ENTERPRISE_TEXTDOMAIN )
-						);
-						wc_add_notice(
-							__( '3DS authorization was not provided. Payment declined.', MG_ENTERPRISE_TEXTDOMAIN ),
-							'error'
-						);
+					$order = wc_get_order( (int) $this->remove_order_prefix( $order_id ) );
+					if ( ! $order instanceof WC_Order ) {
+						wp_safe_redirect( wc_get_checkout_url() );
+						exit();
 					}
+					if ( ! $this->is_valid_return_order_request( $order ) ) {
+						wp_safe_redirect( wc_get_checkout_url() );
+						exit();
+					}
+					$order->update_status(
+						'failed',
+						__( '3DS authorization was not provided. Payment declined.', 'mastercard-gateway' )
+					);
+					wc_add_notice(
+						__( '3DS authorization was not provided. Payment declined.', 'mastercard-gateway' ),
+						'error'
+					);
 				}
 				wp_safe_redirect( wc_get_checkout_url() );
 				exit();
@@ -340,8 +471,9 @@ class PaymentController {
 	 * @return string The order ID without the prefix.
 	 */
 	public function remove_order_prefix( $order_id ) {
-		if (  $this->gateway->order_prefix && strpos( $order_id,  $this->gateway->order_prefix ) === 0 ) {
-			$order_id = substr( $order_id, strlen(  $this->gateway->order_prefix ) );
+		if ( $this->gateway->order_prefix && strpos( $order_id, $this->gateway->order_prefix ) === 0 ) {
+			$stripped = substr( $order_id, strlen( $this->gateway->order_prefix ) );
+			$order_id = false !== $stripped ? $stripped : $order_id;
 		}
 
 		return $order_id;
@@ -352,27 +484,39 @@ class PaymentController {
 	 *
 	 * @param string|null $three_ds_txn_id The 3DS transaction ID, if available.
 	 *
-	 * @return void
+	 * @return never
 	 */
-	protected function process_hosted_session_payment( $three_ds_txn_id = null ) { 
-		$this->service   = GatewayController::get_instance()->init_service(); 	
-		$order_id        = isset( $_REQUEST['order_id'] ) ? $this->remove_order_prefix( sanitize_text_field( wp_unslash( $_REQUEST['order_id'] ) ) ) : null; // phpcs:ignore
-		$session_id      = isset( $_REQUEST['session_id'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['session_id'] ) ) : null; // phpcs:ignore
-		$session_version = isset( $_REQUEST['session_version'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['session_version'] ) ) : null; // phpcs:ignore
+	protected function process_hosted_session_payment( $three_ds_txn_id = null ) {
+		$this->service   = GatewayController::get_instance()->init_service();
+		$order_id_raw    = $this->sanitize_request_field( 'order_id' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$order_id        = null !== $order_id_raw ? $this->remove_order_prefix( $order_id_raw ) : null;
+		$session_id      = $this->sanitize_request_field( 'session_id' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$session_version = $this->sanitize_request_field( 'session_version' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
-		$session         = array(
+		$session = array(
 			'id' => $session_id,
 		);
 
-		if ( null === $session_version ) {
+		if ( null !== $session_version ) {
 			$session['version'] = $session_version;
 		}
 
-		$order              = new WC_Order( $order_id );
+		if ( ! is_numeric( $order_id ) ) {
+			wc_add_notice( __( 'Invalid order callback.', 'mastercard-gateway' ), 'error' );
+			wp_safe_redirect( wc_get_checkout_url() );
+			exit();
+		}
+
+		$order = wc_get_order( (int) $order_id );
+		if ( ! $order instanceof WC_Order || ! $this->is_valid_return_order_request( $order ) ) {
+			wc_add_notice( __( 'Invalid order callback.', 'mastercard-gateway' ), 'error' );
+			wp_safe_redirect( wc_get_checkout_url() );
+			exit();
+		}
 		$check_3ds          = isset( $_REQUEST['check_3ds_enrollment'] ) ? '1' === $_REQUEST['check_3ds_enrollment'] : false; // phpcs:ignore
 		$process_acl_result = isset( $_REQUEST['process_acs_result'] ) ? '1' === $_REQUEST['process_acs_result'] : false; // phpcs:ignore
-		$mg_3ds_nonce 	    = isset( $_REQUEST['mg_3ds_nonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['mg_3ds_nonce'] ) ) : null; // phpcs:ignore
-		$funding_method 	= isset( $_REQUEST['funding_method'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['funding_method'] ) ) : null; // phpcs:ignore
+		$mg_3ds_nonce       = $this->sanitize_request_field( 'mg_3ds_nonce' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$funding_method     = $this->sanitize_request_field( 'funding_method' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$tds_id             = null;
 
 		if ( $check_3ds ) {
@@ -380,26 +524,24 @@ class PaymentController {
 				'authenticationRedirect' => array(
 					'pageGenerationMode' => 'CUSTOMIZED',
 					'responseUrl'        => $this->get_payment_return_url(
-						$order_id,
+						(int) $order_id,
 						array(
 							'status' => '3ds_done',
 						)
 					),
 				),
 			);
-			$session         = array(
-				'id' => $session_id,
-			);
+			$order_builder   = new CheckoutBuilder( $order );
 			$order_data      = array(
-				'amount'   => (float) $order->get_total(),
+				'amount'   => $order_builder->formatted_price( $order->get_total() ),
 				'currency' => $order->get_currency(),
 			);
 			$source_of_funds = $this->get_token_from_request();
-			$response        = $this->service->check3dsEnrollment( $data, $order_data, $session, $source_of_funds );
+			$response        = $this->service->check_3ds_enrollment( $data, $order_data, $session, $source_of_funds );
 
 			if ( 'PROCEED' !== $response['response']['gatewayRecommendation'] ) {
-				$order->update_status( 'failed', __( 'Payment was declined.', MG_ENTERPRISE_TEXTDOMAIN ) );
-				wc_add_notice( __( 'Payment was declined 1.', MG_ENTERPRISE_TEXTDOMAIN ), 'error' );
+				$order->update_status( 'failed', __( 'Payment was declined.', 'mastercard-gateway' ) );
+				wc_add_notice( __( 'Payment was declined 1.', 'mastercard-gateway' ), 'error' );
 				wp_safe_redirect( wc_get_checkout_url() );
 				exit();
 			}
@@ -410,11 +552,11 @@ class PaymentController {
 				$token_key = $this->get_token_key();
 				$token_3ds = bin2hex( random_bytes( 16 ) );
 
-				update_post_meta( $order_id, '_mastercard_3ds_token', $token_3ds );
+				update_post_meta( (int) $order_id, '_mastercard_3ds_token', $token_3ds );
 
-				$args[ 'authenticationRedirect' ] = $tds_auth;
-				$args[ 'returnUrl' ]              =  $this->get_payment_return_url(
-					$order_id,
+				$args['authenticationRedirect'] = $tds_auth;
+				$args['returnUrl']              = $this->get_payment_return_url(
+					(int) $order_id,
 					array(
 						'3DSecureId'         => $response['3DSecureId'],
 						'process_acs_result' => '1',
@@ -422,29 +564,37 @@ class PaymentController {
 						'session_version'    => $session_version,
 						'mg_3ds_nonce'       => $token_3ds,
 						'funding_method'     => $funding_method,
-						$token_key           => isset( $_REQUEST[ $token_key ] ) ? sanitize_text_field( wp_unslash( $_REQUEST[ $token_key ] ) ) : null, // phpcs:ignore
+						$token_key           => $this->sanitize_request_field( $token_key ), // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 					)
 				);
-				$args[ 'method' ]                 = '3dsecure';
+				$args['method']                 = '3dsecure';
 
 				$view = new CheckoutView( $order, $args );
-        		$view->render();
-        		exit();
+				$view->render();
+				exit();
 			}
 
 			$this->pay( $session, $order, $funding_method, null );
 		}
 
-		$mastercard_3ds_nonce = get_post_meta( $order_id, '_mastercard_3ds_token', true );
+		$mastercard_3ds_nonce = get_post_meta( (int) $order_id, '_mastercard_3ds_token', true );
 
 		if ( $process_acl_result && $mg_3ds_nonce === $mastercard_3ds_nonce ) {
-			$pa_res   = isset( $_POST['PaRes'] ) ? sanitize_text_field( wp_unslash( $_POST['PaRes'] ) ) : null;
-			$tds_id   = isset( $_REQUEST['3DSecureId'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['3DSecureId'] ) ) : null;
-			$response = $this->service->process3dsResult( $tds_id, $pa_res );
+			$pa_res = filter_input( INPUT_POST, 'PaRes', FILTER_SANITIZE_FULL_SPECIAL_CHARS );
+			$pa_res = is_string( $pa_res ) ? $pa_res : null;
+			$tds_id = filter_input( INPUT_GET, '3DSecureId', FILTER_SANITIZE_FULL_SPECIAL_CHARS );
+			$tds_id = is_string( $tds_id ) ? $tds_id : null;
+			if ( null === $tds_id || null === $pa_res ) {
+				$order->update_status( 'failed', __( 'Payment was declined.', 'mastercard-gateway' ) );
+				wc_add_notice( __( 'Payment was declined 2.', 'mastercard-gateway' ), 'error' );
+				wp_safe_redirect( wc_get_checkout_url() );
+				exit();
+			}
+			$response = $this->service->process_3ds_result( $tds_id, $pa_res );
 
 			if ( 'PROCEED' !== $response['response']['gatewayRecommendation'] ) {
-				$order->update_status( 'failed', __( 'Payment was declined.', MG_ENTERPRISE_TEXTDOMAIN ) );
-				wc_add_notice( __( 'Payment was declined 2.', MG_ENTERPRISE_TEXTDOMAIN ), 'error' );
+				$order->update_status( 'failed', __( 'Payment was declined.', 'mastercard-gateway' ) );
+				wc_add_notice( __( 'Payment was declined 2.', 'mastercard-gateway' ), 'error' );
 				wp_safe_redirect( wc_get_checkout_url() );
 				exit();
 			}
@@ -452,52 +602,44 @@ class PaymentController {
 			$this->pay( $session, $order, $funding_method, $tds_id );
 		}
 
-		if ( null !== $three_ds_txn_id ) {					
+		if ( null !== $three_ds_txn_id ) {
+			if ( $this->gateway->threedsecure_v2 && ! $this->validate_3ds_v2_return( $order, $three_ds_txn_id ) ) {
+				wc_add_notice( __( '3DS verification could not be validated. Payment declined.', 'mastercard-gateway' ), 'error' );
+				wp_safe_redirect( wc_get_checkout_url() );
+				exit();
+			}
 
 			$this->pay( $session, $order, $funding_method, $three_ds_txn_id );
 		}
 
-		if ( ! $check_3ds && ! $process_acl_result && ! $this->gateway->threedsecure_v1 ) {
+		if ( ! $process_acl_result && ! $this->gateway->threedsecure_v1 ) {
 			$this->pay( $session, $order, $funding_method, null );
 		}
 
-		$order->update_status( 'failed', __( 'Unexpected payment condition error.', MG_ENTERPRISE_TEXTDOMAIN ) );
-		wc_add_notice( __( 'Unexpected payment condition error.', MG_ENTERPRISE_TEXTDOMAIN ), 'error' );
+		$order->update_status( 'failed', __( 'Unexpected payment condition error.', 'mastercard-gateway' ) );
+		wc_add_notice( __( 'Unexpected payment condition error.', 'mastercard-gateway' ), 'error' );
 		wp_safe_redirect( wc_get_checkout_url() );
 		exit();
 	}
 
 	/**
-     * Process the hosted checkout payment.
-	 *
-	 * This function is responsible for processing the payment made through a hosted checkout.
-	 * It performs the necessary actions to complete the payment process.
-	 *
-	 * @throws GatewayResponseException If the payment was declined.
-	 */
-	/**
 	 * Handle hosted checkout payment response from MPGS.
 	 *
-	 * @return void
+	 * @return never
+	 * @throws GatewayResponseException If the payment was declined.
 	 */
 	protected function process_hosted_checkout_payment() {
 
 		$service = GatewayController::get_instance()->init_service();
 
-		$session_id = isset( $_REQUEST['session_id'] )
-			? sanitize_text_field( wp_unslash( $_REQUEST['session_id'] ) )
-			: null;
+		$order_id_raw = filter_input( INPUT_GET, 'order_id', FILTER_SANITIZE_FULL_SPECIAL_CHARS );
+		$order_id     = is_string( $order_id_raw ) ? $this->remove_order_prefix( $order_id_raw ) : null;
 
-		$order_id        = isset($_REQUEST['order_id']) 
-			? $this->remove_order_prefix( sanitize_text_field( wp_unslash( $_REQUEST['order_id'] ) ) )
-			: null;
-
-		$result_indicator = isset($_REQUEST['resultIndicator'])
-			? sanitize_text_field( wp_unslash( $_REQUEST['resultIndicator'] ) )
-			: null;
+		$result_indicator_raw = filter_input( INPUT_GET, 'resultIndicator', FILTER_SANITIZE_FULL_SPECIAL_CHARS );
+		$result_indicator     = is_string( $result_indicator_raw ) ? $result_indicator_raw : null;
 
 		if ( empty( $order_id ) || ! is_numeric( $order_id ) ) {
-			wc_add_notice( __( 'Invalid order reference received.', MG_ENTERPRISE_TEXTDOMAIN ), 'error' );
+			wc_add_notice( __( 'Invalid order reference received.', 'mastercard-gateway' ), 'error' );
 			wp_safe_redirect( wc_get_checkout_url() );
 			exit;
 		}
@@ -508,47 +650,58 @@ class PaymentController {
 			throw new GatewayResponseException( 'Order Id not found' );
 		}
 
+		if ( ! $this->is_valid_return_order_request( $order ) ) {
+			wc_add_notice( __( 'Invalid order callback.', 'mastercard-gateway' ), 'error' );
+			wp_safe_redirect( wc_get_checkout_url() );
+			exit;
+		}
+
 		$success_indicator = $order->get_meta( '_mpgs_success_indicator_initial' );
+		if ( empty( $success_indicator ) ) {
+			$success_indicator = $order->get_meta( '_pay_by_link_indicator' );
+		}
 
 		try {
-			$mpgs_order  = $service->retrieveOrder( $this->add_order_prefix( $order_id ) );
-			
-			$txns        = $mpgs_order['transaction'] ?? [];
+			$mpgs_order = $service->retrieve_order( $this->add_order_prefix( $order_id ) );
+
+			$txns = $mpgs_order['transaction'] ?? array();
 
 			if ( empty( $txns ) || ! is_array( $txns ) ) {
 				throw new GatewayResponseException( 'No transaction data returned from gateway.' );
 			}
 
-			$latest_txn        = end( $txns );
-			$auth_txn_id       = $latest_txn['authentication']['transactionId'] ?? null;
-			$result_status     = strtoupper( $latest_txn['result'] ?? '' );
+			$latest_txn    = end( $txns );
+			$auth_txn_id   = $latest_txn['authentication']['transactionId'] ?? null;
+			$result_status = strtoupper( $latest_txn['result'] ?? '' );
 
-			if ( isset( $latest_txn['gatewayEntryPoint'] ) && $latest_txn['gatewayEntryPoint'] === 'CHECKOUT_VIA_PAYMENT_LINK' ) {
-					if ( isset( $latest_txn['order']['custom']['paymentLink'] ) && $latest_txn['order']['custom']['paymentLink'] === true ) {
-						if ( 'SUCCESS' !== $result_status ) {
-							throw new GatewayResponseException( 'Transaction failed.' );
-						}
+			if ( isset( $latest_txn['gatewayEntryPoint'] )
+				&& 'CHECKOUT_VIA_PAYMENT_LINK' === $latest_txn['gatewayEntryPoint']
+				&& isset( $latest_txn['order']['custom']['paymentLink'] )
+				&& true === $latest_txn['order']['custom']['paymentLink']
+				&& 'SUCCESS' !== $result_status ) {
+				throw new GatewayResponseException( 'Transaction failed.' );
+			} elseif ( isset( $latest_txn['browserPayment'] ) ) {
+
+				if ( 'SUCCESS' !== $result_status ) {
+					throw new GatewayResponseException( 'Transaction failed.' );
+				}
+			} else {
+				if ( 'SUCCESS' !== strtoupper( $mpgs_order['result'] ?? '' ) ) {
+					throw new GatewayResponseException( 'Payment was declined by issuer.' );
+				}
+
+				if ( $success_indicator !== $result_indicator ) {
+					if ( ! is_string( $auth_txn_id ) ) {
+						throw new GatewayResponseException( 'Missing authentication transaction ID.' );
 					}
-				} elseif ( isset( $latest_txn['browserPayment'] ) ) {
-
-					if ( 'SUCCESS' !== $result_status ) {
-						throw new GatewayResponseException( 'Transaction failed.' );
+					$txn_response = $service->retrieve_transaction( $this->add_order_prefix( $order_id ), $auth_txn_id );
+					if ( empty( $txn_response['result'] ) || strtoupper( $txn_response['result'] ) !== 'SUCCESS' ) {
+						throw new GatewayResponseException( 'Result indicator mismatch.' );
 					}
 				}
-				else {
-					if ( 'SUCCESS' !== strtoupper( $mpgs_order['result'] ?? '' ) ) {
-						throw new GatewayResponseException( 'Payment was declined by issuer.' );
-					}
-
-					if ( $success_indicator !== $result_indicator ) {
-						$txn_response = $service->retrieveTransaction( $this->add_order_prefix( $order_id ), $auth_txn_id );
-						if ( empty( $txn_response['result'] ) || strtoupper( $txn_response['result'] ) !== 'SUCCESS' ) {
-							throw new GatewayResponseException( 'Result indicator mismatch.' );
-						}
-					}
 			}
 
-			$transaction = [];
+			$transaction = array();
 			foreach ( $txns as $txn ) {
 				if ( isset( $txn['transaction']['authorizationCode'] ) ) {
 					$transaction['transaction']['authorizationCode'] = sanitize_text_field( $txn['transaction']['authorizationCode'] );
@@ -567,9 +720,9 @@ class PaymentController {
 			wp_safe_redirect( wc_get_checkout_url() );
 			exit;
 
-		} catch ( Exception $e ) {
+		} catch ( \Exception $e ) {
 			$order->update_status( 'failed', 'Unexpected error: ' . $e->getMessage() );
-			wc_add_notice( __( 'An unexpected error occurred during payment. Please try again.', 'your-textdomain' ), 'error' );
+			wc_add_notice( __( 'An unexpected error occurred during payment. Please try again.', 'mastercard-gateway' ), 'error' );
 			wp_safe_redirect( wc_get_checkout_url() );
 			exit;
 		}
@@ -580,15 +733,13 @@ class PaymentController {
 	 *
 	 * This function retrieves the token from the request.
 	 *
-	 * @return string The token extracted from the request.
+	 * @return array<string, mixed> Token payload for gateway sourceOfFunds.
 	 */
 	protected function get_token_from_request() {
 		$token_key = $this->get_token_key();
 		$token_id  = null;
 
-		if ( isset( $_REQUEST[ $token_key ] ) ) { // phpcs:ignore
-			$token_id = sanitize_text_field( wp_unslash( $_REQUEST[ $token_key ] ) ); // phpcs:ignore
-		}
+		$token_id = $this->sanitize_request_field( $token_key ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		$tokens = $this->gateway->get_tokens();
 
@@ -613,16 +764,16 @@ class PaymentController {
 	/**
 	 * Process the payment for a given session and order.
 	 *
-	 * @param string      $session The session ID.
-	 * @param string      $order The order ID.
-	 * @param string|null $tds_id The TDS ID, if available.
-	 * @param string 	  $funding_method Used by the payer to provide the funds for the payment. 
+	 * @param array<string, mixed> $session        Hosted session payload.
+	 * @param \WC_Order            $order          WooCommerce order.
+	 * @param string|null          $funding_method Card funding method from the payer.
+	 * @param string|null          $tds_id         3-D Secure transaction ID, if available.
 	 *
-	 * @return void
+	 * @return never
 	 * @throws GatewayResponseException If the payment was declined.
 	 */
 	protected function pay( $session, $order, $funding_method, $tds_id = null ) {
-		$this->service  = GatewayController::get_instance()->init_service();
+		$this->service = GatewayController::get_instance()->init_service();
 
 		if ( $this->is_order_paid( $order ) ) {
 			wp_safe_redirect( $this->gateway->get_return_url( $order ) );
@@ -641,67 +792,69 @@ class PaymentController {
 			}
 
 			$order_builder = new CheckoutBuilder( $order );
-			$surcharge     = ( isset( $this->gateway->surcharge_enabled ) && 'yes' === $this->gateway->surcharge_enabled ) ?
-				$order_builder->getSurcharge() :
+			$surcharge     = ( 'yes' === $this->gateway->get_option( 'surcharge_enabled' ) ) ?
+				$order_builder->get_surcharge() :
 				array(
 					'amount' => 0,
-					'type'   => 'SURCHARGE'
+					'type'   => 'SURCHARGE',
 				);
 
-			$order->update_meta_data( '_mg_funding_method', $funding_method );
+			if ( null !== $funding_method ) {
+				$order->update_meta_data( '_mg_funding_method', $funding_method );
+			}
 
 			if ( $this->gateway->capture ) {
 				$mcg_txn = $this->service->pay(
 					$txn_id,
 					$this->add_order_prefix( $order->get_id() ),
-					$order_builder->getOrder(),
-					$surcharge,				
-					$auth,
+					$order_builder->get_order(),
+					$surcharge,
+					$auth ?? array(),
 					$tds_id,
 					$session,
-					$order_builder->getCustomer(),
-					$order_builder->getBilling(),
-					$order_builder->getShipping()
+					$order_builder->get_customer(),
+					$order_builder->get_billing(),
+					$order_builder->get_shipping() ?? array()
 				);
 			} else {
 				$mcg_txn = $this->service->authorize(
 					$txn_id,
 					$this->add_order_prefix( $order->get_id() ),
-					$order_builder->getOrder(),
+					$order_builder->get_order(),
 					$surcharge,
-					$auth,
+					$auth ?? array(),
 					$tds_id,
 					$session,
-					$order_builder->getCustomer(),
-					$order_builder->getBilling(),
-					$order_builder->getShipping()
+					$order_builder->get_customer(),
+					$order_builder->get_billing(),
+					$order_builder->get_shipping() ?? array()
 				);
 			}
 
 			if ( 'SUCCESS' !== $mcg_txn['result'] ) {
-				$gateway_code = $mcg_txn['response']['gatewayCode']; 
+				$gateway_code = $mcg_txn['response']['gatewayCode'];
 
 				if ( 'DECLINED' === $gateway_code ) {
-					throw new GatewayResponseException( __( 'Payment unsuccessful; your card has been declined.', MG_ENTERPRISE_TEXTDOMAIN ) );
+					throw new GatewayResponseException( __( 'Payment unsuccessful; your card has been declined.', 'mastercard-gateway' ) );
 				} elseif ( 'EXPIRED_CARD' === $gateway_code ) {
-					throw new GatewayResponseException( __( 'The card has expired. Please enter a new card for payment.', MG_ENTERPRISE_TEXTDOMAIN ) );
+					throw new GatewayResponseException( __( 'The card has expired. Please enter a new card for payment.', 'mastercard-gateway' ) );
 				} elseif ( 'TIMED_OUT' === $gateway_code ) {
-					throw new GatewayResponseException( __( 'We couldn\'t process your card request within the allotted time, and it timed out.', MG_ENTERPRISE_TEXTDOMAIN ) );
+					throw new GatewayResponseException( __( 'We couldn\'t process your card request within the allotted time, and it timed out.', 'mastercard-gateway' ) );
 				} elseif ( 'ACQUIRER_SYSTEM_ERROR' === $gateway_code ) {
-					throw new GatewayResponseException( __( 'The transaction was disrupted due to an issue in the acquirer\'s system.', MG_ENTERPRISE_TEXTDOMAIN ) );
+					throw new GatewayResponseException( __( 'The transaction was disrupted due to an issue in the acquirer\'s system.', 'mastercard-gateway' ) );
 				} elseif ( 'UNSPECIFIED_FAILURE' === $gateway_code ) {
-					throw new GatewayResponseException( __( 'An unspecified issue has occurred with your card. Please check the details and try again.', MG_ENTERPRISE_TEXTDOMAIN ) );
+					throw new GatewayResponseException( __( 'An unspecified issue has occurred with your card. Please check the details and try again.', 'mastercard-gateway' ) );
 				} elseif ( 'AUTHORIZATION_FAILED' === $gateway_code ) {
-					throw new GatewayResponseException( __( 'The card not authorized. Please enter a new card for payment.', MG_ENTERPRISE_TEXTDOMAIN ) );
+					throw new GatewayResponseException( __( 'The card not authorized. Please enter a new card for payment.', 'mastercard-gateway' ) );
 				} else {
-					throw new GatewayResponseException( __( 'Payment was declined.', MG_ENTERPRISE_TEXTDOMAIN ) );
+					throw new GatewayResponseException( __( 'Payment was declined.', 'mastercard-gateway' ) );
 				}
 			}
 
 			$this->process_wc_order( $order, $mcg_txn['order'], $mcg_txn );
 
 			if ( $this->gateway->saved_cards && $order->get_meta( '_save_card' ) ) {
-				$this->process_saved_cards( $session, $order->get_user_id( 'system' ) );	
+				$this->process_saved_cards( $session, $order->get_user_id( 'system' ) );
 			}
 
 			wp_safe_redirect( $this->gateway->get_return_url( $order ) );
@@ -710,8 +863,8 @@ class PaymentController {
 			$order->update_status( 'failed', $e->getMessage() );
 			wc_add_notice( $e->getMessage(), 'error' );
 			wp_safe_redirect( wc_get_checkout_url() );
-			exit();	
-		} catch ( Exception $e ) {
+			exit();
+		} catch ( \Exception $e ) {
 			$order->update_status( 'failed', $e->getMessage() );
 			wc_add_notice( $e->getMessage(), 'error' );
 			wp_safe_redirect( wc_get_checkout_url() );
@@ -722,55 +875,55 @@ class PaymentController {
 	/**
 	 * Check if an order is paid.
 	 *
-	 * @param WC_Order $order The order object to check.
+	 * @param \WC_Order $order The order object to check.
 	 *
 	 * @return bool True if the order is paid, false otherwise.
 	 */
 	protected function is_order_paid( WC_Order $order ) {
-		return (bool) $order->get_meta( '_mpgs_order_paid', 0 );
+		return (bool) $order->get_meta( '_mpgs_order_paid', true );
 	}
 
 	/**
 	 * This function processes a WooCommerce order.
 	 *
-	 * @param object $order The WooCommerce order object.
-	 * @param array  $order_data Additional order data.
-	 * @param array  $txn_data Transaction data.
+	 * @param \WC_Order            $order      The WooCommerce order object.
+	 * @param array<string, mixed> $order_data Additional order data.
+	 * @param array<string, mixed> $txn_data   Transaction data.
 	 *
 	 * @return void
 	 */
 	protected function process_wc_order( $order, $order_data, $txn_data ) {
 		$this->validate_order( $order, $order_data );
 
-		$captured           = 'CAPTURED' === $order_data['status'];
-		$transaction_mode   = ( $this->gateway->capture ) ? TXN_MODE_PURCHASE : TXN_MODE_AUTH_CAPTURE;
-		$status             = $captured ? 'CAPTURED' : 'AUTHORIZED';
-		$transaction_id     = $txn_data['transaction']['id'];
-		$auth_code          = isset( $txn_data['transaction']['authorizationCode'] ) ? $txn_data['transaction']['authorizationCode'] : null;
-		$meta_data          = array(
-		    '_mpgs_order_captured'       => $captured,
-		    '_mpgs_transaction_mode'     => $transaction_mode,
-		    '_mpgs_order_paid'           => 1,
-		    '_mpgs_transaction_id'       => $txn_data['transaction']['id'] ? $txn_data['transaction']['id'] : '',
-		    '_mpgs_transaction_reference'=> $txn_data['transaction']['reference'] ? $txn_data['transaction']['reference'] : '',
+		$captured         = 'CAPTURED' === $order_data['status'];
+		$transaction_mode = ( $this->gateway->capture ) ? TXN_MODE_PURCHASE : TXN_MODE_AUTH_CAPTURE;
+		$status           = $captured ? 'CAPTURED' : 'AUTHORIZED';
+		$transaction_id   = $txn_data['transaction']['id'];
+		$auth_code        = isset( $txn_data['transaction']['authorizationCode'] ) ? $txn_data['transaction']['authorizationCode'] : null;
+		$meta_data        = array(
+			'_mpgs_order_captured'        => $captured,
+			'_mpgs_transaction_mode'      => $transaction_mode,
+			'_mpgs_order_paid'            => 1,
+			'_mpgs_transaction_id'        => $txn_data['transaction']['id'] ? $txn_data['transaction']['id'] : '',
+			'_mpgs_transaction_reference' => $txn_data['transaction']['reference'] ? $txn_data['transaction']['reference'] : '',
 		);
 
 		if ( $order->get_payment_method() !== MG_ENTERPRISE_ID ) {
 			$order->set_payment_method( MG_ENTERPRISE_ID );
-			$order->set_payment_method_title( __( MG_ENTERPRISE_GATEWAY_TITLE, 'mastercard' ) );
+			$order->set_payment_method_title( __( 'Mastercard Gateway', 'mastercard-gateway' ) );
 		}
 
 		foreach ( $meta_data as $key => $value ) {
-		    $order->add_meta_data( $key, $value );
+			$order->add_meta_data( $key, is_scalar( $value ) ? (string) $value : '' );
 		}
-		
+
 		$order->payment_complete( $txn_data['transaction']['id'] );
 
 		if ( $auth_code ) {
 			$order->add_order_note(
 				sprintf(
 					/* translators: 1. Transaction ID, 2. Authorization Code. */
-					__( 'Mastercard payment %1$s (ID: %2$s, Auth Code: %3$s)', 'mastercard' ),
+					__( 'Mastercard payment %1$s (ID: %2$s, Auth Code: %3$s)', 'mastercard-gateway' ),
 					$status,
 					$transaction_id,
 					$auth_code
@@ -780,7 +933,7 @@ class PaymentController {
 			$order->add_order_note(
 				sprintf(
 					/* translators: 1. Transaction ID. */
-					__( 'Mastercard payment %1$s (ID: %2$s)', 'mastercard' ),
+					__( 'Mastercard payment %1$s (ID: %2$s)', 'mastercard-gateway' ),
 					$status,
 					$transaction_id
 				)
@@ -791,39 +944,41 @@ class PaymentController {
 	/**
 	 * This function processes the saved cards for a given session and user ID.
 	 *
-	 * @param string $session The session ID.
-	 * @param int    $user_id The user ID.
+	 * @param array<string, mixed> $session Hosted session payload.
+	 * @param int                  $user_id Customer user ID.
 	 *
 	 * @return void
 	 *
 	 * @throws GatewayResponseException If the session or user ID is empty.
 	 */
 	protected function process_saved_cards( $session, $user_id ) {
-		$response = $this->service->createCardToken( $session['id'] );
+		$response = $this->service->create_card_token( $session['id'] );
 
 		if ( ! isset( $response['token'] ) || empty( $response['token'] ) ) {
 			throw new GatewayResponseException( 'Token not present in response' );
 		}
-	
-		$token = new PaymentTokenCC() ;
+
+		$token = new PaymentTokenCC();
 		$token->set_token( $response['token'] );
 		$token->set_gateway_id( MG_ENTERPRISE_ID );
 		$token->set_card_type( $response['sourceOfFunds']['provided']['card']['brand'] );
-	
+
 		$last4 = substr( $response['sourceOfFunds']['provided']['card']['number'], -4 );
-		$token->set_last4( $last4 );
-	
+		$token->set_last4( false !== $last4 ? $last4 : '' );
+
 		$m = array(); // phpcs:ignore
 		preg_match( '/^(\d{2})(\d{2})$/', $response['sourceOfFunds']['provided']['card']['expiry'], $m );
-	
-		$token->set_expiry_month( $m[1] );
-		$token->set_expiry_year( '20' . $m[2] );
+
+		if ( isset( $m[1], $m[2] ) ) {
+			$token->set_expiry_month( $m[1] );
+			$token->set_expiry_year( '20' . $m[2] );
+		}
 		$token->set_user_id( $user_id );
-	
+
 		if ( isset( $response['sourceOfFunds']['provided']['card']['fundingMethod'] ) ) {
 			$token->set_funding_method( $response['sourceOfFunds']['provided']['card']['fundingMethod'] );
 		}
-	
+
 		$token->save();
 	}
 
@@ -832,8 +987,8 @@ class PaymentController {
 	 *
 	 * This function compares the given order with an MPG order and checks if they match.
 	 *
-	 * @param array $order The order to be validated.
-	 * @param array $mpgs_order The MPG order to compare against.
+	 * @param \WC_Order            $order      The order to be validated.
+	 * @param array<string, mixed> $mpgs_order The MPG order to compare against.
 	 *
 	 * @return bool True if the order matches the MPG order, false otherwise.
 	 *
@@ -856,76 +1011,66 @@ class PaymentController {
 	 *
 	 * This function processes the webhook payload received via HTTP POST
 	 * and performs the necessary actions based on the request data.
-	 * 
-	 * @param WP_REST_Request $request The request object containing webhook data.
-	 * @return WP_REST_Response A response object indicating the status of the webhook processing.
+	 *
+	 * @param \WP_REST_Request $request The request object containing webhook data.
+	 * @return \WP_REST_Response A response object indicating the status of the webhook processing.
 	 */
-public function webhook_handler( $request ) {
-        $body                = $request->get_body();
-        $headers             = $request->get_headers();
-        $secret              = isset( $headers['x_notification_secret'][0] ) ? $headers['x_notification_secret'][0] : '';
-        $sandbox_mode          = $this->gateway->get_option( 'sandbox' );
-        $notification_secret = ($sandbox_mode === 'yes') ? $this->gateway->get_option( 'test_webhook_secret' ) : $this->gateway->get_option( 'webhook_secret' );
-        $response            = json_decode( $body, true );
-        $order_status        = array( 'cancelled', 'failed', 'on-hold' ,'pending' );
+	public function webhook_handler( $request ) {
+		$body         = $request->get_body();
+		$response     = json_decode( $body, true );
+		$order_status = array( 'cancelled', 'failed', 'on-hold', 'pending' );
 
-        if ( empty( $secret ) || empty( $notification_secret ) || ! hash_equals( (string) $notification_secret, (string) $secret ) ) {
-            return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
-        }
+		if ( json_last_error() !== JSON_ERROR_NONE ) {
+			return new \WP_REST_Response( array( 'error' => 'Invalid JSON' ), 400 );
+		}
 
-        if ( json_last_error() !== JSON_ERROR_NONE ) {
-            return new WP_REST_Response( array( 'error' => 'Invalid JSON' ), 400 );
-        }
+		$order_id = absint( $this->remove_order_prefix( $response['order']['id'] ) );
 
-        $order_id = absint( $this->remove_order_prefix( $response['order']['id'] ) );
+		if ( $order_id ) {
+			$order = new WC_Order( $order_id );
 
-        if( $order_id ) {
-            $order = new WC_Order( $order_id );
+			switch ( $response['gatewayEntryPoint'] ) {
+				case 'CHECKOUT_VIA_WEBSITE':
+					$is_iris = isset( $response['sourceOfFunds']['browserPayment']['type'] )
+						&& strtoupper( $response['sourceOfFunds']['browserPayment']['type'] ) === 'IRIS_PAY';
 
-            switch ( $response['gatewayEntryPoint'] ) {
-                case 'CHECKOUT_VIA_WEBSITE':
-
-                    $is_iris = isset( $response['sourceOfFunds']['browserPayment']['type'] )
-                    && strtoupper( $response['sourceOfFunds']['browserPayment']['type'] ) === 'IRIS_PAY';
-
-                    if ( $is_iris ) {
+					if ( $is_iris ) {
 						$order_status_mpgs = strtoupper( $response['status'] ?? '' );
 
-						if ( $order_status_mpgs === 'CAPTURED' ) {
-							if ( in_array( $order->get_status(), $order_status ) ) {
+						if ( 'CAPTURED' === $order_status_mpgs ) {
+							if ( in_array( $order->get_status(), $order_status, true ) ) {
 								$this->process_wc_order( $order, $response['order'], $response );
 							}
-						} elseif ( in_array( $order_status_mpgs, [ 'FAILED', 'CANCELLED' ], true ) ) {
+						} elseif ( in_array( $order_status_mpgs, array( 'FAILED', 'CANCELLED' ), true ) ) {
 							if ( 'failed' !== $order->get_status() ) {
-								$order->update_status( 'failed', __( 'IRIS payment failed or was cancelled.', 'mastercard' ) );
+								$order->update_status( 'failed', __( 'IRIS payment failed or was cancelled.', 'mastercard-gateway' ) );
 							}
 						}
-					} else {
-						if( 'SUCCESS' === $response['result'] ) {
-							if ( in_array( $order->get_status(), $order_status ) ) {
-								$this->process_wc_order( $order, $response['order'], $response );
-							}
+					} elseif ( 'SUCCESS' === $response['result'] ) {
+						if ( in_array( $order->get_status(), $order_status, true ) ) {
+							$this->process_wc_order( $order, $response['order'], $response );
 						}
 					}
-                break;
+					break;
 
-                default:
-                    break;
-            }      
-        } else {
-            return new WP_REST_Response( array( 'error' => 'Invalid Order' ), 400 );
-        }
-    }
+				default:
+					break;
+			}
+		} else {
+			return new \WP_REST_Response( array( 'error' => 'Invalid Order' ), 400 );
+		}
 
+		return new \WP_REST_Response( array( 'success' => true ), 200 );
+	}
 
 	/**
 	 * Calculate the payment amount for an order.
 	 *
-	 * @param array $order An array representing the order details.
+	 * @param \WC_Order $order WooCommerce order.
 	 *
 	 * @return float The calculated payment amount.
 	 */
-	protected function get_payment_amount( $order ) {
+	protected function get_payment_amount( WC_Order $order ) {
 		return round(
 			$order->get_total(),
 			wc_get_price_decimals()
@@ -935,21 +1080,21 @@ public function webhook_handler( $request ) {
 	/**
 	 * This function generates a transaction ID for an order.
 	 *
-	 * @param array $order The order details.
+	 * @param \WC_Order $order WooCommerce order.
 	 *
 	 * @return string The generated transaction ID.
 	 */
-	protected function generate_txn_id_for_order( $order ) {
+	protected function generate_txn_id_for_order( WC_Order $order ) {
 
 		if ( ! $order->meta_exists( '_txn_id' ) ) {
 			$txn_id = $this->compose_new_transaction_id( 1, $order );
 			$order->add_meta_data( '_txn_id', $txn_id );
 		} else {
-			$old_txn_id     = $order->get_meta( '_txn_id' );
+			$old_txn_id     = (string) $order->get_meta( '_txn_id' );
 			$txn_id_pattern = '/(?<order_id>.*\-)?(?<txn_id>\d+)$/';
 			preg_match( $txn_id_pattern, $old_txn_id, $matches );
 
-			$txn_id_num = (int) $matches['txn_id'] ?? 1;
+			$txn_id_num = isset( $matches['txn_id'] ) ? (int) $matches['txn_id'] : 1;
 			$txn_id     = $this->compose_new_transaction_id( $txn_id_num + 1, $order );
 			$order->update_meta_data( '_txn_id', $txn_id );
 		}
@@ -962,17 +1107,59 @@ public function webhook_handler( $request ) {
 	/**
 	 * Compose a new transaction ID based on the given transaction ID and order.
 	 *
-	 * @param string $txn_id The original transaction ID.
-	 * @param int    $order The order number.
+	 * @param int       $txn_id Sequential transaction number for the order.
+	 * @param \WC_Order $order  WooCommerce order.
 	 *
 	 * @return string The composed new transaction ID.
 	 */
-	protected function compose_new_transaction_id( $txn_id, $order ) {
-		if ( $this->gateway->order_prefix ) {
-			$order_id = $this->gateway->order_prefix;
-		}
-		$order_id .= $order->get_id();
+	protected function compose_new_transaction_id( $txn_id, WC_Order $order ) {
+		$order_id  = $this->gateway->order_prefix ? $this->gateway->order_prefix : '';
+		$order_id .= (string) $order->get_id();
 
 		return sprintf( '%s-%s', $order_id, $txn_id );
+	}
+
+	/**
+	 * Validate 3DS v2 return parameters against order-bound authentication state.
+	 *
+	 * @param \WC_Order $order             WooCommerce order.
+	 * @param string    $three_ds_txn_id   Transaction ID from the gateway redirect.
+	 *
+	 * @return bool
+	 */
+	protected function matches_3ds_v2_return_credentials( $order, $three_ds_txn_id = null ) {
+		if ( null === $three_ds_txn_id ) {
+			$three_ds_txn_id = $this->sanitize_request_field( 'transaction_id' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		}
+
+		$stored_txn_id = (string) $order->get_meta( '_mpgs_3ds_v2_transaction_id' );
+		$stored_nonce  = (string) $order->get_meta( '_mpgs_3ds_v2_return_token' );
+		$return_nonce  = $this->sanitize_request_field( 'mg_3ds_nonce' ) ?? ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		if ( '' === $stored_txn_id || '' === $stored_nonce || '' === $return_nonce || null === $three_ds_txn_id ) {
+			return false;
+		}
+
+		return hash_equals( $stored_txn_id, $three_ds_txn_id )
+			&& hash_equals( $stored_nonce, $return_nonce );
+	}
+
+	/**
+	 * Validate 3DS v2 return parameters against order-bound authentication state.
+	 *
+	 * @param \WC_Order $order             WooCommerce order.
+	 * @param string    $three_ds_txn_id   Transaction ID from the gateway redirect.
+	 *
+	 * @return bool
+	 */
+	protected function validate_3ds_v2_return( $order, $three_ds_txn_id ) {
+		if ( ! $this->matches_3ds_v2_return_credentials( $order, $three_ds_txn_id ) ) {
+			return false;
+		}
+
+		$order->delete_meta_data( '_mpgs_3ds_v2_return_token' );
+		$order->save_meta_data();
+
+		return true;
 	}
 }

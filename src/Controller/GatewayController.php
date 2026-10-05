@@ -1,4 +1,11 @@
 <?php
+// phpcs:ignoreFile -- PSR-4 Composer autoload requires PascalCase filenames.
+/**
+ * Payment gateway registration, REST routes, and HTTP client wiring.
+ *
+ * @package Fingent\Mastercard\Controller
+ */
+
 namespace Fingent\Mastercard\Controller;
 
 use Http\Client\Common\Exception\ClientErrorException;
@@ -29,6 +36,7 @@ use Fingent\Mastercard\Logger\ApiErrorPlugin;
 use Fingent\Mastercard\Logger\ApiLoggerPlugin;
 use Fingent\Mastercard\Logger\GatewayResponseException;
 use Fingent\Mastercard\Helper\Constants;
+use Fingent\Mastercard\Helper\RestAuthHelper;
 use Fingent\Mastercard\Model\MastercardGateway;
 use Fingent\Mastercard\Controller\AdminController;
 use Fingent\Mastercard\Controller\UtilityController;
@@ -40,13 +48,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+/**
+ * Registers the gateway, REST API, blocks support, and gateway HTTP service.
+ */
 class GatewayController {
 	/**
 	 * The single instance of the class.
 	 *
-	 * @var Mastercard
+	 * @var self|null
 	 */
 	private static $instance = null;
+
+	/**
+	 * Monolog logger for gateway HTTP traffic.
+	 *
+	 * @var LoggerInterface|null
+	 */
 	private $logger;
 
 	/**
@@ -62,14 +79,19 @@ class GatewayController {
 		return self::$instance;
 	}
 
+	/**
+	 * Gateway HTTP logger instance.
+	 *
+	 * @return LoggerInterface|null
+	 */
 	public function get_logger() {
-        return $this->logger;
-    }
+		return $this->logger;
+	}
 
 	/**
 	 * GatewayController constructor.
-	 * 
-	 * @throws Exception If there's a problem connecting to the gateway.
+	 *
+	 * @throws \Exception If there's a problem connecting to the gateway.
 	 */
 	public function __construct() {
 		Constants::get_instance();
@@ -80,20 +102,14 @@ class GatewayController {
 
 	/**
 	 * Register the payment gateway and declare compatibility with WooCommerce blocks.
-	 *
-	 * - Checks if WooCommerce's WC_Payment_Gateway class exists before proceeding.
-	 * - Adds the custom gateway to the list of available WooCommerce payment gateways.
-	 * - Declares compatibility with WooCommerce cart and checkout blocks (for block-based themes).
-	 * - Adds support for WooCommerce blocks only if not on the order pay page,
-	 *   to avoid conflicts or unnecessary loading.
 	 */
-    public function register() {
-    	if ( ! class_exists( 'WC_Payment_Gateway' ) ) {
+	public function register(): void {
+		if ( ! class_exists( 'WC_Payment_Gateway' ) ) {
 			return;
 		}
 
-        add_filter( 'woocommerce_payment_gateways', array( $this, 'add_gateway' ) );
-        add_action( 'before_woocommerce_init', array( $this, 'declare_cart_checkout_blocks_compatibility' ) );
+		add_filter( 'woocommerce_payment_gateways', array( $this, 'add_gateway' ) );
+		add_action( 'before_woocommerce_init', array( $this, 'declare_cart_checkout_blocks_compatibility' ) );
 		if ( ! $this->is_order_pay_page() ) {
 			add_action( 'woocommerce_blocks_loaded', array( $this, 'mastercard_woocommerce_block_support' ), 99 );
 		}
@@ -101,87 +117,74 @@ class GatewayController {
 		add_action(
 			'rest_api_init',
 			function () {
+				$order_route_args = array(
+					'id' => array(
+						'validate_callback' => function ( $param ) {
+							return is_numeric( $param );
+						},
+					),
+				);
+
 				register_rest_route(
 					'mastercard/v1',
 					'/checkoutSession/(?P<id>\d+)',
 					array(
-						'methods'             => 'GET',
+						'methods'             => \WP_REST_Server::CREATABLE,
 						'callback'            => array( $this, 'rest_route_forward' ),
 						'permission_callback' => array( $this, 'get_items_permissions_check' ),
-						'args'                => array(
-							'id' => array(
-								'validate_callback' => function ( $param, $request, $key ) { // phpcs:ignore
-									return is_numeric( $param );
-								},
-							),
-						),
+						'args'                => $order_route_args,
 					)
 				);
 				register_rest_route(
 					'mastercard/v1',
 					'/session/(?P<id>\d+)',
 					array(
-						'methods'             => 'GET',
+						'methods'             => \WP_REST_Server::CREATABLE,
 						'callback'            => array( $this, 'rest_route_forward' ),
 						'permission_callback' => array( $this, 'get_items_permissions_check' ),
-						'args'                => array(
-							'id' => array(
-								'validate_callback' => function ( $param, $request, $key ) { // phpcs:ignore
-									return is_numeric( $param );
-								},
-							),
-						),
+						'args'                => $order_route_args,
 					)
 				);
 				register_rest_route(
 					'mastercard/v1',
 					'/savePayment/(?P<id>\d+)',
 					array(
-						'methods'             => 'POST',
+						'methods'             => \WP_REST_Server::CREATABLE,
 						'callback'            => array( $this, 'rest_route_forward' ),
 						'permission_callback' => array( $this, 'get_items_permissions_check' ),
-						'args'                => array(
-							'id' => array(
-								'validate_callback' => function ( $param, $request, $key ) { // phpcs:ignore
-									return is_numeric( $param );
-								},
-							),
-						),
+						'args'                => $order_route_args,
 					)
-				);			
+				);
 				register_rest_route(
 					'mastercard/v1',
 					'/webhook',
 					array(
-						'methods'             => 'POST',
+						'methods'             => \WP_REST_Server::CREATABLE,
 						'permission_callback' => array( $this, 'webhook_permissions_check' ),
 						'callback'            => array( $this, 'rest_route_forward' ),
 					)
 				);
 			}
 		);
-    }
+	}
 
-    /**
+	/**
 	 * Add MastercardGateway to WooCommerce
 	 *
-	 * @param array $methods Getway method array.
+	 * @param array<int, string> $methods Gateway class names.
 	 *
-	 * @return array
+	 * @return array<int, string>
 	 */
-    public function add_gateway( $methods ) {
-        $methods[] = MastercardGateway::class;
-        
-        return $methods;
-    }
+	public function add_gateway( $methods ) {
+		$methods[] = MastercardGateway::class;
 
-    /**
+		return $methods;
+	}
+
+	/**
 	 * Function to declare compatibility with cart_checkout_blocks feature.
-	 *
-	 * @since 1.4.5
-	 * @return void
 	 */
-	public function declare_cart_checkout_blocks_compatibility() { // phpcs:ignore Universal.Files.SeparateFunctionsFromOO.Mixed
+	public function declare_cart_checkout_blocks_compatibility(): void { // phpcs:ignore Universal.Files.SeparateFunctionsFromOO.Mixed
 		if ( class_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil' ) ) {
 			FeaturesUtil::declare_compatibility( 'cart_checkout_blocks', MG_ENTERPRISE_MAIN_FILE, true );
 			FeaturesUtil::declare_compatibility( 'custom_order_tables', MG_ENTERPRISE_MAIN_FILE, true );
@@ -190,11 +193,8 @@ class GatewayController {
 
 	/**
 	 * Function to register the Mastercard payment method type.
-	 *
-	 * @since 1.4.5
-	 * @return void
 	 */
-	public function mastercard_woocommerce_block_support() {
+	public function mastercard_woocommerce_block_support(): void {
 		if ( ! class_exists( 'Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType' ) ) {
 			return;
 		}
@@ -206,54 +206,80 @@ class GatewayController {
 			}
 		);
 
-		woocommerce_store_api_register_update_callback(
+		\woocommerce_store_api_register_update_callback(
 			array(
-				'namespace' => 'mastercard_gateway_handling_fee',
-				'callback'  => function( $data ) {
-					self::refresh_handling_fees_on_checkout_block();
+				'namespace'           => 'mastercard_gateway_handling_fee',
+				'callback'            => function () {
+					return self::refresh_handling_fees_on_checkout_block();
 				},
+				'permission_callback' => array( $this, 'store_api_callback_permissions_check' ),
 			)
 		);
 	}
 
 	/**
-	 * Is_order_pay_page - Returns true when viewing the order received page.
+	 * Permission check for Store API checkout fee refresh callback.
+	 *
+	 * @return bool
+	 */
+	public function store_api_callback_permissions_check() {
+		return function_exists( 'WC' ) && WC()->session;
+	}
+
+	/**
+	 * Whether the current request is the order-pay endpoint.
 	 *
 	 * @return bool
 	 */
 	public function is_order_pay_page() {
-		return isset( $_GET['key'] ) && isset( $_SERVER['REQUEST_URI'] ) && strpos( wp_unslash( $_SERVER['REQUEST_URI'] ), 'order-pay' ) !== false; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		if ( function_exists( 'is_wc_endpoint_url' ) && is_wc_endpoint_url( 'order-pay' ) ) {
+			return true;
+		}
+
+		$raw_key = isset( $_GET['key'] ) ? wp_unslash( $_GET['key'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+
+		return is_string( $raw_key ) && '' !== sanitize_text_field( $raw_key );
 	}
 
 	/**
 	 * Initializes Mastercard Gateway Service.
 	 *
 	 * @return GatewayServiceController
-	 *
-	 * @throws Exception If there's a problem connecting to the Gateway Service.
 	 */
 	public function init_service() {
 		$gateway       = MastercardGateway::get_instance();
 		$logging_level = $gateway->is_debug_logging_enabled()
 			? \Monolog\Logger::DEBUG
 			: \Monolog\Logger::ERROR;
-		$this->logger        = new Logger( 'mastercard' );
+		$uploads       = wp_upload_dir();
+		$log_dir       = trailingslashit( $uploads['basedir'] ) . 'wc-logs';
+
+		if ( ! is_dir( $log_dir ) ) {
+			wp_mkdir_p( $log_dir );
+		}
+
+		$content_dir = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR : ABSPATH . 'wp-content';
+		$log_file    = is_dir( $log_dir )
+			? trailingslashit( $log_dir ) . 'mastercard.log'
+			: $content_dir . '/mastercard.log';
+
+		$this->logger = new Logger( 'mastercard' );
 		$this->logger->pushHandler(
 			new StreamHandler(
-				WP_CONTENT_DIR . '/mastercard.log',
+				$log_file,
 				$logging_level
 			)
 		);
-		
+
 		$message_factory = new Psr17Factory();
 		$client          = new PluginClient(
 			HttpClientDiscovery::find(),
 			array(
 				new ContentLengthPlugin(),
 				new HeaderSetPlugin( array( 'Content-Type' => 'application/json;charset=UTF-8' ) ),
-				new AuthenticationPlugin( new BasicAuth(  'merchant.' . $gateway->username, $gateway->password ) ),
+				new AuthenticationPlugin( new BasicAuth( 'merchant.' . ( $gateway->username ?? '' ), $gateway->password ?? '' ) ),
 				new ApiErrorPlugin( $this->logger ),
-				new ApiLoggerPlugin( $this->logger ),
+				new ApiLoggerPlugin( $this->logger, null, $gateway->is_debug_logging_enabled() ),
 			)
 		);
 		$request_matcher = new RequestMatcher( null, $gateway->get_gateway_url() );
@@ -262,9 +288,8 @@ class GatewayController {
 		return new GatewayServiceController(
 			$gateway->get_gateway_url(),
 			$gateway->get_api_version(),
-			$gateway->username,
+			$gateway->username ?? '',
 			UtilityController::get_instance()->get_webhook_url(),
-			$this->logger,
 			$message_factory,
 			$client,
 			$request_matcher,
@@ -275,10 +300,6 @@ class GatewayController {
 	/**
 	 * Refreshes handling fees dynamically on the WooCommerce checkout block.
 	 *
-	 * This function ensures that handling fees are recalculated and updated when
-	 * the checkout block is refreshed. It is typically used in cases where handling 
-	 * fees depend on cart contents, shipping method, or other dynamic conditions.
-	 *
 	 * @return boolean
 	 */
 	public static function refresh_handling_fees_on_checkout_block() {
@@ -286,88 +307,99 @@ class GatewayController {
 	}
 
 	/**
-	 * Check the rest_route_forward.
+	 * Forward REST routes to the payment processor.
 	 *
-	 * @param array $request WP_REST_Request.
-	 *
-	 * @return array Rest route processor.
-	 * @throws Mastercard_GatewayResponseException It triggers a Mastercard_GatewayResponseException in the absence of a REST API route.
-	 * @throws \Http\Client\Exception It triggers a Exception in the absence of a REST API route.
+	 * @param \WP_REST_Request $request Request.
+	 * @return mixed
 	 */
 	public function rest_route_forward( $request ) {
-		return PaymentController::get_instance()->rest_route_processor( $request->get_route(), $request );
+		try {
+			return PaymentController::get_instance()->rest_route_processor( $request->get_route(), $request );
+		} catch ( ClientErrorException $e ) {
+			return $this->rest_api_error_response( $e, 400 );
+		} catch ( ServerErrorException $e ) {
+			return $this->rest_api_error_response( $e, 502 );
+		} catch ( GatewayResponseException $e ) {
+			return $this->rest_api_error_response( $e, 400 );
+		} catch ( \Exception $e ) {
+			return $this->rest_api_error_response( $e, 500 );
+		}
 	}
 
 	/**
-	 * Permission check for browser-facing REST routes.
-	 *
-	 * Validates X-MG-Access-Token only. Do not use Authorization: Basic here —
-	 * WordPress Application Passwords intercept that header and break guest checkout.
+	 * Permission check for order-scoped REST routes.
 	 *
 	 * @param \WP_REST_Request $request Request.
-	 *
 	 * @return bool|\WP_Error
 	 */
 	public function get_items_permissions_check( $request ) {
-		$access_token = $request->get_header( 'x-mg-access-token' );
+		$order_id = absint( $request->get_param( 'id' ) );
 
-		if ( empty( $access_token ) ) {
+		if ( ! $order_id ) {
 			return new \WP_Error(
 				'rest_forbidden',
-				__( 'Access token missing.', 'mastercard' ),
-				array( 'status' => 401 )
+				__( 'Order ID is required.', 'mastercard' ),
+				array( 'status' => 400 )
 			);
 		}
 
-		// Accept "Basic <base64>" (current JS format) or raw base64.
-		if ( preg_match( '/Basic\s+(.+)/i', $access_token, $matches ) ) {
-			$provided_token = trim( $matches[1] );
-		} else {
-			$provided_token = trim( $access_token );
-		}
+		$token = RestAuthHelper::get_token_from_request( $request );
 
-		if ( '' === $provided_token ) {
+		if ( ! RestAuthHelper::verify_order_rest_token( $order_id, $token ) ) {
 			return new \WP_Error(
 				'rest_forbidden',
-				__( 'Empty access token.', 'mastercard' ),
-				array( 'status' => 401 )
+				__( 'Invalid or expired payment token.', 'mastercard' ),
+				array( 'status' => 403 )
 			);
 		}
 
-		$gateway        = MastercardGateway::get_instance();
-		$expected_token = base64_encode( 'merchant.' . $gateway->username . ':' . $gateway->password );
+		if ( false !== strpos( $request->get_route(), '/savePayment/' ) ) {
+			$nonce = $request->get_param( '_wpnonce' );
 
-		if ( empty( $expected_token ) || ! hash_equals( $expected_token, $provided_token ) ) {
-			return new \WP_Error(
-				'rest_forbidden',
-				__( 'Invalid access token.', 'mastercard' ),
-				array( 'status' => 401 )
-			);
+			if ( empty( $nonce ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $nonce ) ), 'wp_rest' ) ) {
+				return new \WP_Error(
+					'rest_forbidden',
+					__( 'Invalid security token.', 'mastercard' ),
+					array( 'status' => 403 )
+				);
+			}
 		}
 
 		return true;
 	}
 
 	/**
-	 * Permission check for gateway webhook notifications.
+	 * Permission check for Mastercard notification webhooks.
 	 *
 	 * @param \WP_REST_Request $request Request.
-	 *
 	 * @return bool|\WP_Error
 	 */
 	public function webhook_permissions_check( $request ) {
-		$secret  = $request->get_header( 'x-notification-secret' );
-		$gateway = MastercardGateway::get_instance();
+		$headers = $request->get_headers();
+		$secret  = '';
 
+		if ( isset( $headers['x_notification_secret'][0] ) ) {
+			$secret = $headers['x_notification_secret'][0];
+		}
+
+		$gateway             = MastercardGateway::get_instance();
 		$sandbox_mode        = $gateway->get_option( 'sandbox' );
 		$notification_secret = ( 'yes' === $sandbox_mode )
 			? $gateway->get_option( 'test_webhook_secret' )
 			: $gateway->get_option( 'webhook_secret' );
 
-		if ( empty( $secret ) || empty( $notification_secret ) || ! hash_equals( (string) $notification_secret, (string) $secret ) ) {
+		if ( empty( $notification_secret ) || empty( $secret ) ) {
 			return new \WP_Error(
 				'rest_forbidden',
-				__( 'Invalid webhook secret.', 'mastercard' ),
+				__( 'Webhook authentication failed.', 'mastercard' ),
+				array( 'status' => 401 )
+			);
+		}
+
+		if ( ! hash_equals( $notification_secret, (string) $secret ) ) {
+			return new \WP_Error(
+				'rest_forbidden',
+				__( 'Webhook authentication failed.', 'mastercard' ),
 				array( 'status' => 401 )
 			);
 		}

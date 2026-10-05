@@ -1,9 +1,20 @@
 <?php
+// phpcs:ignoreFile -- PSR-4 Composer autoload requires PascalCase filenames.
+/**
+ * Builds Mastercard gateway checkout and payment-link payloads from WooCommerce orders.
+ *
+ * @package Fingent\Mastercard\Helper
+ */
+
 namespace Fingent\Mastercard\Helper;
 
+use WC_Order;
+use WC_Order_Item_Product;
+use WC_Product;
 use Fingent\Mastercard\Model\MastercardGateway;
 use Fingent\Mastercard\Helper\Countries;
 use Fingent\Mastercard\Controller\PaymentController;
+use Fingent\Mastercard\Exception\PluginException;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -16,35 +27,66 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class CheckoutBuilder {
 	/**
-	 * WooCommerce Order
+	 * WooCommerce order for checkout payload building.
 	 *
-	 * @var WC_Order
+	 * @var \WC_Order|null
 	 */
 	protected $order = null;
 
 	/**
 	 * Mastercard Gateway object
 	 *
-	 * @var WC_Order
+	 * @var MastercardGateway
 	 */
-	protected $gateway = null;
+	protected $gateway;
 
 	/**
 	 * Gateway URL.
 	 *
-	 * @var WC_Order
+	 * @var string|null
 	 */
 	protected $api_url = null;
 
 	/**
-	 * Mastercard_Model_AbstractBuilder constructor.
+	 * CheckoutBuilder constructor.
 	 *
-	 * @param array $order WC_Order.
+	 * @param \WC_Order|int|string $order WooCommerce order or order ID.
 	 */
 	public function __construct( $order ) {
-		$this->order   = $order;
+		if ( $order instanceof WC_Order ) {
+			$this->order = $order;
+		} elseif ( is_numeric( $order ) ) {
+			$this->order = self::resolve_order( (int) $order );
+		}
+
 		$this->gateway = MastercardGateway::get_instance();
 		$this->api_url = 'https://' . $this->gateway->get_gateway_url();
+	}
+
+	/**
+	 * Load a WooCommerce order by ID (refunds excluded).
+	 *
+	 * @param int $order_id Order ID.
+	 * @return \WC_Order|null
+	 */
+	private static function resolve_order( $order_id ) {
+		$order = wc_get_order( $order_id );
+
+		return ( $order instanceof WC_Order ) ? $order : null;
+	}
+
+	/**
+	 * Order instance required for payload methods.
+	 *
+	 * @return \WC_Order
+	 * @throws PluginException When no valid order is set.
+	 */
+	private function require_order() {
+		if ( ! $this->order instanceof WC_Order ) {
+			throw new PluginException( 'CheckoutBuilder requires a valid WC_Order.' );
+		}
+
+		return $this->order;
 	}
 
 	/**
@@ -70,21 +112,25 @@ class CheckoutBuilder {
 	 *
 	 * @return string The three-letter ISO country code.
 	 */
-	public function iso2ToIso3( $iso2_country ) { // phpcs:ignore
+	public function iso2_to_iso3( $iso2_country ) { // phpcs:ignore
 		$countries = Countries::get_instance()->get_iso2_to_iso3();
-		
+
 		return $countries[ $iso2_country ];
 	}
 
 	/**
 	 * A function that checks if a value is safe and within a specified limit.
 	 *
-	 * @param string $value - The value to be checked.
-	 * @param number $limited - The limit to compare the value against.
+	 * @param mixed $value - The value to be checked.
+	 * @param int   $limited - The limit to compare the value against.
 	 *
-	 * @return boolean Returns true if the value is safe and within the limit, otherwise returns false.
+	 * @return string|null Sanitized value, or null when empty.
 	 */
 	public static function is_safe( $value, $limited = 0 ) {
+		if ( is_array( $value ) || is_object( $value ) ) {
+			return null;
+		}
+
 		if ( ! is_string( $value ) ) {
 			$value = (string) $value;
 		}
@@ -96,7 +142,9 @@ class CheckoutBuilder {
 		}
 
 		if ( $limited > 0 && strlen( $value ) > $limited ) {
-			return substr( $value, 0, $limited );
+			$truncated = substr( $value, 0, (int) $limited );
+
+			return false === $truncated ? null : $truncated;
 		}
 
 		return $value;
@@ -110,7 +158,7 @@ class CheckoutBuilder {
 	 * @param mixed $data Request payload or nested array.
 	 * @return mixed Sanitized payload.
 	 */
-	public static function filterEmptyStrings( $data ) {
+	public static function filter_empty_strings( $data ) {
 		if ( ! is_array( $data ) ) {
 			return $data;
 		}
@@ -119,7 +167,7 @@ class CheckoutBuilder {
 
 		foreach ( $data as $key => $value ) {
 			if ( is_array( $value ) ) {
-				$value = self::filterEmptyStrings( $value );
+				$value = self::filter_empty_strings( $value );
 				if ( empty( $value ) ) {
 					continue;
 				}
@@ -138,31 +186,47 @@ class CheckoutBuilder {
 	/**
 	 * Retrieves the billing information.
 	 *
-	 * @return array The billing information.
+	 * @return array<string, mixed> The billing information.
 	 */
-	public function getBilling() { // phpcs:ignore
+	public function get_billing() { // phpcs:ignore
+		$order   = $this->require_order();
 		$billing = array();
 
-		$fields = array( 
-			'street'        => array( 'method' => 'get_billing_address_1', 'length' => 100 ),
-			'street2'       => array( 'method' => 'get_billing_address_2', 'length' => 100 ),
-			'city'          => array( 'method' => 'get_billing_city',      'length' => 100 ),
-			'postcodeZip'   => array( 'method' => 'get_billing_postcode',  'length' => 10 ),
-			'stateProvince' => array( 'method' => 'get_billing_state',     'length' => 20 ),
+		$fields = array(
+			'street'        => array(
+				'method' => 'get_billing_address_1',
+				'length' => 100,
+			),
+			'street2'       => array(
+				'method' => 'get_billing_address_2',
+				'length' => 100,
+			),
+			'city'          => array(
+				'method' => 'get_billing_city',
+				'length' => 100,
+			),
+			'postcodeZip'   => array(
+				'method' => 'get_billing_postcode',
+				'length' => 10,
+			),
+			'stateProvince' => array(
+				'method' => 'get_billing_state',
+				'length' => 20,
+			),
 		);
 
 		foreach ( $fields as $key => $field ) {
-			$value = $this->order->{ $field['method'] }();
+			$value = $order->{ $field['method'] }();
 
 			if ( $value ) {
 				$billing['address'][ $key ] = self::is_safe( $value, $field['length'] );
 			}
 		}
 
-		$country = $this->order->get_billing_country();
+		$country = $order->get_billing_country();
 
 		if ( $country ) {
-			$billing['address']['country'] = $this->iso2ToIso3( $country );
+			$billing['address']['country'] = $this->iso2_to_iso3( $country );
 		}
 
 		return $billing;
@@ -171,11 +235,11 @@ class CheckoutBuilder {
 	/**
 	 * Determines if an order is virtual.
 	 *
-	 * @param array $order WC_Order.
+	 * @param \WC_Order $order WooCommerce order.
 	 *
 	 * @return bool
 	 */
-	public function orderIsVirtual( $order ) { // phpcs:ignore
+	public function order_is_virtual( WC_Order $order ) { // phpcs:ignore
 		if ( empty( $order->get_shipping_address_1() ) ) {
 			return true;
 		}
@@ -190,45 +254,68 @@ class CheckoutBuilder {
 	/**
 	 * Retrieves the shipping information.
 	 *
-	 * @return array|null
+	 * @return array<string, mixed>|null
 	 */
-	public function getShipping() { // phpcs:ignore
-		if ( $this->orderIsVirtual( $this->order ) ) {
+	public function get_shipping() { // phpcs:ignore
+		$order = $this->require_order();
+
+		if ( $this->order_is_virtual( $order ) ) {
 			return null;
 		}
 
 		$shipping = array();
 
-		$addressFields = array(
-			'street'        => array( 'method' => 'get_shipping_address_1', 'length' => 100 ),
-			'street2'       => array( 'method' => 'get_shipping_address_2', 'length' => 100 ),
-			'city'          => array( 'method' => 'get_shipping_city',      'length' => 100 ),
-			'postcodeZip'   => array( 'method' => 'get_shipping_postcode',  'length' => 10 ),
-			'stateProvince' => array( 'method' => 'get_shipping_state',     'length' => 20 ),
+		$address_fields = array(
+			'street'        => array(
+				'method' => 'get_shipping_address_1',
+				'length' => 100,
+			),
+			'street2'       => array(
+				'method' => 'get_shipping_address_2',
+				'length' => 100,
+			),
+			'city'          => array(
+				'method' => 'get_shipping_city',
+				'length' => 100,
+			),
+			'postcodeZip'   => array(
+				'method' => 'get_shipping_postcode',
+				'length' => 10,
+			),
+			'stateProvince' => array(
+				'method' => 'get_shipping_state',
+				'length' => 20,
+			),
 		);
 
-		foreach ( $addressFields as $key => $field ) {
-			$value = $this->order->{ $field['method'] }();
+		foreach ( $address_fields as $key => $field ) {
+			$value = $order->{ $field['method'] }();
 
 			if ( $value ) {
 				$shipping['address'][ $key ] = self::is_safe( $value, $field['length'] );
 			}
 		}
 
-		$country = $this->order->get_shipping_country();
+		$country = $order->get_shipping_country();
 
 		if ( $country ) {
-			$shipping['address']['country'] = $this->iso2ToIso3( $country );
+			$shipping['address']['country'] = $this->iso2_to_iso3( $country );
 		}
 
-		$contactFields = array( 
-			'firstName' => array( 'method' => 'get_shipping_first_name', 'length' => 50 ),
-			'lastName'  => array( 'method' => 'get_shipping_last_name',  'length' => 50 ),
+		$contact_fields = array(
+			'firstName' => array(
+				'method' => 'get_shipping_first_name',
+				'length' => 50,
+			),
+			'lastName'  => array(
+				'method' => 'get_shipping_last_name',
+				'length' => 50,
+			),
 		);
 
-		foreach ( $contactFields as $key => $field ) {
-			$value = $this->order->{ $field['method'] }();
-			
+		foreach ( $contact_fields as $key => $field ) {
+			$value = $order->{ $field['method'] }();
+
 			if ( $value ) {
 				$shipping['contact'][ $key ] = self::is_safe( $value, $field['length'] );
 			}
@@ -240,14 +327,16 @@ class CheckoutBuilder {
 	/**
 	 * Retrieves the customer information.
 	 *
-	 * @return array
+	 * @return array<string, mixed>
 	 */
-	public function getCustomer() { // phpcs:ignore
-		return self::filterEmptyStrings(
+	public function get_customer() { // phpcs:ignore
+		$order = $this->require_order();
+
+		return self::filter_empty_strings(
 			array(
-				'email'     => self::is_safe( $this->order->get_billing_email(), 255 ),
-				'firstName' => self::is_safe( $this->order->get_billing_first_name(), 50 ),
-				'lastName'  => self::is_safe( $this->order->get_billing_last_name(), 50 ),
+				'email'     => self::is_safe( $order->get_billing_email(), 255 ),
+				'firstName' => self::is_safe( $order->get_billing_first_name(), 50 ),
+				'lastName'  => self::is_safe( $order->get_billing_last_name(), 50 ),
 			)
 		);
 	}
@@ -255,35 +344,36 @@ class CheckoutBuilder {
 	/**
 	 * Retrieves the hosted checkout order information.
 	 *
-	 * @return array
+	 * @return array<string, mixed>
 	 */
-	public function getHostedCheckoutOrder() { // phpcs:ignore
-        $handling_fee  = 0;
-        $order_summary = array();
-        $fees          = $this->order->get_fees(); 
+	public function get_hosted_checkout_order() { // phpcs:ignore
+		$order         = $this->require_order();
+		$handling_fee  = 0.0;
+		$order_summary = array();
+		$fees          = $order->get_fees();
 		$locale        = $this->gateway->get_option( 'locale' );
-		$description   = Countries::get_instance()->get_order_summary_text($locale );
+		$description   = Countries::get_instance()->get_order_summary_text( $locale );
 
-        if ( ! empty( $fees ) ) {
-            foreach ( $fees as $fee ) {
-                $handling_fee += $fee->get_total();
-            }
-        }
+		if ( ! empty( $fees ) ) {
+			foreach ( $fees as $fee ) {
+				$handling_fee += (float) $fee->get_total();
+			}
+		}
 
-        $shipping_fee = (float)( $handling_fee ) + (float) $this->order->get_shipping_total();
+		$shipping_fee = $handling_fee + (float) $order->get_shipping_total();
 
-        if( 'yes' === $this->gateway->send_line_items ) {
-			$line_items = $this->buildOrderLineItems( $this->order->get_items(), true );
+		if ( 'yes' === $this->gateway->send_line_items ) {
+			$line_items = $this->buildOrderLineItems( $order->get_items(), true );
 
 			if ( ! empty( $line_items ) ) {
 				$order_summary = array(
-					'id'          => (string) PaymentController::get_instance()->add_order_prefix( $this->order->get_id() ),
+					'id'          => (string) PaymentController::get_instance()->add_order_prefix( (string) $order->get_id() ),
 					'description' => $description,
 					'item'        => $line_items,
 				);
 			} else {
 				$order_summary = array(
-					'id'          => (string) PaymentController::get_instance()->add_order_prefix( $this->order->get_id() ),
+					'id'          => (string) PaymentController::get_instance()->add_order_prefix( (string) $order->get_id() ),
 					'description' => $description,
 				);
 			}
@@ -291,41 +381,43 @@ class CheckoutBuilder {
 			$order_summary = $this->appendOrderBreakdownAmounts( $order_summary, $shipping_fee );
 
 			return $this->finalizeHostedOrderPayload( $order_summary );
-        } else {
-            $order_summary = array(
-                'id'          => (string) PaymentController::get_instance()->add_order_prefix( $this->order->get_id() ),
-                'description' => $description,
-            );
+		}
 
-			$order_summary = $this->appendOrderBreakdownAmounts( $order_summary, $shipping_fee );
+		$order_summary = array(
+			'id'          => (string) PaymentController::get_instance()->add_order_prefix( (string) $order->get_id() ),
+			'description' => $description,
+		);
 
-			return $this->finalizeHostedOrderPayload( $order_summary );
-        }
-    }
+		$order_summary = $this->appendOrderBreakdownAmounts( $order_summary, $shipping_fee );
+
+		return $this->finalizeHostedOrderPayload( $order_summary );
+	}
 
 	/**
 	 * Append tax, shipping/handling, and discount fields for MPGS order breakdown.
 	 *
-	 * @param array $order_summary Order summary payload.
-	 * @param float $shipping_fee  Combined shipping and fee total.
+	 * @param array<string, mixed> $order_summary Order summary payload.
+	 * @param float                $shipping_fee  Combined shipping and fee total.
 	 *
-	 * @return array
+	 * @return array<string, mixed>
 	 */
 	private function appendOrderBreakdownAmounts( array $order_summary, $shipping_fee ) {
+		$order = $this->require_order();
+
 		if ( ! isset( $order_summary['itemAmount'] ) ) {
-			$order_summary['itemAmount'] = $this->getOrderItemAmount();
+			$order_summary['itemAmount'] = $this->get_order_item_amount();
 		}
 
 		if ( $shipping_fee ) {
-			$order_summary['shippingAndHandlingAmount'] = $this->formattedPrice( $shipping_fee );
+			$order_summary['shippingAndHandlingAmount'] = $this->formatted_price( $shipping_fee );
 		}
 
-		if ( $this->order->get_total_tax() ) {
-			$order_summary['taxAmount'] = $this->getOrderTax();
+		if ( $order->get_total_tax() ) {
+			$order_summary['taxAmount'] = $this->get_order_tax();
 		}
 
-		if ( $this->order->get_total_discount() ) {
-			$order_summary['discount']['amount'] = $this->formattedPrice( $this->order->get_total_discount() );
+		if ( $order->get_total_discount() ) {
+			$order_summary['discount']['amount'] = $this->formatted_price( $order->get_total_discount() );
 		}
 
 		return $order_summary;
@@ -334,15 +426,15 @@ class CheckoutBuilder {
 	/**
 	 * Normalize, merge order total, and reconcile breakdown amounts for MPGS.
 	 *
-	 * @param array $order_summary Order summary payload.
+	 * @param array<string, mixed> $order_summary Order summary payload.
 	 *
-	 * @return array
+	 * @return array<string, mixed>
 	 */
 	private function finalizeHostedOrderPayload( array $order_summary ) {
-		$payload = self::normalizeMonetaryFields(
+		$payload = self::normalize_monetary_fields(
 			array_merge(
 				$order_summary,
-				$this->getOrder()
+				$this->get_order()
 			)
 		);
 
@@ -356,12 +448,12 @@ class CheckoutBuilder {
 	/**
 	 * Build MPGS line items from WooCommerce order rows (unitPrice * quantity = line subtotal).
 	 *
-	 * @param array $items       WooCommerce order items.
-	 * @param bool  $use_excerpt Whether to truncate product names.
+	 * @param array<int, \WC_Order_Item> $items       WooCommerce order items.
+	 * @param bool                              $use_excerpt Whether to truncate product names.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
-	private function buildOrderLineItems( $items, $use_excerpt = true ) {
+	private function buildOrderLineItems( array $items, $use_excerpt = true ) {
 		$line_items = array();
 
 		if ( empty( $items ) ) {
@@ -369,22 +461,22 @@ class CheckoutBuilder {
 		}
 
 		foreach ( $items as $item ) {
-			if ( ! is_a( $item, 'WC_Order_Item_Product' ) ) {
+			if ( ! $item instanceof WC_Order_Item_Product ) {
 				continue;
 			}
 
 			$qty           = max( 1, (int) $item->get_quantity() );
 			$line_subtotal = (float) $item->get_subtotal();
-			$unit_price    = $line_subtotal / $qty;
+			$unit_price    = $line_subtotal / (float) $qty;
 			$product       = $item->get_product();
 
 			$line_item = array(
-				'name'      => $use_excerpt ? $this->getExcerpt( $item->get_name(), 127 ) : $item->get_name(),
+				'name'      => $use_excerpt ? $this->get_excerpt( $item->get_name(), 127 ) : $item->get_name(),
 				'quantity'  => $qty,
-				'unitPrice' => $this->formattedPrice( $unit_price ),
+				'unitPrice' => $this->formatted_price( $unit_price ),
 			);
 
-			$sku = $product ? self::is_safe( $product->get_sku(), 127 ) : null;
+			$sku = ( $product instanceof WC_Product ) ? self::is_safe( $product->get_sku(), 127 ) : null;
 			if ( $sku ) {
 				$line_item['sku'] = $sku;
 			}
@@ -398,12 +490,12 @@ class CheckoutBuilder {
 	/**
 	 * Sum quantity * unitPrice for all MPGS line items (matches gateway validation).
 	 *
-	 * @param array $line_items Normalized line items.
+	 * @param array<int, array<string, mixed>> $line_items Normalized line items.
 	 * @return string
 	 */
 	public static function sumLineItemsAmount( array $line_items ) {
-		$decimals   = max( 0, (int) wc_get_price_decimals() );
-		$multiplier = 10 ** $decimals;
+		$decimals    = max( 0, (int) wc_get_price_decimals() );
+		$multiplier  = (float) ( 10 ** $decimals );
 		$total_minor = 0;
 
 		foreach ( $line_items as $line_item ) {
@@ -419,68 +511,73 @@ class CheckoutBuilder {
 			$total_minor += $unit_minor * $qty;
 		}
 
-		return self::formatAmountString( $total_minor / $multiplier );
+		return self::format_amount_string( (float) $total_minor / $multiplier );
 	}
 
 	/**
 	 * Retrieves the order information.
 	 *
-	 * @return array
+	 * @return array<string, string>
 	 */
-	public function getOrder() { // phpcs:ignore
+	public function get_order() { // phpcs:ignore
+		$order = $this->require_order();
+
 		return array(
-			'amount'   => $this->formattedPrice( $this->order->get_total() ),
-			'currency' => $this->order->get_currency(),
+			'amount'   => $this->formatted_price( $order->get_total() ),
+			'currency' => $order->get_currency(),
 		);
 	}
 
 	/**
-	 * Get order item amount.
+	 * Get order tax amount formatted for the gateway.
 	 *
-	 * @return array
+	 * @return string
 	 */
-	public function getOrderTax() { // phpcs:ignore
-		$tax = $this->order->get_total_tax(); 
+	public function get_order_tax() { // phpcs:ignore
+		$order = $this->require_order();
+		$tax   = $order->get_total_tax();
 
 		if ( 'yes' !== get_option( 'woocommerce_tax_round_at_subtotal' ) ) {
 			$tax = wc_round_tax_total( $tax );
 		}
 
-		return $this->formattedPrice( $tax );
+		return $this->formatted_price( $tax );
 	}
 
 	/**
-	 * Get order item amount.
+	 * Get order item amount formatted for the gateway.
 	 *
-	 * @return array
+	 * @return string
 	 */
-	public function getOrderItemAmount() { // phpcs:ignore
+	public function get_order_item_amount() { // phpcs:ignore
+		$order = $this->require_order();
+
 		if ( wc_prices_include_tax() ) {
-			$item_amount = (float) wc_round_tax_total( $this->order->get_subtotal() );
+			$item_amount = (float) wc_round_tax_total( $order->get_subtotal() );
 		} else {
-			$item_amount = (float) $this->order->get_subtotal();
+			$item_amount = (float) $order->get_subtotal();
 		}
 
-		return $this->formattedPrice( $item_amount );
+		return $this->formatted_price( $item_amount );
 	}
 
 	/**
 	 * Retrieves the surcharge information.
 	 *
-	 * @return array
+	 * @return array<string, string>
 	 */
-	public function getSurcharge() { // phpcs:ignore
-		$surcharge_fee = $this->order->get_meta( '_mpgs_surcharge_fee' );
+	public function get_surcharge() { // phpcs:ignore
+		$surcharge_fee = $this->require_order()->get_meta( '_mpgs_surcharge_fee' );
 
-		if( $surcharge_fee > 0 ) {
+		if ( $surcharge_fee > 0 ) {
 			return array(
-				'amount' => $this->formattedPrice( $surcharge_fee ),
-				'type'   => 'SURCHARGE'
+				'amount' => $this->formatted_price( $surcharge_fee ),
+				'type'   => 'SURCHARGE',
 			);
 		} else {
 			return array(
-				'amount' => self::formatAmountString( 0 ),
-				'type'   => 'SURCHARGE'
+				'amount' => self::format_amount_string( 0 ),
+				'type'   => 'SURCHARGE',
 			);
 		}
 	}
@@ -491,8 +588,8 @@ class CheckoutBuilder {
 	 * @param float|string $price Unformatted price.
 	 * @return string
 	 */
-	public function formattedPrice( $price ) { // phpcs:ignore
-		return self::formatAmountString( $price );
+	public function formatted_price( $price ) { // phpcs:ignore
+		return self::format_amount_string( $price );
 	}
 
 	/**
@@ -501,7 +598,7 @@ class CheckoutBuilder {
 	 * @param float|int|string $amount Amount value.
 	 * @return string
 	 */
-	public static function formatAmountString( $amount ) {
+	public static function format_amount_string( $amount ) {
 		$decimals = max( 0, (int) wc_get_price_decimals() );
 
 		if ( function_exists( 'wc_string_to_num' ) ) {
@@ -513,35 +610,35 @@ class CheckoutBuilder {
 		}
 
 		// Round via integer minor-units to avoid float artifacts (e.g. 43.899999999999999).
-		$multiplier = 10 ** $decimals;
+		$multiplier = (float) ( 10 ** $decimals );
 		$minor      = (int) round( $amount * $multiplier );
 
-		return number_format( $minor / $multiplier, $decimals, '.', '' );
+		return number_format( (float) $minor / $multiplier, $decimals, '.', '' );
 	}
 
 	/**
 	 * Prepare a gateway API request payload (normalize amounts, remove empty fields).
 	 *
-	 * @param array $request_data Request body array.
-	 * @return array
+	 * @param array<string, mixed> $request_data Request body array.
+	 * @return array<string, mixed>
 	 */
-	public static function prepareGatewayRequestData( array $request_data ) {
-		$request_data = self::normalizeMonetaryFields( $request_data );
+	public static function prepare_gateway_request_data( array $request_data ) {
+		$request_data = self::normalize_monetary_fields( $request_data );
 
 		if ( isset( $request_data['order'] ) && is_array( $request_data['order'] ) ) {
 			$request_data['order'] = self::reconcileOrderAmounts( $request_data['order'] );
 		}
 
-		return self::filterEmptyStrings( $request_data );
+		return self::filter_empty_strings( $request_data );
 	}
 
 	/**
 	 * Normalize monetary fields in an order payload before sending to MPGS.
 	 *
-	 * @param array $data Order or nested order data.
-	 * @return array
+	 * @param mixed $data Order or nested order data.
+	 * @return mixed
 	 */
-	public static function normalizeMonetaryFields( $data ) {
+	public static function normalize_monetary_fields( $data ) {
 		if ( ! is_array( $data ) ) {
 			return $data;
 		}
@@ -556,15 +653,15 @@ class CheckoutBuilder {
 
 		foreach ( $data as $key => $value ) {
 			if ( in_array( $key, array( 'discount', 'merchantCharge' ), true ) && is_array( $value ) && array_key_exists( 'amount', $value ) ) {
-				$data[ $key ]['amount'] = self::formatAmountString( $value['amount'] );
+				$data[ $key ]['amount'] = self::format_amount_string( $value['amount'] );
 			} elseif ( 'item' === $key && is_array( $value ) ) {
 				foreach ( $value as $index => $line_item ) {
-					$data[ $key ][ $index ] = self::normalizeMonetaryFields( $line_item );
+					$data[ $key ][ $index ] = self::normalize_monetary_fields( $line_item );
 				}
 			} elseif ( in_array( $key, $amount_keys, true ) ) {
-				$data[ $key ] = self::formatAmountString( $value );
+				$data[ $key ] = self::format_amount_string( $value );
 			} elseif ( is_array( $value ) ) {
-				$data[ $key ] = self::normalizeMonetaryFields( $value );
+				$data[ $key ] = self::normalize_monetary_fields( $value );
 			}
 		}
 
@@ -577,8 +674,8 @@ class CheckoutBuilder {
 	 * MPGS validates: itemAmount + taxAmount + shippingAndHandlingAmount - discount = amount.
 	 * Per-field rounding can drift by one cent from the WooCommerce order total.
 	 *
-	 * @param array $order Normalized order payload.
-	 * @return array
+	 * @param array<string, mixed> $order Normalized order payload.
+	 * @return array<string, mixed>
 	 */
 	public static function reconcileOrderAmounts( array $order ) {
 		if ( empty( $order['amount'] ) || ! isset( $order['itemAmount'] ) ) {
@@ -586,14 +683,14 @@ class CheckoutBuilder {
 		}
 
 		$decimals   = max( 0, (int) wc_get_price_decimals() );
-		$multiplier = 10 ** $decimals;
+		$multiplier = (int) ( 10 ** $decimals );
 
 		$to_minor = static function ( $value ) use ( $multiplier ) {
 			if ( function_exists( 'wc_string_to_num' ) ) {
 				$value = wc_string_to_num( $value );
 			}
 
-			return (int) round( (float) $value * $multiplier );
+			return (int) round( (float) $value * (float) $multiplier );
 		};
 
 		$amount_minor    = $to_minor( $order['amount'] );
@@ -617,11 +714,11 @@ class CheckoutBuilder {
 
 		// When line items are sent, itemAmount must equal sum(qty * unitPrice); adjust tax/shipping instead.
 		if ( $has_line_items && isset( $order['taxAmount'] ) ) {
-			$order['taxAmount'] = self::formatAmountString( ( $tax_minor + $diff ) / $multiplier );
+			$order['taxAmount'] = self::format_amount_string( (float) ( $tax_minor + $diff ) / (float) $multiplier );
 		} elseif ( $has_line_items && isset( $order['shippingAndHandlingAmount'] ) ) {
-			$order['shippingAndHandlingAmount'] = self::formatAmountString( ( $shipping_minor + $diff ) / $multiplier );
+			$order['shippingAndHandlingAmount'] = self::format_amount_string( (float) ( $shipping_minor + $diff ) / (float) $multiplier );
 		} elseif ( ! $has_line_items ) {
-			$order['itemAmount'] = self::formatAmountString( ( $item_minor + $diff ) / $multiplier );
+			$order['itemAmount'] = self::format_amount_string( (float) ( $item_minor + $diff ) / (float) $multiplier );
 		} else {
 			$order = self::absorbAmountDiffOnLastLineItem( $order, $diff, $multiplier );
 			$order['itemAmount'] = self::sumLineItemsAmount( $order['item'] );
@@ -633,11 +730,11 @@ class CheckoutBuilder {
 	/**
 	 * Shift a minor-unit order total difference onto the last line item unit price.
 	 *
-	 * @param array $order      Order payload.
-	 * @param int   $diff_minor Difference in minor currency units.
-	 * @param int   $multiplier Minor units per major unit.
+	 * @param array<string, mixed> $order      Order payload.
+	 * @param int                  $diff_minor Difference in minor currency units.
+	 * @param int                  $multiplier Minor units per major unit.
 	 *
-	 * @return array
+	 * @return array<string, mixed>
 	 */
 	private static function absorbAmountDiffOnLastLineItem( array $order, $diff_minor, $multiplier ) {
 		$items       = $order['item'];
@@ -645,9 +742,9 @@ class CheckoutBuilder {
 		$last        = $items[ $last_index ];
 		$qty         = max( 1, (int) ( $last['quantity'] ?? 1 ) );
 		$unit        = function_exists( 'wc_string_to_num' ) ? wc_string_to_num( $last['unitPrice'] ?? 0 ) : (float) ( $last['unitPrice'] ?? 0 );
-		$unit_minor  = (int) round( (float) $unit * $multiplier );
+		$unit_minor  = (int) round( (float) $unit * (float) $multiplier );
 		$unit_minor += (int) round( $diff_minor / $qty );
-		$items[ $last_index ]['unitPrice'] = self::formatAmountString( $unit_minor / $multiplier );
+		$items[ $last_index ]['unitPrice'] = self::format_amount_string( (float) $unit_minor / (float) $multiplier );
 		$order['item']                     = $items;
 
 		return $order;
@@ -659,20 +756,21 @@ class CheckoutBuilder {
 	 * @param bool        $capture Capture status.
 	 * @param string|null $return_url Return URL.
 	 *
-	 * @return array
+	 * @return array<string, mixed>
 	 */
-	public function getInteraction( $capture = true, $return_url = null ) { // phpcs:ignore
+	public function get_interaction( $capture = true, $return_url = null ) { // phpcs:ignore
 		$merchant_interaction = array();
 		$locale               = $this->gateway->get_option( 'locale' );
 		$locale               = ! empty( $locale ) ? $locale : 'en_US';
 
-		if( 'yes' === $this->gateway->mif_enabled ) {
-			$merchant_name  = $this->gateway->get_option( 'merchant_name' );
-			$sitename       = get_bloginfo( 'name', 'display' );
-			$merchant_name  = $merchant_name ? preg_replace( "/['\"]/", '', $merchant_name ) : $sitename;
-			$merchant_name  = $this->getExcerpt( $merchant_name, 39 );
+		if ( 'yes' === $this->gateway->mif_enabled ) {
+			$merchant_name = $this->gateway->get_option( 'merchant_name' );
+			$sitename      = get_bloginfo( 'name', 'display' );
+			$merchant_name = $merchant_name ? preg_replace( "/['\"]/", '', $merchant_name ) : $sitename;
+			$merchant_name = is_string( $merchant_name ) ? $merchant_name : (string) $sitename;
+			$merchant_name = $this->get_excerpt( $merchant_name, 39 );
 
-			$merchant_address = self::filterEmptyStrings(
+			$merchant_address = self::filter_empty_strings(
 				array(
 					'line1' => self::is_safe( $this->gateway->get_option( 'merchant_address_line1' ), 100 ),
 					'line2' => self::is_safe( $this->gateway->get_option( 'merchant_address_line2' ), 100 ),
@@ -690,26 +788,26 @@ class CheckoutBuilder {
 				$merchant['address'] = $merchant_address;
 			}
 
-			if( $this->gateway->get_option( 'merchant_email' ) ) {
+			if ( $this->gateway->get_option( 'merchant_email' ) ) {
 				$merchant['email'] = $this->gateway->get_option( 'merchant_email' );
 			}
 
-			if( $this->gateway->get_option( 'merchant_logo' ) ) {
+			if ( $this->gateway->get_option( 'merchant_logo' ) ) {
 				$merchant['logo'] = self::force_https_url( $this->gateway->get_option( 'merchant_logo' ) );
 			}
 
-			if( $this->gateway->get_option( 'merchant_phone' ) ) {
-				$merchant['phone'] = $this->getExcerpt( $this->gateway->get_option( 'merchant_phone' ), 20 );
+			if ( $this->gateway->get_option( 'merchant_phone' ) ) {
+				$merchant['phone'] = $this->get_excerpt( $this->gateway->get_option( 'merchant_phone' ), 20 );
 			}
 
 			$merchant_interaction['merchant'] = $merchant;
 		} else {
-			$sitename = $this->getExcerpt( get_bloginfo( 'name', 'display' ), 39 );
+			$sitename                                 = $this->get_excerpt( get_bloginfo( 'name', 'display' ), 39 );
 			$merchant_interaction['merchant']['name'] = $sitename;
 			$merchant_interaction['merchant']['url']  = $this->get_merchant_site_url();
 		}
 
-		$interaction = array_merge(
+		return array_merge(
 			$merchant_interaction,
 			array(
 				'returnUrl'      => $return_url,
@@ -722,8 +820,6 @@ class CheckoutBuilder {
 				'operation'      => $capture ? 'PURCHASE' : 'AUTHORIZE',
 			)
 		);
-
-		return $interaction; 
 	}
 
 	/**
@@ -732,14 +828,14 @@ class CheckoutBuilder {
 	 * @param bool        $capture Capture status.
 	 * @param string|null $return_url Return URL.
 	 *
-	 * @return array
+	 * @return array<string, mixed>
 	 * @deprecated
 	 */
-	public function getLegacyInteraction( $capture = true, $return_url = null ) { // phpcs:ignore
+	public function get_legacy_interaction( $capture = true, $return_url = null ) { // phpcs:ignore
 		$merchant_name = $this->gateway->get_option( 'merchant_name' );
 		$sitename      = get_bloginfo( 'name', 'display' );
 		$merchant_name = $merchant_name ? $merchant_name : $sitename;
-		$merchant_name = $this->getExcerpt( $merchant_name, 39 );
+		$merchant_name = $this->get_excerpt( $merchant_name, 39 );
 
 		return array(
 			'operation'      => $capture ? 'PURCHASE' : 'AUTHORIZE',
@@ -761,23 +857,23 @@ class CheckoutBuilder {
 	 * Create an excerpt from a given text.
 	 *
 	 * @param string $text The text to create an excerpt from.
-	 * @param int $length The length of the excerpt (number of words).
+	 * @param int    $length The length of the excerpt (number of words).
 	 * @return string The excerpt.
 	 */
-	public function getExcerpt( $text, $length = 50 ) {
-	    if ( strlen( $text ) > $length ) {
-	        $excerpt = substr( $text, 0, $length );
-	    } else {
-	        $excerpt = $text;
-	    }
-	    
-	    return $this->attempt_transliteration( $excerpt );
+	public function get_excerpt( $text, $length = 50 ) {
+		if ( strlen( $text ) > $length ) {
+			$excerpt = substr( $text, 0, $length );
+		} else {
+			$excerpt = $text;
+		}
+
+		return $this->attempt_transliteration( $excerpt );
 	}
 
 	/**
 	 * Force https for urls.
 	 *
-	 * @param mixed $content
+	 * @param mixed $url URL to normalize.
 	 * @return string
 	 */
 	public static function force_https_url( $url ) {
@@ -787,80 +883,88 @@ class CheckoutBuilder {
 	/**
 	 * Attempts to transliterate the given field into a standard ASCII format.
 	 *
-	 * This function is typically used to ensure that text fields are free of 
-	 * special characters or non-ASCII characters, which may cause issues in 
+	 * This function is typically used to ensure that text fields are free of
+	 * special characters or non-ASCII characters, which may cause issues in
 	 * processing, storage, or compatibility with external systems.
 	 *
-	 * @param mixed $field The field to be transliterated. This can be a string 
+	 * @param mixed $field The field to be transliterated. This can be a string
 	 *                     or another data type that needs to be processed.
-	 * 
-	 * @return mixed The transliterated value if the operation is successful, 
+	 *
+	 * @return mixed The transliterated value if the operation is successful,
 	 *               or the original field if transliteration is not applicable.
 	 */
 	public function attempt_transliteration( $field ) {
-        $encode = mb_detect_encoding( $field );
-        if ( $encode !== 'ASCII' ) {
-            if ( function_exists( 'transliterator_transliterate' ) ) {
-                $field = transliterator_transliterate( 'Any-Latin; Latin-ASCII; [\u0080-\u7fff] remove', $field );
-            } else {
-                // fall back to iconv if intl module not available
-                $field = remove_accents( $field );
-                $field = iconv( $encode, 'ASCII//TRANSLIT//IGNORE', $field );
-                $field = str_ireplace( '?', '', $field );
-                $field = trim( $field );
-            }
-        }
+		$field  = (string) $field;
+		$encode = mb_detect_encoding( $field );
+		if ( ! is_string( $encode ) ) {
+			$encode = 'UTF-8';
+		}
 
-        return $field;
-    }
+		if ( 'ASCII' !== $encode ) {
+			if ( function_exists( 'transliterator_transliterate' ) ) {
+				$transliterated = transliterator_transliterate( 'Any-Latin; Latin-ASCII; [\u0080-\u7fff] remove', $field );
+				$field          = is_string( $transliterated ) ? $transliterated : $field;
+			} else {
+				// fall back to iconv if intl module not available.
+				$field     = remove_accents( $field );
+				$converted = iconv( $encode, 'ASCII//TRANSLIT//IGNORE', $field );
+				$field     = is_string( $converted ) ? $converted : $field;
+				$field     = str_ireplace( '?', '', $field );
+				$field     = trim( $field );
+			}
+		}
+
+		return $field;
+	}
 
 	/**
 	 * Retrieves the payment link order information.
 	 *
-	 * @return array
+	 * @param int $order_id WooCommerce order ID.
+	 * @return array<string, mixed>
 	 */
-	public function getPaymentLinkOrder( $order_id ) { // phpcs:ignore
-		$order = wc_get_order( $order_id );
+	public function get_payment_link_order( $order_id ) { // phpcs:ignore
+		$order = self::resolve_order( (int) $order_id );
 		if ( ! $order ) {
-			return [];
+			return array();
 		}
 
 		$previous_order = $this->order;
 		$this->order    = $order;
 
-		$handling_fee  = 0;
+		$handling_fee  = 0.0;
 		$order_summary = array();
 		$fees          = $order->get_fees();
 
 		if ( ! empty( $fees ) ) {
 			foreach ( $fees as $fee ) {
-				$handling_fee += $fee->get_total();
+				$handling_fee += (float) $fee->get_total();
 			}
 		}
 
-		$shipping_fee = (float) $handling_fee + (float) $order->get_shipping_total();
+		$shipping_fee = $handling_fee + (float) $order->get_shipping_total();
 
 		if ( 'yes' === $this->gateway->send_line_items ) {
 			$line_items = $this->buildOrderLineItems( $order->get_items(), false );
 
 			$order_summary = array(
-				'id'          => (string) PaymentController::get_instance()->add_order_prefix( $order->get_id() ),
+				'id'          => (string) PaymentController::get_instance()->add_order_prefix( (string) $order->get_id() ),
 				'description' => 'Payment Link Order',
 				'item'        => $line_items,
 			);
 
 		} else {
 			$order_summary = array(
-				'id'          => (string) PaymentController::get_instance()->add_order_prefix( $order->get_id() ),
+				'id'          => (string) PaymentController::get_instance()->add_order_prefix( (string) $order->get_id() ),
 				'description' => 'Payment Link Order',
 			);
 		}
 
 		$order_summary = $this->appendOrderBreakdownAmounts( $order_summary, $shipping_fee );
-		$order_summary['amount']   = $this->formattedPrice( $order->get_total() );
+		$order_summary['amount']   = $this->formatted_price( $order->get_total() );
 		$order_summary['currency'] = $order->get_currency();
 
-		$payload = self::normalizeMonetaryFields( $order_summary );
+		$payload = self::normalize_monetary_fields( $order_summary );
 
 		if ( ! empty( $payload['item'] ) && is_array( $payload['item'] ) ) {
 			$payload['itemAmount'] = self::sumLineItemsAmount( $payload['item'] );
@@ -873,13 +977,18 @@ class CheckoutBuilder {
 		return $result;
 	}
 
-	public function getPaymentLinkSettings() {
-		
+	/**
+	 * Payment link expiry and attempt limits for MPGS.
+	 *
+	 * @return array<string, int|string>
+	 */
+	public function get_payment_link_settings() {
+
 		$value    = $this->gateway->get_option( 'payment_expiry_value' );
 		$unit     = $this->gateway->get_option( 'payment_expiry_unit' );
 		$attempts = $this->gateway->get_option( 'payment_allowed_attempts' );
 
-		// Default expiry: 3 months
+		// Default expiry: 3 months.
 		if ( empty( $value ) || empty( $unit ) ) {
 			$expiry_timestamp = strtotime( '+3 months' );
 		} else {
@@ -893,17 +1002,20 @@ class CheckoutBuilder {
 					break;
 
 				case 'months':
-					$days            = intval( $value ) * 30;
+					$days             = intval( $value ) * 30;
 					$expiry_timestamp = strtotime( '+' . $days . ' days' );
 					break;
-				
+
 				default:
 					$expiry_timestamp = strtotime( '+3 months' );
 			}
 		}
 
-		// Format with milliseconds
-		$expiry = gmdate( 'Y-m-d\TH:i:s', $expiry_timestamp ) . '.000Z';
+		// Format with milliseconds.
+		if ( false === $expiry_timestamp ) {
+			$expiry_timestamp = strtotime( '+3 months' );
+		}
+		$expiry = gmdate( 'Y-m-d\TH:i:s', (int) $expiry_timestamp ) . '.000Z';
 
 		if ( empty( $attempts ) ) {
 			$attempts = 25;
@@ -915,22 +1027,43 @@ class CheckoutBuilder {
 		);
 	}
 
-	public function getBillingFromOrder( $order_id ) {
-		$order   = wc_get_order( $order_id );
+	/**
+	 * Build billing address payload for a specific order ID.
+	 *
+	 * @param int $order_id WooCommerce order ID.
+	 * @return array<string, mixed>
+	 */
+	public function get_billing_from_order( $order_id ) {
+		$order   = self::resolve_order( (int) $order_id );
 		$billing = array();
 
 		if ( ! $order ) {
 			return $billing;
 		}
 
-		// Safest: get billing address array directly
+		// Safest: get billing address array directly.
 		$billing_data = $order->get_address( 'billing' );
-		$fields = array( 
-			'street'        => array( 'key' => 'address_1', 'length' => 100 ),
-			'street2'       => array( 'key' => 'address_2', 'length' => 100 ),
-			'city'          => array( 'key' => 'city',      'length' => 100 ),
-			'postcodeZip'   => array( 'key' => 'postcode',  'length' => 10 ),
-			'stateProvince' => array( 'key' => 'state',     'length' => 20 ),
+		$fields       = array(
+			'street'        => array(
+				'key'    => 'address_1',
+				'length' => 100,
+			),
+			'street2'       => array(
+				'key'    => 'address_2',
+				'length' => 100,
+			),
+			'city'          => array(
+				'key'    => 'city',
+				'length' => 100,
+			),
+			'postcodeZip'   => array(
+				'key'    => 'postcode',
+				'length' => 10,
+			),
+			'stateProvince' => array(
+				'key'    => 'state',
+				'length' => 20,
+			),
 		);
 
 		foreach ( $fields as $key => $field ) {
@@ -943,36 +1076,56 @@ class CheckoutBuilder {
 		$country = $order->get_billing_country();
 
 		if ( $country ) {
-			$billing['address']['country'] = $this->iso2ToIso3( $country );
+			$billing['address']['country'] = $this->iso2_to_iso3( $country );
 		}
-		
 
 		return $billing;
 	}
 
 
-	public function getShippingFromOrder( $order_id ) {
-		$order    = wc_get_order( $order_id );
+	/**
+	 * Build shipping address payload for a specific order ID.
+	 *
+	 * @param int $order_id WooCommerce order ID.
+	 * @return array<string, mixed>|null
+	 */
+	public function get_shipping_from_order( $order_id ) {
+		$order    = self::resolve_order( (int) $order_id );
 		$shipping = array();
 
 		if ( ! $order ) {
 			return $shipping;
 		}
 
-		// Skip if order is virtual (same as your current check)
-		if ( $order->get_shipping_total() == 0 && ! $order->get_shipping_first_name() && ! $order->get_shipping_address_1() ) {
+		// Skip if order is virtual (same as your current check).
+		if ( (float) $order->get_shipping_total() === 0.0 && ! $order->get_shipping_first_name() && ! $order->get_shipping_address_1() ) {
 			return null;
 		}
 
-		$addressFields = array(
-			'street'        => array( 'method' => 'get_shipping_address_1', 'length' => 100 ),
-			'street2'       => array( 'method' => 'get_shipping_address_2', 'length' => 100 ),
-			'city'          => array( 'method' => 'get_shipping_city',      'length' => 100 ),
-			'postcodeZip'   => array( 'method' => 'get_shipping_postcode',  'length' => 10 ),
-			'stateProvince' => array( 'method' => 'get_shipping_state',     'length' => 20 ),
+		$address_fields = array(
+			'street'        => array(
+				'method' => 'get_shipping_address_1',
+				'length' => 100,
+			),
+			'street2'       => array(
+				'method' => 'get_shipping_address_2',
+				'length' => 100,
+			),
+			'city'          => array(
+				'method' => 'get_shipping_city',
+				'length' => 100,
+			),
+			'postcodeZip'   => array(
+				'method' => 'get_shipping_postcode',
+				'length' => 10,
+			),
+			'stateProvince' => array(
+				'method' => 'get_shipping_state',
+				'length' => 20,
+			),
 		);
 
-		foreach ( $addressFields as $key => $field ) {
+		foreach ( $address_fields as $key => $field ) {
 			$value = $order->{ $field['method'] }();
 			if ( $value ) {
 				$shipping['address'][ $key ] = self::is_safe( $value, $field['length'] );
@@ -982,15 +1135,21 @@ class CheckoutBuilder {
 		$country = $order->get_shipping_country();
 		if ( $country ) {
 
-			$shipping['address']['country'] =  $this->iso2ToIso3( $country );
+			$shipping['address']['country'] = $this->iso2_to_iso3( $country );
 		}
 
-		$contactFields = array( 
-			'firstName' => array( 'method' => 'get_shipping_first_name', 'length' => 50 ),
-			'lastName'  => array( 'method' => 'get_shipping_last_name',  'length' => 50 ),
+		$contact_fields = array(
+			'firstName' => array(
+				'method' => 'get_shipping_first_name',
+				'length' => 50,
+			),
+			'lastName'  => array(
+				'method' => 'get_shipping_last_name',
+				'length' => 50,
+			),
 		);
 
-		foreach ( $contactFields as $key => $field ) {
+		foreach ( $contact_fields as $key => $field ) {
 			$value = $order->{ $field['method'] }();
 			if ( $value ) {
 				$shipping['contact'][ $key ] = self::is_safe( $value, $field['length'] );
