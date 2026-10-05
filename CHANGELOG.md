@@ -1,6 +1,29 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.4] - 2026-10-05
+### Enhancement
+- Updated the plugin with latest coding standards.
+- Compatibility with Jaywan card scheme in hosted checkout.
+- Compatibility with PHP v8.5.
+
+### Fixed
+- Implemented security patches and bug fixes.
+
+## [1.5.3.2] - 2026-08-05
+### Enhancement
+- Click to pay support in hosted checkout.
+
+### Fixed
+- Guest Checkout Error Fix : Fixed an issue that prevented customers from being redirected to the Mastercard Hosted Checkout page during guest checkout.
+
+## [1.5.3.1] - 2026-06-11
+### Added
+- IRIS Pay Support in Hosted Checkout.
+
+### Fixed
+- Resolved bugs related to Greek currency processing.
+
 ## [1.5.3] - 2026-06-01
 ### Added
 - Introduced "Pay By Link" feature in Hosted Checkout.
