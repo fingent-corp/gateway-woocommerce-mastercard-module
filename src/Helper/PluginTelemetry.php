@@ -107,15 +107,9 @@ class PluginTelemetry {
 	 * @return void
 	 */
 	public static function maybe_send_gateway_configured( array $settings ) {
-		$sandbox = isset( $settings['sandbox'] ) ? (string) $settings['sandbox'] : 'no';
 
-		if ( 'yes' === $sandbox ) {
-			$username = isset( $settings['sandbox_username'] ) ? trim( (string) $settings['sandbox_username'] ) : '';
-			$password = isset( $settings['sandbox_password'] ) ? trim( (string) $settings['sandbox_password'] ) : '';
-		} else {
-			$username = isset( $settings['username'] ) ? trim( (string) $settings['username'] ) : '';
-			$password = isset( $settings['password'] ) ? trim( (string) $settings['password'] ) : '';
-		}
+		$username = isset( $settings['username'] ) ? trim( (string) $settings['username'] ) : '';
+		$password = isset( $settings['password'] ) ? trim( (string) $settings['password'] ) : '';
 
 		if ( '' === $username || '' === $password ) {
 			return;
@@ -131,6 +125,7 @@ class PluginTelemetry {
 			update_option( self::OPTION_LAST_CONFIGURED_HASH, $configured_hash, false );
 		}
 	}
+
 
 	/**
 	 * After a plugin update, report the new version when this plugin was updated.
