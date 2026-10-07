@@ -64,7 +64,7 @@ class Constants {
 	 * @return void
 	 */
 	private function define_constants() {
-		$wiki_domain = 'https://uat-wiki.fingent.net';
+		$wiki_domain = 'https://mpgs.fingent.wiki';
 		$wiki_base_url = $wiki_domain . '/enterprise/woocommerce-mastercard-gateway/';
 
 		$this->define( 'MG_ENTERPRISE_ID', 'mastercard_gateway' );
