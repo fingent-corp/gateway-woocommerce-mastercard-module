@@ -17,6 +17,11 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Constants {
 	/**
+	 * Legacy 1.5.1 gateway ID.
+	 */
+	public const LEGACY_GATEWAY_ID = 'mpgs_gateway';
+
+	/**
 	 * The single instance of the class.
 	 *
 	 * @var self|null
@@ -68,8 +73,9 @@ class Constants {
 		$wiki_base_url = $wiki_domain . '/enterprise/woocommerce-mastercard-gateway/';
 
 		$this->define( 'MG_ENTERPRISE_ID', 'mastercard_gateway' );
+		$this->define( 'MG_LEGACY_ENTERPRISE_ID', self::LEGACY_GATEWAY_ID );
 		$this->define( 'MG_ENTERPRISE_GATEWAY_TITLE', 'Mastercard Gateway' );
-		$this->define( 'MG_ENTERPRISE_MODULE_VERSION', '1.5.4' );
+		$this->define( 'MG_ENTERPRISE_MODULE_VERSION', '1.5.4.1' );
 		$this->define( 'MG_ENTERPRISE_CAPTURE_URL', $wiki_domain . '/wp-json/mpgs/v2/update-repo-status/' );
 		$this->define( 'MG_ENTERPRISE_SUPPORT_URL', 'https://mpgsfgs.atlassian.net/servicedesk/customer/portals/' );
 		$this->define( 'MG_ENTERPRISE_WIKI_URL', $wiki_base_url . 'installation/' );

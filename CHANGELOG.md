@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.4.1] - 2026-10-26
+### Fixed
+- Ensures a seamless transition when upgrading from version 1.5.1.1 or older.
+- Resolves an issue where pending captures or refunds from older orders could not be managed after updating.
+- Retains saved settings during the update, so users won't need to re-enter them when upgrading from version 1.5.1.1 or earlier.
+
 ## [1.5.4] - 2026-10-05
 ### Enhancement
 - Updated the plugin with latest coding standards.

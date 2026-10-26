@@ -21,6 +21,7 @@ use Fingent\Mastercard\Logger\GatewayResponseException;
 use Fingent\Mastercard\Emails\PaymentRequestEmail;
 use Fingent\Mastercard\Emails\PaymentRevokedEmail;
 use Fingent\Mastercard\Exception\PluginException;
+use Fingent\Mastercard\Helper\Constants;
 use Fingent\Mastercard\Helper\PluginTelemetry;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -204,7 +205,7 @@ class AdminController {
 		if ( $order_id ) {
 			$order = self::resolve_order( (int) $order_id );
 
-			if ( $order && MG_ENTERPRISE_ID === $order->get_payment_method() &&
+			if ( $order && $this->is_gateway_order( $order ) &&
 				'authorize' === $order->get_meta( self::META_TRANSACTION_MODE ) &&
 				'processing' === $order->get_status() ) {
 
@@ -495,6 +496,18 @@ class AdminController {
 	}
 
 	/**
+	 * Whether the order was paid with this plugin, including 1.5.1 orders.
+	 *
+	 * @param \WC_Order $order WooCommerce order.
+	 * @return bool
+	 */
+	private function is_gateway_order( $order ) {
+		$payment_method = $this->get_order_payment_method( $order );
+
+		return in_array( $payment_method, array( MG_ENTERPRISE_ID, Constants::LEGACY_GATEWAY_ID ), true );
+	}
+
+	/**
 	 * Resolve order payment method during admin save/create cycles.
 	 *
 	 * HPOS/legacy save flows may temporarily expose payment method via order meta
@@ -662,8 +675,9 @@ class AdminController {
 	 *
 	 * @param AdminPayload $settings Gateway settings being saved.
 	 */
-	public function capture_gateway_data( $settings ): void {
-		PluginTelemetry::maybe_send_version_update();
+	public function capture_gateway_data( $settings ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found
+		// Non-blocking: queue background telemetry; configured is handled after save.
+		PluginTelemetry::maybe_dispatch();
 	}
 
 	/**
@@ -678,7 +692,7 @@ class AdminController {
 	 * @return bool Updated value of $render_refunds indicating whether refunds should be rendered.
 	 */
 	public function admin_order_should_render_refunds( $render_refunds, $order_id, $order ): bool {
-		if ( MG_ENTERPRISE_ID === $order->get_payment_method()
+		if ( $this->is_gateway_order( $order )
 			&& ( 'refunded' === $order->get_status() || 'cancelled' === $order->get_status() || empty( $order->get_meta( self::META_ORDER_CAPTURED ) ) ) ) {
 			return false;
 		}
@@ -759,7 +773,7 @@ class AdminController {
 			throw new PluginException( 'Order not found.' );
 		}
 
-		if ( MG_ENTERPRISE_ID !== $order->get_payment_method() ) {
+		if ( ! $this->is_gateway_order( $order ) ) {
 			throw new PluginException( 'Wrong payment method' );
 		}
 		if ( 'processing' !== $order->get_status() ) {
@@ -885,7 +899,7 @@ class AdminController {
 				throw new PluginException( 'Authorization transaction not found.' );
 			}
 
-			if ( MG_ENTERPRISE_ID !== $order->get_payment_method() ) {
+			if ( ! $this->is_gateway_order( $order ) ) {
 				throw new PluginException( 'Wrong payment method' );
 			}
 			if ( 'processing' !== $order->get_status() ) {

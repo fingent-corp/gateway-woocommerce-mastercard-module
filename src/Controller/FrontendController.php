@@ -242,7 +242,7 @@ class FrontendController {
                 return;
             }
 
-            $payment_gateways = WC()->payment_gateways->get_available_payment_gateways();
+            $payment_gateways = WC()->payment_gateways()->get_available_payment_gateways();
             $first_gateway    = reset( $payment_gateways );
 
             if ( $first_gateway ) {
@@ -258,7 +258,7 @@ class FrontendController {
 
         $order = wc_get_order( absint( get_query_var( 'order-pay' ) ) );
 
-        if ( ! $order ) {
+        if ( ! $order instanceof \WC_Order ) {
             return;
         }
 
