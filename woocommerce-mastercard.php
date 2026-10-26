@@ -6,7 +6,7 @@
  * Author: Fingent Global Solutions Pvt. Ltd.
  * Author URI: https://www.fingent.com/
  * Tags: payment, payment-gateway, mastercard, mastercard-payements, mastercard-gateway, woocommerce-plugin, woocommerce-payment, woocommerce-extension, woocommerce-shop, mastercard, woocommerce-api, woocommerce-blocks
- * Version: 1.5.4
+ * Version: 1.5.4.1
  * Requires Plugins: woocommerce
  * Requires at least: 6.0
  * Tested up to: 7.0
@@ -16,10 +16,10 @@
  * Domain Path: /languages
  *
  * WC requires at least: 8.7
- * WC tested up to: 10.8.1
+ * WC tested up to: 11.2.1
  *
  * @package  Mastercard
- * @version  GIT: @1.5.3.1@
+ * @version  GIT: @1.5.4.1@
  * @link     https://github.com/fingent-corp/gateway-woocommerce-mastercard-module/
  */
 
@@ -46,6 +46,7 @@ define( 'MG_ENTERPRISE_MAIN_FILE', __FILE__ );
 define( 'MG_ENTERPRISE_PLUGIN_BASENAME', plugin_basename( MG_ENTERPRISE_MAIN_FILE ) );
 define( 'MG_ENTERPRISE_DIR_PATH', trailingslashit( plugin_dir_path( __FILE__ ) ) );
 define( 'MG_ENTERPRISE_TEXTDOMAIN', 'mastercard-gateway' );
+define( 'MG_LEGACY_ENTERPRISE_ID', 'mpgs_gateway' );
 
 
 // Require Composer autoload.
@@ -54,6 +55,8 @@ if ( file_exists( MG_ENTERPRISE_DIR_PATH . 'vendor/autoload.php' ) ) {
 }
 
 use Fingent\Mastercard\Core\Loader;
+use Fingent\Mastercard\Helper\PluginUpdateNotifier;
 
 add_action( 'plugins_loaded', array( Loader::class, 'init' ) );
 register_activation_hook( __FILE__, 'Fingent\Mastercard\Core\Loader::activation_hook' );
+register_deactivation_hook( __FILE__, array( PluginUpdateNotifier::class, 'deactivate' ) );

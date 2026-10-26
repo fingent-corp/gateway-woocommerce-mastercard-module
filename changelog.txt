@@ -1,5 +1,11 @@
 == Mastercard Payment Gateway Services Changelog ==
 
+2026-10-26 - version 1.5.4.1
+
+* Fix - Ensures a seamless transition when upgrading from version 1.5.1.1 or older.
+* Fix - Resolves an issue where pending captures or refunds from older orders could not be managed after updating.
+* Fix - Retains saved settings during the update, so users won't need to re-enter them when upgrading from version 1.5.1.1 or earlier.
+
 2026-10-05 - version 1.5.4
 
 * Enhancement - Updated the plugin with latest coding standards.

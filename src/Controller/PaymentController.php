@@ -9,6 +9,7 @@
 namespace Fingent\Mastercard\Controller;
 
 use WC_Order;
+use WC_Payment_Tokens;
 use Fingent\Mastercard\Logger\ApiErrorPlugin;
 use Fingent\Mastercard\Logger\ApiLoggerPlugin;
 use Fingent\Mastercard\Logger\GatewayResponseException;
@@ -20,6 +21,7 @@ use Fingent\Mastercard\Controller\GatewayServiceController;
 use Fingent\Mastercard\Controller\UtilityController;
 use Fingent\Mastercard\Core\PaymentTokenCC;
 use Fingent\Mastercard\Helper\CheckoutBuilder;
+use Fingent\Mastercard\Helper\Constants;
 use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
 
@@ -741,11 +743,26 @@ class PaymentController {
 
 		$token_id = $this->sanitize_request_field( $token_key ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
+		if ( ! $token_id || 'new' === $token_id ) {
+			return array();
+		}
+
 		$tokens = $this->gateway->get_tokens();
 
-		if ( $token_id && isset( $tokens[ $token_id ] ) ) {
+		if ( isset( $tokens[ $token_id ] ) ) {
 			return array(
 				'token' => $tokens[ $token_id ]->get_token(),
+			);
+		}
+
+		$token = WC_Payment_Tokens::get( (int) $token_id );
+		if (
+			$token instanceof \WC_Payment_Token
+			&& (int) $token->get_user_id() === get_current_user_id()
+			&& in_array( $token->get_gateway_id(), array( MG_ENTERPRISE_ID, Constants::LEGACY_GATEWAY_ID ), true )
+		) {
+			return array(
+				'token' => $token->get_token(),
 			);
 		}
 

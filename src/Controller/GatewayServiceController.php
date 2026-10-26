@@ -1146,9 +1146,10 @@ class GatewayServiceController {
 			$response     = wp_remote_post(
 				$api_url,
 				array(
-					'body'    => false !== $request_body ? $request_body : '{}',
-					'headers' => $headers,
-					'timeout' => 15,
+					'body'        => false !== $request_body ? $request_body : '{}',
+					'headers'     => $headers,
+					'timeout'     => 5,
+					'redirection' => 2,
 				)
 			);
 
